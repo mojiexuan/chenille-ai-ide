@@ -151,7 +151,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
 			id: 'editor.action.smartSelect.expand',
-			label: nls.localize2('smartSelect.expand', "Expand Selection"),
+			label: nls.localize2('smartSelect.expand', "扩大选择"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -165,7 +165,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
-				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"),
+				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "扩大选择"),
 				order: 2
 			}
 		});
@@ -179,7 +179,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize2('smartSelect.shrink', "Shrink Selection"),
+			label: nls.localize2('smartSelect.shrink', "缩小选择"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -193,7 +193,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
-				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"),
+				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "缩小选择"),
 				order: 3
 			}
 		});

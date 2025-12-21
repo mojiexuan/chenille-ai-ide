@@ -59,7 +59,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUse
 	}
 	return {
 		id: 'commonlyUsed',
-		label: localize('commonlyUsed', "Commonly Used"),
+		label: localize('commonlyUsed', "常用"),
 		settings
 	};
 }
@@ -171,7 +171,7 @@ export const tocData: ITOCEntry<string> = {
 		},
 		{
 			id: 'features',
-			label: localize('features', "Features"),
+			label: localize('features', "功能"),
 			children: [
 				{
 					id: 'features/accessibilitySignals',
@@ -185,7 +185,7 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "Explorer"),
+					label: localize('fileExplorer', "资源管理器"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{

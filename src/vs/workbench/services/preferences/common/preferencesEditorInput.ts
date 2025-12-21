@@ -14,7 +14,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IPreferencesService } from './preferences.js';
 import { Settings2EditorModel } from './preferencesModels.js';
 
-const SettingsEditorIcon = registerIcon('settings-editor-label-icon', Codicon.settings, nls.localize('settingsEditorLabelIcon', 'Icon of the settings editor label.'));
+const SettingsEditorIcon = registerIcon('settings-editor-label-icon', Codicon.settings, nls.localize('settingsEditorLabelIcon', '设置编辑器标签的图标。'));
 
 export class SettingsEditor2Input extends EditorInput {
 
@@ -43,7 +43,7 @@ export class SettingsEditor2Input extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('settingsEditor2InputName', "Settings");
+		return nls.localize('settingsEditor2InputName', "设置");
 	}
 
 	override getIcon(): ThemeIcon {
@@ -61,7 +61,7 @@ export class SettingsEditor2Input extends EditorInput {
 	}
 }
 
-const PreferencesEditorIcon = registerIcon('preferences-editor-label-icon', Codicon.settings, nls.localize('preferencesEditorLabelIcon', 'Icon of the preferences editor label.'));
+const PreferencesEditorIcon = registerIcon('preferences-editor-label-icon', Codicon.settings, nls.localize('preferencesEditorLabelIcon', '首选项编辑器标签的图标。'));
 
 export class PreferencesEditorInput extends EditorInput {
 
@@ -81,7 +81,7 @@ export class PreferencesEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('preferencesEditorInputName', "Preferences");
+		return nls.localize('preferencesEditorInputName', "首选项");
 	}
 
 	override getIcon(): ThemeIcon {

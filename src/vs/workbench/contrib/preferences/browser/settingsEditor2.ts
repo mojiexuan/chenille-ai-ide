@@ -97,11 +97,11 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 	fromScroll: true;
 }
 
-const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+const searchBoxLabel = localize('SearchSettings.AriaLabel', "搜索设置");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
-const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
-const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
+const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "显示 AI 推荐的结果");
+const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "当前没有可用的 AI 结果...");
 
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 
@@ -712,7 +712,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
 		const clearInputAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-			localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false,
+			localize('clearInput', "清除设置搜索输入"), ThemeIcon.asClassName(preferencesClearInputIcon), false,
 			async () => this.clearSearchResults()
 		));
 
@@ -725,7 +725,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		const filterAction = this._register(new Action(SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS,
-			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
+			localize('filterInput', "筛选设置"), ThemeIcon.asClassName(preferencesFilterIcon)
 		));
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, this.searchContainer, {
@@ -818,7 +818,7 @@ export class SettingsEditor2 extends EditorPane {
 	toggleAiSearch(): void {
 		if (this.searchInputActionBar && this.showAiResultsAction && this.searchInputActionBar.hasAction(this.showAiResultsAction)) {
 			if (!this.showAiResultsAction.enabled) {
-				aria.status(localize('noAiResults', "No AI results available at this time."));
+				aria.status(localize('noAiResults', "当前没有可用的 AI 结果。"));
 			}
 			this.showAiResultsAction.checked = !this.showAiResultsAction.checked;
 		}
@@ -948,12 +948,12 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.noResultsMessage = DOM.append(this.bodyContainer, $('.no-results-message'));
 
-		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+		this.noResultsMessage.innerText = localize('noResults', "未找到设置");
 
 		this.clearFilterLinkContainer = $('span.clear-search-filters');
 
 		this.clearFilterLinkContainer.textContent = ' - ';
-		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
+		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', '清除筛选器')));
 		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 			this.clearSearchFilters();
@@ -1027,7 +1027,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
 			DOM.append(container, $('.settings-toc-wrapper', {
 				'role': 'navigation',
-				'aria-label': localize('settings', "Settings"),
+				'aria-label': localize('settings', "设置"),
 			})),
 			this.viewState));
 		this.tocTreeDisposed = false;
@@ -1565,7 +1565,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (configuredUntrustedWorkspaceSettings.length) {
 				resolvedSettingsRoot.children!.unshift({
 					id: 'workspaceTrust',
-					label: localize('settings require trust', "Workspace Trust"),
+					label: localize('settings require trust', "工作区信任"),
 					settings: configuredUntrustedWorkspaceSettings
 				});
 			}
@@ -2055,15 +2055,15 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (showAiResultsMessage) {
 				switch (count) {
-					case 0: resultString = localize('noResultsWithAiAvailable', "No Settings Found. AI Results Available"); break;
-					case 1: resultString = localize('oneResultWithAiAvailable', "1 Setting Found. AI Results Available"); break;
-					default: resultString = localize('moreThanOneResultWithAiAvailable', "{0} Settings Found. AI Results Available", count);
+					case 0: resultString = localize('noResultsWithAiAvailable', "未找到设置。有 AI 结果可用"); break;
+					case 1: resultString = localize('oneResultWithAiAvailable', "找到 1 个设置。有 AI 结果可用"); break;
+					default: resultString = localize('moreThanOneResultWithAiAvailable', "找到 {0} 个设置。有 AI 结果可用", count);
 				}
 			} else {
 				switch (count) {
-					case 0: resultString = localize('noResults', "No Settings Found"); break;
-					case 1: resultString = localize('oneResult', "1 Setting Found"); break;
-					default: resultString = localize('moreThanOneResult', "{0} Settings Found", count);
+					case 0: resultString = localize('noResults', "未找到设置"); break;
+					case 1: resultString = localize('oneResult', "找到 1 个设置"); break;
+					default: resultString = localize('moreThanOneResult', "找到 {0} 个设置", count);
 				}
 			}
 
@@ -2164,7 +2164,7 @@ class SyncControls extends Disposable {
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Backup and Sync Settings");
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "备份和同步设置");
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
@@ -2194,7 +2194,7 @@ class SyncControls extends Disposable {
 		let label: string;
 		if (typeof last === 'number') {
 			const d = fromNow(last, true, undefined, true);
-			label = localize('lastSyncedLabel', "Last synced: {0}", d);
+			label = localize('lastSyncedLabel', "上次同步: {0}", d);
 		} else {
 			label = '';
 		}

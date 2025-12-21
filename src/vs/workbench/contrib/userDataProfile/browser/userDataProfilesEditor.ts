@@ -70,10 +70,10 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 
-const editIcon = registerIcon('profiles-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the profiles editor.'));
-const removeIcon = registerIcon('profiles-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the profiles editor.'));
+const editIcon = registerIcon('profiles-editor-edit-folder', Codicon.edit, localize('editIcon', '配置文件编辑器中编辑文件夹的图标。'));
+const removeIcon = registerIcon('profiles-editor-remove-folder', Codicon.close, localize('removeIcon', '配置文件编辑器中删除文件夹的图标。'));
 
-export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "配置文件编辑器拆分视图分隔条边框的颜色。"));
 
 const listStyles = getListStyles({
 	listActiveSelectionBackground: editorBackground,
@@ -200,7 +200,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 						return profileElement?.name ?? '';
 					},
 					getWidgetAriaLabel(): string {
-						return localize('profiles', "Profiles");
+						return localize('profiles', "配置文件");
 					}
 				},
 				openOnSingleClick: true,
@@ -222,12 +222,12 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				getActions: () => {
 					const actions: IAction[] = [];
 					if (this.templates.length) {
-						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
+						actions.push(new SubmenuAction('from.template', localize('from template', "从模板"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
 					actions.push(toAction({
 						id: 'importProfile',
-						label: localize('importProfile', "Import Profile..."),
+						label: localize('importProfile', "导入配置文件..."),
 						run: () => this.importProfile()
 					}));
 					return actions;
@@ -238,7 +238,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			supportIcons: true,
 			...defaultButtonStyles
 		}));
-		button.label = localize('newProfile', "New Profile");
+		button.label = localize('newProfile', "新建配置文件");
 		this._register(button.onDidClick(e => this.createNewProfile()));
 	}
 
@@ -287,17 +287,17 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		const actions: IAction[] = [];
 		actions.push(toAction({
 			id: 'newProfile',
-			label: localize('newProfile', "New Profile"),
+			label: localize('newProfile', "新建配置文件"),
 			run: () => this.createNewProfile()
 		}));
 		const templateActions = this.getCreateFromTemplateActions();
 		if (templateActions.length) {
-			actions.push(new SubmenuAction('from.template', localize('new from template', "New Profile From Template"), templateActions));
+			actions.push(new SubmenuAction('from.template', localize('new from template', "从模板新建配置文件"), templateActions));
 		}
 		actions.push(new Separator());
 		actions.push(toAction({
 			id: 'importProfile',
-			label: localize('importProfile', "Import Profile..."),
+			label: localize('importProfile', "导入配置文件..."),
 			run: () => this.importProfile()
 		}));
 		return actions;
@@ -310,14 +310,14 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		const updateQuickPickItems = (value?: string) => {
 			const quickPickItems: IQuickPickItem[] = [];
 			if (value) {
-				quickPickItems.push({ label: quickPick.value, description: localize('import from url', "Import from URL") });
+				quickPickItems.push({ label: quickPick.value, description: localize('import from url', "从 URL 导入") });
 			}
-			quickPickItems.push({ label: localize('import from file', "Select File...") });
+			quickPickItems.push({ label: localize('import from file', "选择文件...") });
 			quickPick.items = quickPickItems;
 		};
 
-		quickPick.title = localize('import profile quick pick title', "Import from Profile Template...");
-		quickPick.placeholder = localize('import profile placeholder', "Provide Profile Template URL");
+		quickPick.title = localize('import profile quick pick title', "从配置文件模板导入...");
+		quickPick.placeholder = localize('import profile placeholder', "提供配置文件模板 URL");
 		quickPick.ignoreFocusOut = true;
 		disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
 		updateQuickPickItems();
@@ -355,7 +355,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			canSelectFiles: true,
 			canSelectMany: false,
 			filters: PROFILE_FILTER,
-			title: localize('import profile dialog', "Select Profile Template File"),
+			title: localize('import profile dialog', "选择配置文件模板文件"),
 		});
 		if (!profileLocation) {
 			return null;
@@ -444,7 +444,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		const label = append(container, $('.profile-list-item-label'));
 		const dirty = append(container, $(`span${ThemeIcon.asCSSSelector(Codicon.circleFilled)}`));
 		const description = append(container, $('.profile-list-item-description'));
-		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "Active")));
+		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`), $('span', undefined, localize('activeProfile', "活动")));
 
 		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
 		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
@@ -874,17 +874,17 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 	protected getResourceTypeTitle(resourceType: ProfileResourceType): string {
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
-				return localize('settings', "Settings");
+				return localize('settings', "设置");
 			case ProfileResourceType.Keybindings:
-				return localize('keybindings', "Keyboard Shortcuts");
+				return localize('keybindings', "键盘快捷方式");
 			case ProfileResourceType.Snippets:
-				return localize('snippets', "Snippets");
+				return localize('snippets', "代码片段");
 			case ProfileResourceType.Tasks:
-				return localize('tasks', "Tasks");
+				return localize('tasks', "任务");
 			case ProfileResourceType.Mcp:
-				return localize('mcp', "MCP Servers");
+				return localize('mcp', "MCP 服务器");
 			case ProfileResourceType.Extensions:
-				return localize('extensions', "Extensions");
+				return localize('extensions', "扩展");
 		}
 		return '';
 	}
@@ -927,7 +927,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const nameContainer = append(parent, $('.profile-row-container'));
-		append(nameContainer, $('.profile-label-element', undefined, localize('name', "Name")));
+		append(nameContainer, $('.profile-label-element', undefined, localize('name', "名称")));
 		const nameInput = disposables.add(new InputBox(
 			nameContainer,
 			this.contextViewService,
@@ -935,13 +935,13 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				inputBoxStyles: getInputBoxStyle({
 					inputBorder: settingsTextInputBorder
 				}),
-				ariaLabel: localize('profileName', "Profile Name"),
-				placeholder: localize('profileName', "Profile Name"),
+				ariaLabel: localize('profileName', "配置文件名称"),
+				placeholder: localize('profileName', "配置文件名称"),
 				validationOptions: {
 					validation: (value) => {
 						if (!value) {
 							return {
-								content: localize('name required', "Profile name is required and must be a non-empty value."),
+								content: localize('name required', "配置文件名称是必需的，且必须为非空值。"),
 								type: MessageType.WARNING
 							};
 						}
@@ -955,7 +955,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 						value = value.trim();
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === value)) {
 							return {
-								content: localize('profileExists', "Profile with name {0} already exists.", value),
+								content: localize('profileExists', "名为 {0} 的配置文件已存在。", value),
 								type: MessageType.WARNING
 							};
 						}
@@ -986,9 +986,9 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				nameInput.enable();
 			}
 			if (isDefaultProfile) {
-				nameInput.setTooltip(localize('defaultProfileName', "Name cannot be changed for the default profile"));
+				nameInput.setTooltip(localize('defaultProfileName', "无法更改默认配置文件的名称"));
 			} else {
-				nameInput.setTooltip(localize('profileName', "Profile Name"));
+				nameInput.setTooltip(localize('profileName', "配置文件名称"));
 			}
 		};
 
@@ -1031,9 +1031,9 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const iconContainer = append(parent, $('.profile-row-container'));
-		append(iconContainer, $('.profile-label-element', undefined, localize('icon-label', "Icon")));
+		append(iconContainer, $('.profile-label-element', undefined, localize('icon-label', "图标")));
 		const iconValueContainer = append(iconContainer, $('.profile-icon-container'));
-		const iconElement = append(iconValueContainer, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
+		const iconElement = append(iconValueContainer, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "配置文件图标") }));
 		const iconHover = disposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, iconElement, ''));
 
 		const iconSelectBox = disposables.add(this.instantiationService.createInstance(WorkbenchIconSelectBox, { icons: ICONS, inputBoxStyles: defaultInputBoxStyles }));
@@ -1095,14 +1095,14 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 			}
 		}));
 
-		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "Profile icon to be shown in the activity bar")));
+		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "在活动栏中显示的配置文件图标")));
 
 		const renderIcon = (profileElement: ProfileTreeElement) => {
 			if (profileElement?.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault) {
 				iconValueContainer.classList.add('disabled');
-				iconHover.update(localize('defaultProfileIcon', "Icon cannot be changed for the default profile"));
+				iconHover.update(localize('defaultProfileIcon', "无法更改默认配置文件的图标"));
 			} else {
-				iconHover.update(localize('changeIcon', "Click to change icon"));
+				iconHover.update(localize('changeIcon', "单击以更改图标"));
 				iconValueContainer.classList.remove('disabled');
 			}
 			if (profileElement.root.icon) {
@@ -1144,9 +1144,9 @@ class UseForCurrentWindowPropertyRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useForCurrentWindowContainer = append(parent, $('.profile-row-container'));
-		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for curren window', "Use for Current Window")));
+		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for curren window', "用于当前窗口")));
 		const useForCurrentWindowValueContainer = append(useForCurrentWindowContainer, $('.profile-use-for-current-container'));
-		const useForCurrentWindowTitle = localize('enable for current window', "Use this profile for the current window");
+		const useForCurrentWindowTitle = localize('enable for current window', "将此配置文件用于当前窗口");
 		const useForCurrentWindowCheckbox = disposables.add(new Checkbox(useForCurrentWindowTitle, false, defaultCheckboxStyles));
 		append(useForCurrentWindowValueContainer, useForCurrentWindowCheckbox.domNode);
 		const useForCurrentWindowLabel = append(useForCurrentWindowValueContainer, $('.profile-description-element', undefined, useForCurrentWindowTitle));
@@ -1253,8 +1253,8 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const copyFromContainer = append(parent, $('.profile-row-container.profile-copy-from-container'));
-		append(copyFromContainer, $('.profile-label-element', undefined, localize('create from', "Copy from")));
-		append(copyFromContainer, $('.profile-description-element', undefined, localize('copy from description', "Select the profile source from which you want to copy contents")));
+		append(copyFromContainer, $('.profile-label-element', undefined, localize('create from', "复制自")));
+		append(copyFromContainer, $('.profile-description-element', undefined, localize('copy from description', "选择要从中复制内容的配置文件源")));
 		const copyFromSelectBox = disposables.add(this.instantiationService.createInstance(SelectBox,
 			[],
 			0,
@@ -1262,7 +1262,7 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 			defaultSelectBoxStyles,
 			{
 				useCustomDrawn: true,
-				ariaLabel: localize('copy profile from', "Copy profile from"),
+				ariaLabel: localize('copy profile from', "从配置文件复制"),
 			}
 		));
 		copyFromSelectBox.render(append(copyFromContainer, $('.profile-select-container')));
@@ -1311,7 +1311,7 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 	private getCopyFromOptions(profileElement: NewProfileElement): (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] {
 		const copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
-		copyFromOptions.push({ text: localize('empty profile', "None") });
+		copyFromOptions.push({ text: localize('empty profile', "无") });
 		for (const [copyFromTemplate, name] of profileElement.copyFromTemplates) {
 			if (!this.templates.some(template => this.uriIdentityService.extUri.isEqual(URI.parse(template.url), copyFromTemplate))) {
 				copyFromOptions.push({ text: `${name} (${basename(copyFromTemplate)})`, id: copyFromTemplate.toString(), source: copyFromTemplate });
@@ -1319,12 +1319,12 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 
 		if (this.templates.length) {
-			copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from templates', "Profile Templates") });
+			copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from templates', "配置文件模板") });
 			for (const template of this.templates) {
 				copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
 			}
 		}
-		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "Existing Profiles") });
+		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "现有配置文件") });
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
 				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
@@ -1360,13 +1360,13 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const configureRowContainer = append(parent, $('.profile-row-container'));
-		append(configureRowContainer, $('.profile-label-element', undefined, localize('contents', "Contents")));
+		append(configureRowContainer, $('.profile-label-element', undefined, localize('contents', "内容")));
 		const contentsDescriptionElement = append(configureRowContainer, $('.profile-description-element'));
 		const contentsTreeHeader = append(configureRowContainer, $('.profile-content-tree-header'));
-		const optionsLabel = $('.options-header', undefined, $('span', undefined, localize('options', "Source")));
+		const optionsLabel = $('.options-header', undefined, $('span', undefined, localize('options', "来源")));
 		append(contentsTreeHeader,
 			$(''),
-			$('', undefined, localize('contents', "Contents")),
+			$('', undefined, localize('contents', "内容")),
 			optionsLabel,
 			$(''),
 		);
@@ -1456,23 +1456,23 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 
 			const markdown = new MarkdownString();
 			if (element.root instanceof UserDataProfileElement && element.root.profile.isDefault) {
-				markdown.appendMarkdown(localize('default profile contents description', "Browse contents of this profile\n"));
+				markdown.appendMarkdown(localize('default profile contents description', "浏览此配置文件的内容\n"));
 			}
 
 			else {
-				markdown.appendMarkdown(localize('contents source description', "Configure source of contents for this profile\n"));
+				markdown.appendMarkdown(localize('contents source description', "配置此配置文件的内容来源\n"));
 				if (element.root instanceof NewProfileElement) {
 					const copyFromName = element.root.getCopyFromName();
 					const optionName = copyFromName === this.userDataProfilesService.defaultProfile.name
-						? localize('copy from default', "{0} (Copy)", copyFromName)
+						? localize('copy from default', "{0} (复制)", copyFromName)
 						: copyFromName;
 					if (optionName) {
 						markdown
-							.appendMarkdown(localize('copy info', "- *{0}:* Copy contents from the {1} profile\n", optionName, copyFromName));
+							.appendMarkdown(localize('copy info', "- *{0}:* 从 {1} 配置文件复制内容\n", optionName, copyFromName));
 					}
 					markdown
-						.appendMarkdown(localize('default info', "- *Default:* Use contents from the Default profile\n"))
-						.appendMarkdown(localize('none info', "- *None:* Create empty contents\n"));
+						.appendMarkdown(localize('default info', "- *默认:* 使用默认配置文件的内容\n"))
+						.appendMarkdown(localize('none info', "- *无:* 创建空内容\n"));
 				}
 			}
 
@@ -1545,7 +1545,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const profileWorkspacesRowContainer = append(parent, $('.profile-row-container'));
-		append(profileWorkspacesRowContainer, $('.profile-label-element', undefined, localize('folders_workspaces', "Folders & Workspaces")));
+		append(profileWorkspacesRowContainer, $('.profile-label-element', undefined, localize('folders_workspaces', "文件夹和工作区")));
 		const profileWorkspacesDescriptionElement = append(profileWorkspacesRowContainer, $('.profile-description-element'));
 
 		const workspacesTableContainer = append(profileWorkspacesRowContainer, $('.profile-associations-table'));
@@ -1567,14 +1567,14 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 					project(row: WorkspaceTableElement): WorkspaceTableElement { return row; },
 				},
 				{
-					label: localize('hostColumnLabel', "Host"),
+					label: localize('hostColumnLabel', "主机"),
 					tooltip: '',
 					weight: 2,
 					templateId: WorkspaceUriHostColumnRenderer.TEMPLATE_ID,
 					project(row: WorkspaceTableElement): WorkspaceTableElement { return row; },
 				},
 				{
-					label: localize('pathColumnLabel', "Path"),
+					label: localize('pathColumnLabel', "路径"),
 					tooltip: '',
 					weight: 7,
 					templateId: WorkspaceUriPathColumnRenderer.TEMPLATE_ID,
@@ -1605,12 +1605,12 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 					getAriaLabel: (item: WorkspaceTableElement) => {
 						const hostLabel = getHostLabel(this.labelService, item.workspace);
 						if (hostLabel === undefined || hostLabel.length === 0) {
-							return localize('trustedFolderAriaLabel', "{0}, trusted", this.labelService.getUriLabel(item.workspace));
+							return localize('trustedFolderAriaLabel', "{0}，受信任", this.labelService.getUriLabel(item.workspace));
 						}
 
-						return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.workspace), hostLabel);
+						return localize('trustedFolderWithHostAriaLabel', "{1} 上的 {0}，受信任", this.labelService.getUriLabel(item.workspace), hostLabel);
 					},
-					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces")
+					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "受信任的文件夹和工作区")
 				},
 				identityProvider: {
 					getId(element: WorkspaceTableElement) {
@@ -1628,16 +1628,16 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 
 		const addButtonBarElement = append(profileWorkspacesRowContainer, $('.profile-workspaces-button-container'));
 		const buttonBar = disposables.add(new ButtonBar(addButtonBarElement));
-		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder"), ...defaultButtonStyles }));
-		addButton.label = localize('addButton', "Add Folder");
+		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "添加文件夹"), ...defaultButtonStyles }));
+		addButton.label = localize('addButton', "添加文件夹");
 
 		disposables.add(addButton.onDidClick(async () => {
 			const uris = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: true,
-				openLabel: localize('addFolder', "Add Folder"),
-				title: localize('addFolderTitle', "Select Folders To Add")
+				openLabel: localize('addFolder', "添加文件夹"),
+				title: localize('addFolderTitle', "选择要添加的文件夹")
 			});
 			if (uris) {
 				if (profileElement?.root instanceof UserDataProfileElement) {
@@ -1654,7 +1654,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 
 		const updateTable = () => {
 			if (profileElement?.root instanceof UserDataProfileElement && profileElement.root.workspaces?.length) {
-				profileWorkspacesDescriptionElement.textContent = localize('folders_workspaces_description', "Following folders and workspaces are using this profile");
+				profileWorkspacesDescriptionElement.textContent = localize('folders_workspaces_description', "以下文件夹和工作区正在使用此配置文件");
 				workspacesTableContainer.classList.remove('hide');
 				table.splice(0, table.length, profileElement.root.workspaces
 					.map(workspace => ({ workspace, profileElement: <UserDataProfileElement>profileElement!.root }))
@@ -1662,7 +1662,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 				);
 				this.layout();
 			} else {
-				profileWorkspacesDescriptionElement.textContent = localize('no_folder_description', "No folders or workspaces are using this profile");
+				profileWorkspacesDescriptionElement.textContent = localize('no_folder_description', "没有文件夹或工作区正在使用此配置文件");
 				workspacesTableContainer.classList.add('hide');
 			}
 		};
@@ -1744,13 +1744,13 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		const updateRadioItems = () => {
 			templateData.radio.setItems([{
-				text: localize('default', "Default"),
-				tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
+				text: localize('default', "默认"),
+				tooltip: localize('default description', "使用默认配置文件中的{0}", resourceTypeTitle),
 				isActive: root.getFlag(element.resourceType)
 			},
 			{
 				text: root.name,
-				tooltip: localize('current description', "Use {0} from the {1} profile", resourceTypeTitle, root.name),
+				tooltip: localize('current description', "使用 {1} 配置文件中的{0}", resourceTypeTitle, root.name),
 				isActive: !root.getFlag(element.resourceType)
 			}]);
 		};
@@ -1832,22 +1832,22 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 
 		const renderRadioItems = () => {
 			const options = [{
-				text: localize('default', "Default"),
-				tooltip: localize('default description', "Use {0} from the Default profile", resourceTypeTitle),
+				text: localize('default', "默认"),
+				tooltip: localize('default description', "使用默认配置文件中的{0}", resourceTypeTitle),
 			},
 			{
-				text: localize('none', "None"),
-				tooltip: localize('none description', "Create empty {0}", resourceTypeTitle)
+				text: localize('none', "无"),
+				tooltip: localize('none description', "创建空的{0}", resourceTypeTitle)
 			}];
 			const copyFromName = root.getCopyFromName();
 			const name = copyFromName === this.userDataProfilesService.defaultProfile.name
-				? localize('copy from default', "{0} (Copy)", copyFromName)
+				? localize('copy from default', "{0} (复制)", copyFromName)
 				: copyFromName;
 			if (root.copyFrom && name) {
 				templateData.radio.setItems([
 					{
 						text: name,
-						tooltip: name ? localize('copy from profile description', "Copy {0} from the {1} profile", resourceTypeTitle, name) : localize('copy description', "Copy"),
+						tooltip: name ? localize('copy from profile description', "从 {1} 配置文件复制{0}", resourceTypeTitle, name) : localize('copy description', "复制"),
 					},
 					...options
 				]);

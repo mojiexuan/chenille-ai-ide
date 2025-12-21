@@ -57,7 +57,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
-			title: nls.localize2('restrictResultsToFolder', "Restrict Search to Folder"),
+			title: nls.localize2('restrictResultsToFolder', "将搜索限制到文件夹"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -85,7 +85,7 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ExpandRecursivelyCommandId,
-			title: nls.localize('search.expandRecursively', "Expand Recursively"),
+			title: nls.localize('search.expandRecursively', "递归展开"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -108,7 +108,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
-			title: nls.localize2('excludeFolderFromSearch', "Exclude Folder from Search"),
+			title: nls.localize2('excludeFolderFromSearch', "从搜索中排除文件夹"),
 			category,
 			menu: [
 				{
@@ -129,7 +129,7 @@ registerAction2(class ExcludeFileTypeFromSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExcludeFileTypeFromSearchId,
-			title: nls.localize2('excludeFileTypeFromSearch', "Exclude File Type from Search"),
+			title: nls.localize2('excludeFileTypeFromSearch', "从搜索中排除文件类型"),
 			category,
 			menu: [
 				{
@@ -150,7 +150,7 @@ registerAction2(class IncludeFileTypeInSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.IncludeFileTypeInSearchId,
-			title: nls.localize2('includeFileTypeInSearch', "Include File Type from Search"),
+			title: nls.localize2('includeFileTypeInSearch', "在搜索中包含文件类型"),
 			category,
 			menu: [
 				{
@@ -173,7 +173,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
-			title: nls.localize2('revealInSideBar', "Reveal in Explorer View"),
+			title: nls.localize2('revealInSideBar', "在资源管理器视图中显示"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -227,14 +227,14 @@ registerAction2(class FindInFilesAction extends Action2 {
 		super({
 			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
-				...nls.localize2('findInFiles', "Find in Files"),
-				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
+				...nls.localize2('findInFiles', "在文件中查找"),
+				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "在文件中查找"),
 			},
 			metadata: {
-				description: nls.localize('findInFiles.description', "Open a workspace search"),
+				description: nls.localize('findInFiles.description', "打开工作区搜索"),
 				args: [
 					{
-						name: nls.localize('findInFiles.args', "A set of options for the search"),
+						name: nls.localize('findInFiles.args', "搜索选项集"),
 						schema: {
 							type: 'object',
 							properties: {
@@ -280,7 +280,7 @@ registerAction2(class FindInFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInFolderId,
-			title: nls.localize2('findInFolder', "Find in Folder..."),
+			title: nls.localize2('findInFolder', "在文件夹中查找..."),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -307,7 +307,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInWorkspaceId,
-			title: nls.localize2('findInWorkspace', "Find in Workspace..."),
+			title: nls.localize2('findInWorkspace', "在工作区中查找..."),
 			category,
 			menu: [
 				{

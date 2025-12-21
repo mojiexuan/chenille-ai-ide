@@ -40,8 +40,8 @@ export class CloseWindowAction extends Action2 {
 		super({
 			id: CloseWindowAction.ID,
 			title: {
-				...localize2('closeWindow', "Close Window"),
-				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),
+				...localize2('closeWindow', "关闭窗口"),
+				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "关闭窗口"),
 			},
 			f1: true,
 			keybinding: {
@@ -72,7 +72,7 @@ export class CloseOtherWindowsAction extends Action2 {
 	constructor() {
 		super({
 			id: CloseOtherWindowsAction.ID,
-			title: localize2('closeOtherWindows', "Close Other Windows"),
+			title: localize2('closeOtherWindows', "关闭其他窗口"),
 			f1: true
 		});
 	}
@@ -145,8 +145,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomIn',
 			title: {
-				...localize2('zoomIn', "Zoom In"),
-				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
+				...localize2('zoomIn', "放大"),
+				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "放大"),
 			},
 			category: Categories.View,
 			f1: true,
@@ -174,8 +174,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomOut',
 			title: {
-				...localize2('zoomOut', "Zoom Out"),
-				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
+				...localize2('zoomOut', "缩小"),
+				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "缩小"),
 			},
 			category: Categories.View,
 			f1: true,
@@ -207,8 +207,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super({
 			id: 'workbench.action.zoomReset',
 			title: {
-				...localize2('zoomReset', "Reset Zoom"),
-				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
+				...localize2('zoomReset', "重置缩放"),
+				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "重置缩放"),
 			},
 			category: Categories.View,
 			f1: true,
@@ -233,18 +233,18 @@ abstract class BaseSwitchWindow extends Action2 {
 
 	private readonly closeWindowAction: IQuickInputButton = {
 		iconClass: ThemeIcon.asClassName(Codicon.removeClose),
-		tooltip: localize('close', "Close Window")
+		tooltip: localize('close', "关闭窗口")
 	};
 
 	private readonly closeDirtyWindowAction: IQuickInputButton = {
 		iconClass: 'dirty-window ' + ThemeIcon.asClassName(Codicon.closeDirty),
-		tooltip: localize('close', "Close Window"),
+		tooltip: localize('close', "关闭窗口"),
 		alwaysVisible: true
 	};
 
 	private readonly closeActiveWindowAction: IQuickInputButton = {
 		iconClass: 'active-window ' + ThemeIcon.asClassName(Codicon.windowActive),
-		tooltip: localize('closeActive', "Close Active Window"),
+		tooltip: localize('closeActive', "关闭活动窗口"),
 		alwaysVisible: true
 	};
 
@@ -290,7 +290,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		for (const window of mainWindows) {
 			const auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.id);
 			if (mapMainWindowToAuxiliaryWindows.size > 0) {
-				picks.push({ type: 'separator', label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined });
+				picks.push({ type: 'separator', label: auxiliaryWindows ? localize('windowGroup', "窗口组") : undefined });
 			}
 
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
@@ -298,9 +298,9 @@ abstract class BaseSwitchWindow extends Action2 {
 			const pick: IWindowPickItem = {
 				windowId: window.id,
 				label: window.title,
-				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
+				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}，有未保存更改的窗口", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
-				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
+				description: (currentWindowId === window.id) ? localize('current', "当前窗口") : undefined,
 				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
 			picks.push(pick);
@@ -311,7 +311,7 @@ abstract class BaseSwitchWindow extends Action2 {
 						windowId: auxiliaryWindow.id,
 						label: auxiliaryWindow.title,
 						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
-						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
+						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "当前窗口") : undefined,
 						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};
 					picks.push(pick);
@@ -339,7 +339,7 @@ abstract class BaseSwitchWindow extends Action2 {
 
 				return undefined;
 			})(),
-			placeHolder: localize('switchWindowPlaceHolder', "Select a window to switch to"),
+			placeHolder: localize('switchWindowPlaceHolder', "选择要切换到的窗口"),
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
@@ -359,7 +359,7 @@ export class SwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.switchWindow',
-			title: localize2('switchWindow', 'Switch Window...'),
+			title: localize2('switchWindow', '切换窗口...'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -379,7 +379,7 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.quickSwitchWindow',
-			title: localize2('quickSwitchWindow', 'Quick Switch Window...'),
+			title: localize2('quickSwitchWindow', '快速切换窗口...'),
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
@@ -453,7 +453,7 @@ export class ToggleWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleWindowAlwaysOnTopAction.ID,
-			title: localize2('toggleWindowAlwaysOnTop', "Toggle Window Always on Top"),
+			title: localize2('toggleWindowAlwaysOnTop', "切换窗口始终置顶"),
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext
 		});
@@ -478,7 +478,7 @@ export class EnableWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: EnableWindowAlwaysOnTopAction.ID,
-			title: localize('enableWindowAlwaysOnTop', "Turn On Always on Top"),
+			title: localize('enableWindowAlwaysOnTop', "开启始终置顶"),
 			icon: Codicon.pin,
 			menu: {
 				id: MenuId.LayoutControlMenu,
@@ -507,7 +507,7 @@ export class DisableWindowAlwaysOnTopAction extends Action2 {
 	constructor() {
 		super({
 			id: DisableWindowAlwaysOnTopAction.ID,
-			title: localize('disableWindowAlwaysOnTop', "Turn Off Always on Top"),
+			title: localize('disableWindowAlwaysOnTop', "关闭始终置顶"),
 			icon: Codicon.pinned,
 			menu: {
 				id: MenuId.LayoutControlMenu,

@@ -30,27 +30,27 @@ export const PolicyCategoryData: {
 } = {
 	[PolicyCategory.Extensions]: {
 		name: {
-			key: 'extensionsConfigurationTitle', value: localize('extensionsConfigurationTitle', "Extensions"),
+			key: 'extensionsConfigurationTitle', value: localize('extensionsConfigurationTitle', "扩展"),
 		}
 	},
 	[PolicyCategory.IntegratedTerminal]: {
 		name: {
-			key: 'terminalIntegratedConfigurationTitle', value: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
+			key: 'terminalIntegratedConfigurationTitle', value: localize('terminalIntegratedConfigurationTitle', "集成终端"),
 		}
 	},
 	[PolicyCategory.InteractiveSession]: {
 		name: {
-			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Chat"),
+			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "聊天"),
 		}
 	},
 	[PolicyCategory.Telemetry]: {
 		name: {
-			key: 'telemetryConfigurationTitle', value: localize('telemetryConfigurationTitle', "Telemetry"),
+			key: 'telemetryConfigurationTitle', value: localize('telemetryConfigurationTitle', "遥测"),
 		}
 	},
 	[PolicyCategory.Update]: {
 		name: {
-			key: 'updateConfigurationTitle', value: localize('updateConfigurationTitle', "Update"),
+			key: 'updateConfigurationTitle', value: localize('updateConfigurationTitle', "更新"),
 		}
 	}
 };

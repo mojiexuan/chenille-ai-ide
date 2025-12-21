@@ -79,7 +79,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.copyLinesUpAction',
-			label: nls.localize2('lines.copyUp', "Copy Line Up"),
+			label: nls.localize2('lines.copyUp', "向上复制行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -90,7 +90,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
-				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
+				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "向上复制行"),
 				order: 1
 			},
 			canTriggerInlineEdits: true,
@@ -102,7 +102,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.copyLinesDownAction',
-			label: nls.localize2('lines.copyDown', "Copy Line Down"),
+			label: nls.localize2('lines.copyDown', "向下复制行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -113,7 +113,7 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
-				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
+				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "向下复制行"),
 				order: 2
 			},
 			canTriggerInlineEdits: true,
@@ -126,12 +126,12 @@ export class DuplicateSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.duplicateSelection',
-			label: nls.localize2('duplicateSelection', "Duplicate Selection"),
+			label: nls.localize2('duplicateSelection', "复制选定内容"),
 			precondition: EditorContextKeys.writable,
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
-				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "复制选定内容"),
 				order: 5
 			},
 			canTriggerInlineEdits: true,
@@ -194,7 +194,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveLinesUpAction',
-			label: nls.localize2('lines.moveUp', "Move Line Up"),
+			label: nls.localize2('lines.moveUp', "向上移动行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -205,7 +205,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
-				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
+				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "向上移动行"),
 				order: 3
 			},
 			canTriggerInlineEdits: true,
@@ -217,7 +217,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveLinesDownAction',
-			label: nls.localize2('lines.moveDown', "Move Line Down"),
+			label: nls.localize2('lines.moveDown', "向下移动行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -228,7 +228,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
-				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
+				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "向下移动行"),
 				order: 4
 			},
 			canTriggerInlineEdits: true,
@@ -277,7 +277,7 @@ export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
-			label: nls.localize2('lines.sortAscending', "Sort Lines Ascending"),
+			label: nls.localize2('lines.sortAscending', "按升序排列行"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -288,7 +288,7 @@ export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',
-			label: nls.localize2('lines.sortDescending', "Sort Lines Descending"),
+			label: nls.localize2('lines.sortDescending', "按降序排列行"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -299,7 +299,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.removeDuplicateLines',
-			label: nls.localize2('lines.deleteDuplicates', "Delete Duplicate Lines"),
+			label: nls.localize2('lines.deleteDuplicates', "删除重复行"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -375,7 +375,7 @@ export class ReverseLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.reverseLines',
-			label: nls.localize2('lines.reverseLines', "Reverse lines"),
+			label: nls.localize2('lines.reverseLines', "反转行"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true
 		});
@@ -458,7 +458,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 	constructor() {
 		super({
 			id: TrimTrailingWhitespaceAction.ID,
-			label: nls.localize2('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
+			label: nls.localize2('lines.trimTrailingWhitespace', "裁剪尾随空格"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -509,7 +509,7 @@ export class DeleteLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.deleteLines',
-			label: nls.localize2('lines.delete', "Delete Line"),
+			label: nls.localize2('lines.delete', "删除行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -612,7 +612,7 @@ export class IndentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.indentLines',
-			label: nls.localize2('lines.indent', "Indent Line"),
+			label: nls.localize2('lines.indent', "增加行缩进"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -638,7 +638,7 @@ class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.outdentLines',
-			label: nls.localize2('lines.outdent', "Outdent Line"),
+			label: nls.localize2('lines.outdent', "减少行缩进"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -659,7 +659,7 @@ export class InsertLineBeforeAction extends EditorAction {
 	constructor() {
 		super({
 			id: InsertLineBeforeAction.ID,
-			label: nls.localize2('lines.insertBefore', "Insert Line Above"),
+			label: nls.localize2('lines.insertBefore', "在上面插入行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -685,7 +685,7 @@ export class InsertLineAfterAction extends EditorAction {
 	constructor() {
 		super({
 			id: InsertLineAfterAction.ID,
-			label: nls.localize2('lines.insertAfter', "Insert Line Below"),
+			label: nls.localize2('lines.insertAfter', "在下面插入行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -753,7 +753,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	constructor() {
 		super({
 			id: 'deleteAllLeft',
-			label: nls.localize2('lines.deleteAllLeft', "Delete All Left"),
+			label: nls.localize2('lines.deleteAllLeft', "删除左侧所有内容"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -831,7 +831,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 	constructor() {
 		super({
 			id: 'deleteAllRight',
-			label: nls.localize2('lines.deleteAllRight', "Delete All Right"),
+			label: nls.localize2('lines.deleteAllRight', "删除右侧所有内容"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -898,7 +898,7 @@ export class JoinLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.joinLines',
-			label: nls.localize2('lines.joinLines', "Join Lines"),
+			label: nls.localize2('lines.joinLines', "合并行"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1058,7 +1058,7 @@ export class TransposeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.transpose',
-			label: nls.localize2('editor.transpose', "Transpose Characters around the Cursor"),
+			label: nls.localize2('editor.transpose', "转置光标处的字符"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -1157,7 +1157,7 @@ export class UpperCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToUppercase',
-			label: nls.localize2('editor.transformToUppercase', "Transform to Uppercase"),
+			label: nls.localize2('editor.transformToUppercase', "转换为大写"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -1172,7 +1172,7 @@ export class LowerCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToLowercase',
-			label: nls.localize2('editor.transformToLowercase', "Transform to Lowercase"),
+			label: nls.localize2('editor.transformToLowercase', "转换为小写"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true
 		});
@@ -1220,7 +1220,7 @@ export class TitleCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToTitlecase',
-			label: nls.localize2('editor.transformToTitlecase', "Transform to Title Case"),
+			label: nls.localize2('editor.transformToTitlecase', "转换为词首字母大写"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true
 		});
@@ -1246,7 +1246,7 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToSnakecase',
-			label: nls.localize2('editor.transformToSnakecase', "Transform to Snake Case"),
+			label: nls.localize2('editor.transformToSnakecase', "转换为蛇形命名"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -1275,7 +1275,7 @@ export class CamelCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToCamelcase',
-			label: nls.localize2('editor.transformToCamelcase', "Transform to Camel Case"),
+			label: nls.localize2('editor.transformToCamelcase', "转换为驼峰命名"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true
 		});
@@ -1303,7 +1303,7 @@ export class PascalCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToPascalcase',
-			label: nls.localize2('editor.transformToPascalcase', "Transform to Pascal Case"),
+			label: nls.localize2('editor.transformToPascalcase', "转换为帕斯卡命名"),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});
@@ -1352,7 +1352,7 @@ export class KebabCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
 			id: 'editor.action.transformToKebabcase',
-			label: nls.localize2('editor.transformToKebabcase', 'Transform to Kebab Case'),
+			label: nls.localize2('editor.transformToKebabcase', '转换为短横线命名'),
 			precondition: EditorContextKeys.writable,
 			canTriggerInlineEdits: true,
 		});

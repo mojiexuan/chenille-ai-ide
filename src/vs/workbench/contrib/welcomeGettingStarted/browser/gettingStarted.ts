@@ -201,7 +201,7 @@ export class GettingStartedPage extends EditorPane {
 			{
 				role: 'document',
 				tabindex: 0,
-				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
+				'aria-label': localize('welcomeAriaLabel', "关于如何快速上手编辑器的概述。")
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
@@ -285,14 +285,14 @@ export class GettingStartedPage extends EditorPane {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
-						badgeelement.setAttribute('aria-label', localize('stepDone', "Checkbox for Step {0}: Completed", step.title));
+						badgeelement.setAttribute('aria-label', localize('stepDone', "步骤 {0} 的复选框: 已完成", step.title));
 					}
 					else {
 						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
-						badgeelement.setAttribute('aria-label', localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title));
+						badgeelement.setAttribute('aria-label', localize('stepNotDone', "步骤 {0} 的复选框: 未完成", step.title));
 					}
 				});
 			}
@@ -754,7 +754,7 @@ export class GettingStartedPage extends EditorPane {
 			const themeType = this.themeService.getColorTheme().type;
 			const videoPath = media.path[themeType];
 			const videoPoster = media.poster ? media.poster[themeType] : undefined;
-			const altText = media.altText ? media.altText : localize('videoAltText', "Video for {0}", stepToExpand.title);
+			const altText = media.altText ? media.altText : localize('videoAltText', "{0} 的视频", stepToExpand.title);
 			const rawHTML = await this.detailsRenderer.renderVideo(videoPath, videoPoster, altText);
 			this.webview.setHtml(rawHTML);
 
@@ -791,7 +791,7 @@ export class GettingStartedPage extends EditorPane {
 	private provideScreenReaderUpdate(): string {
 		if (this.configurationService.getValue(AccessibilityVerbositySettingId.Walkthrough)) {
 			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
-			return kbLabel ? localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
+			return kbLabel ? localize('acessibleViewHint', "在辅助功能视图中检查此内容 ({0})。\n", kbLabel) : localize('acessibleViewHintNoKbOpen', "通过命令「打开辅助功能视图」在辅助功能视图中检查此内容，该命令当前无法通过快捷键触发。\n");
 		}
 		return '';
 	}
@@ -862,7 +862,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('goBack', "Go Back")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('goBack', "返回")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -888,11 +888,11 @@ export class GettingStartedPage extends EditorPane {
 			icon: Codicon.check,
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
-			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+			title: localize('checkboxTitle', "选中后，此页面将在启动时显示。"),
 			...defaultToggleStyles
 		});
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
-		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "启动时显示欢迎页面"));
+		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "启动时显示欢迎页"));
 		const onShowOnStartupChanged = () => {
 			if (showOnStartupCheckbox.checked) {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
@@ -913,7 +913,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const header = $('.header', {},
 			$('h1.product-name.caption', {}, this.productService.nameLong),
-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
+			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "编辑进化"))
 		);
 
 		const leftColumn = $('.categories-column.categories-column-left', {},);
@@ -1026,7 +1026,7 @@ export class GettingStartedPage extends EditorPane {
 
 			link.innerText = name;
 			link.title = fullPath;
-			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
+			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "打开文件夹 {0}，路径为 {1}", name, parentPath));
 			link.addEventListener('click', e => {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.hostService.openWindow([windowOpenable], {
@@ -1052,20 +1052,20 @@ export class GettingStartedPage extends EditorPane {
 
 		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
 			{
-				title: localize('recent', "Recent"),
+				title: localize('recent', "最近"),
 				klass: 'recently-opened',
 				limit: 5,
 				empty: $('.empty-recent', {},
-					localize('noRecents', "You have no recent folders,"),
-					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
-					localize('toStart', "to start.")),
+					localize('noRecents', "没有最近的文件夹，"),
+					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "打开文件夹")),
+					localize('toStart', "以开始。")),
 
 				more: $('.more', {},
 					$('button.button-link',
 						{
 							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
-						}, localize('showAll', "More..."))),
+							title: localize('show more recents', "显示所有最近的文件夹 {0}", this.getKeybindingLabel(OpenRecentAction.ID))
+						}, localize('showAll', "更多..."))),
 				renderElement: renderRecent,
 				contextService: this.contextService
 			});
@@ -1103,7 +1103,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const startList = this.startList = new GettingStartedIndexList(
 			{
-				title: localize('start', "Start"),
+				title: localize('start', "开始"),
 				klass: 'start-container',
 				limit: 10,
 				renderElement: renderStartEntry,
@@ -1123,9 +1123,9 @@ export class GettingStartedPage extends EditorPane {
 			const renderNewBadge = (category.newItems || category.newEntry) && !category.isFeatured;
 			const newBadge = $('.new-badge', {});
 			if (category.newEntry) {
-				reset(newBadge, $('.new-category', {}, localize('new', "New")));
+				reset(newBadge, $('.new-category', {}, localize('new', "新")));
 			} else if (category.newItems) {
-				reset(newBadge, $('.new-items', {}, localize({ key: 'newItems', comment: ['Shown when a list of items has changed based on an update from a remote source'] }, "Updated")));
+				reset(newBadge, $('.new-items', {}, localize({ key: 'newItems', comment: ['Shown when a list of items has changed based on an update from a remote source'] }, "已更新")));
 			}
 
 			const featuredBadge = $('.featured-badge', {});
@@ -1152,9 +1152,9 @@ export class GettingStartedPage extends EditorPane {
 					$('a.codicon.codicon-close.hide-category-button', {
 						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
-						'title': localize('close', "Hide"),
+						'title': localize('close', "隐藏"),
 						'role': 'button',
-						'aria-label': localize('closeAriaLabel', "Hide"),
+						'aria-label': localize('closeAriaLabel', "隐藏"),
 					}),
 				),
 				descriptionContent,
@@ -1179,10 +1179,10 @@ export class GettingStartedPage extends EditorPane {
 
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
 			{
-				title: localize('walkthroughs', "Walkthroughs"),
+				title: localize('walkthroughs', "演练"),
 				klass: 'getting-started',
 				limit: 5,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
+				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "更多...")),
 				renderElement: renderGetttingStaredWalkthrough,
 				rankElement: rankWalkthrough,
 				contextService: this.contextService,
@@ -1250,10 +1250,10 @@ export class GettingStartedPage extends EditorPane {
 			(element.parentElement as HTMLElement).classList.toggle('no-progress', stats.stepsComplete === 0);
 
 			if (stats.stepsTotal === stats.stepsComplete) {
-				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", stats.stepsComplete);
+				bar.title = localize('gettingStarted.allStepsComplete', "全部 {0} 个步骤已完成！", stats.stepsComplete);
 			}
 			else {
-				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", stats.stepsComplete, stats.stepsTotal);
+				bar.title = localize('gettingStarted.someStepsComplete', "{0}/{1} 个步骤已完成", stats.stepsComplete, stats.stepsTotal);
 			}
 		});
 	}
@@ -1401,7 +1401,7 @@ export class GettingStartedPage extends EditorPane {
 				if (isCommand) {
 					const keybinding = this.getKeyBinding(command);
 					if (keybinding) {
-						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
+						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', '提示: 使用快捷键 '));
 						container.appendChild(shortcutMessage);
 						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
 						label.set(keybinding);
@@ -1513,8 +1513,8 @@ export class GettingStartedPage extends EditorPane {
 							'role': 'checkbox',
 							'aria-checked': step.done ? 'true' : 'false',
 							'aria-label': step.done
-								? localize('stepDone', "Checkbox for Step {0}: Completed", step.title)
-								: localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title),
+								? localize('stepDone', "步骤 {0} 的复选框: 已完成", step.title)
+								: localize('stepNotDone', "步骤 {0} 的复选框: 未完成", step.title),
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
@@ -1530,11 +1530,11 @@ export class GettingStartedPage extends EditorPane {
 
 					if (step.media.type === 'image') {
 						stepDescription.appendChild(
-							$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", step.media.altText) }),
+							$('.image-description', { 'aria-label': localize('imageShowing', "显示 {0} 的图像", step.media.altText) }),
 						);
 					} else if (step.media.type === 'video') {
 						stepDescription.appendChild(
-							$('.video-description', { 'aria-label': localize('videoShowing', "Video showing {0}", step.media.altText) }),
+							$('.video-description', { 'aria-label': localize('videoShowing', "显示 {0} 的视频", step.media.altText) }),
 						);
 					}
 
@@ -1567,9 +1567,9 @@ export class GettingStartedPage extends EditorPane {
 			'.getting-started-detail-container', { 'role': 'list' },
 			stepListContainer,
 			$('.done-next-container', {},
-				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
+				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "标记完成")),
 				...(showNextCategory
-					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-right'))]
+					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "下一节"), $('span.codicon.codicon-arrow-right'))]
 					: []),
 			)
 		);
@@ -1593,14 +1593,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildTelemetryFooter(parent: HTMLElement) {
-		const privacyStatementCopy = localize('privacy statement', "privacy statement");
+		const privacyStatementCopy = localize('privacy statement', "隐私声明");
 		const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
 
-		const optOutCopy = localize('optOut', "opt out");
+		const optOutCopy = localize('optOut', "选择退出");
 		const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
 
 		const text = localize({ key: 'footer', comment: ['fist substitution is "Chenille", second is "privacy statement", third is "opt out".'] },
-			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
+			"{0} 收集使用数据。阅读我们的{1}并了解如何{2}。", this.productService.nameShort, privacyStatementButton, optOutButton);
 
 		const renderedContents = this.detailsPageDisposables.add(this.markdownRendererService.render({ value: text, isTrusted: true }));
 		parent.append(renderedContents.element);
@@ -1682,7 +1682,7 @@ export class GettingStartedPage extends EditorPane {
 			prevButton!.style.display = this.editorInput?.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 			// eslint-disable-next-line no-restricted-syntax
 			const moreTextElement = prevButton!.querySelector('.moreText');
-			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");
+			moreTextElement!.textContent = firstLaunch ? localize('welcome', "欢迎") : localize('goBack', "返回");
 
 			// eslint-disable-next-line no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);

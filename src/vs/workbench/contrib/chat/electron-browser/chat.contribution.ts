@@ -94,7 +94,7 @@ class ChatCommandLineHandler extends Disposable {
 		}
 
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			message: localize('copilotWorkspaceTrust', "AI features are currently only supported in trusted workspaces.")
+			message: localize('copilotWorkspaceTrust', "AI 功能目前仅在受信任的工作区中受支持。")
 		});
 
 		if (!trusted) {
@@ -166,7 +166,7 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "A chat request is in progress."));
+			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "聊天请求正在进行中。"));
 		}));
 	}
 
@@ -191,20 +191,20 @@ class ChatLifecycleHandler extends Disposable {
 		let detail: string;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				message = localize('closeTheWindow.message', "A chat request is in progress. Are you sure you want to close the window?");
-				detail = localize('closeTheWindow.detail', "The chat request will stop if you close the window.");
+				message = localize('closeTheWindow.message', "聊天请求正在进行中。确定要关闭窗口吗？");
+				detail = localize('closeTheWindow.detail', "如果关闭窗口，聊天请求将停止。");
 				break;
 			case ShutdownReason.LOAD:
-				message = localize('changeWorkspace.message', "A chat request is in progress. Are you sure you want to change the workspace?");
-				detail = localize('changeWorkspace.detail', "The chat request will stop if you change the workspace.");
+				message = localize('changeWorkspace.message', "聊天请求正在进行中。确定要更改工作区吗？");
+				detail = localize('changeWorkspace.detail', "如果更改工作区，聊天请求将停止。");
 				break;
 			case ShutdownReason.RELOAD:
-				message = localize('reloadTheWindow.message', "A chat request is in progress. Are you sure you want to reload the window?");
-				detail = localize('reloadTheWindow.detail', "The chat request will stop if you reload the window.");
+				message = localize('reloadTheWindow.message', "聊天请求正在进行中。确定要重新加载窗口吗？");
+				detail = localize('reloadTheWindow.detail', "如果重新加载窗口，聊天请求将停止。");
 				break;
 			default:
-				message = isMacintosh ? localize('quit.message', "A chat request is in progress. Are you sure you want to quit?") : localize('exit.message', "A chat request is in progress. Are you sure you want to exit?");
-				detail = isMacintosh ? localize('quit.detail', "The chat request will stop if you quit.") : localize('exit.detail', "The chat request will stop if you exit.");
+				message = isMacintosh ? localize('quit.message', "聊天请求正在进行中。确定要退出吗？") : localize('exit.message', "聊天请求正在进行中。确定要退出吗？");
+				detail = isMacintosh ? localize('quit.detail', "如果退出，聊天请求将停止。") : localize('exit.detail', "如果退出，聊天请求将停止。");
 				break;
 		}
 

@@ -40,9 +40,9 @@ function getAriaLabelForExtension(extension: IExtension | null): string {
 	if (!extension) {
 		return '';
 	}
-	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
-	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
-	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
+	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "已验证的发布者 {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "发布者 {0}", extension.publisherDisplayName);
+	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "已弃用") : '';
+	const rating = extension?.rating ? localize('extension.arialabel.rating', "被 {1} 位用户评为 {0} 星(满分 5 星)", extension.rating.toFixed(2), extension.ratingCount) : '';
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }
 
@@ -90,7 +90,7 @@ export class ExtensionsList extends Disposable {
 					return getAriaLabelForExtension(extension);
 				},
 				getWidgetAriaLabel(): string {
-					return localize('extensions', "Extensions");
+					return localize('extensions', "扩展");
 				}
 			},
 			overrideStyles: getLocationBasedViewColors(viewDescriptorService.getViewLocationById(viewId)).listOverrideStyles,
@@ -315,8 +315,8 @@ class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 
 	public renderTemplate(container: HTMLElement): IUnknownExtensionTemplateData {
 		const messageContainer = dom.append(container, dom.$('div.unknown-extension'));
-		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
-		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "Unknown Extension:");
+		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "错误");
+		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "未知扩展:");
 
 		const identifier = dom.append(messageContainer, dom.$('span.message'));
 		return { identifier };
@@ -387,7 +387,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 						return getAriaLabelForExtension(extensionData.extension);
 					},
 					getWidgetAriaLabel(): string {
-						return localize('extensions', "Extensions");
+						return localize('extensions', "扩展");
 					}
 				}
 			},

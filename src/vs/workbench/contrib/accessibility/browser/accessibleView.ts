@@ -449,8 +449,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		const disposables = this._register(new DisposableStore());
 		const quickPick: IQuickPick<IQuickPickItem> = disposables.add(this._quickInputService.createQuickPick());
 		quickPick.items = items;
-		quickPick.title = localize('keybindings', 'Configure keybindings');
-		quickPick.placeholder = localize('selectKeybinding', 'Select a command ID to configure a keybinding for it');
+		quickPick.title = localize('keybindings', '配置快捷键');
+		quickPick.placeholder = localize('selectKeybinding', '选择要配置快捷键的命令 ID');
 		quickPick.show();
 		disposables.add(quickPick.onDidAccept(async () => {
 			const item = quickPick.selectedItems[0];
@@ -529,7 +529,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			return;
 		}
 		this._configurationService.updateValue(this._currentProvider?.verbositySettingKey, false);
-		alert(localize('disableAccessibilityHelp', '{0} accessibility verbosity is now disabled', this._currentProvider.verbositySettingKey));
+		alert(localize('disableAccessibilityHelp', '{0} 辅助功能详细提示已禁用', this._currentProvider.verbositySettingKey));
 	}
 
 	private _updateContextKeys(provider: AccesibleViewContentProvider, shown: boolean): void {
@@ -602,14 +602,14 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			let actionsHint = '';
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || provider.actions?.length;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
-				actionsHint = provider.options.position ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
+				actionsHint = provider.options.position ? localize('ariaAccessibleViewActionsBottom', '探索操作，例如禁用此提示 (Shift+Tab)，按 Escape 退出此对话框。') : localize('ariaAccessibleViewActions', '探索操作，例如禁用此提示 (Shift+Tab)。');
 			}
-			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
+			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "辅助功能帮助") : localize('accessible-view', "辅助功能视图");
 			this._title.textContent = ariaLabel;
 			if (actionsHint && provider.options.type === AccessibleViewType.View) {
-				ariaLabel = localize('accessible-view-hint', "Accessible View, {0}", actionsHint);
+				ariaLabel = localize('accessible-view-hint', "辅助功能视图，{0}", actionsHint);
 			} else if (actionsHint) {
-				ariaLabel = localize('accessibility-help-hint', "Accessibility Help, {0}", actionsHint);
+				ariaLabel = localize('accessibility-help-hint', "辅助功能帮助，{0}", actionsHint);
 			}
 			if (isWindows && widgetIsFocused) {
 				// prevent the screen reader on windows from reading
@@ -689,7 +689,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _updateToolbar(providedActions?: IAction[], type?: AccessibleViewType): void {
-		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', 'Accessibility Help') : localize('accessibleViewToolbar', "Accessible View"));
+		this._toolbar.setAriaLabel(type === AccessibleViewType.Help ? localize('accessibleHelpToolbar', '辅助功能帮助') : localize('accessibleViewToolbar', "辅助功能视图"));
 		const toolbarMenu = this._register(this._menuService.createMenu(MenuId.AccessibleView, this._contextKeyService));
 		const menuActions = getFlatActionBarActions(toolbarMenu.getActions({}));
 		if (providedActions) {
@@ -798,10 +798,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	private _accessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._navigationHint();
 		const goToSymbolHint = this._goToSymbolHint(providerHasSymbols);
-		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab).");
+		const toolbarHint = localize('toolbar', "导航到工具栏 (Shift+Tab)。");
 		const chatHints = this._getChatHints();
 
-		let hint = localize('intro', "In the accessible view, you can:\n");
+		let hint = localize('intro', "在辅助功能视图中，您可以：\n");
 		if (navigationHint) {
 			hint += ' - ' + navigationHint + '\n';
 		}
@@ -821,18 +821,18 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (this._currentProvider?.id !== AccessibleViewProviderId.PanelChat && this._currentProvider?.id !== AccessibleViewProviderId.QuickChat) {
 			return;
 		}
-		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.chat.insertCodeBlock>'),
-		localize('insertIntoNewFile', " - Insert the code block into a new file{0}.", '<keybinding:workbench.action.chat.insertIntoNewFile>'),
-		localize('runInTerminal', " - Run the code block in the terminal{0}.\n", '<keybinding:workbench.action.chat.runInTerminal>')].join('\n');
+		return [localize('insertAtCursor', " - 在光标处插入代码块{0}。", '<keybinding:workbench.action.chat.insertCodeBlock>'),
+		localize('insertIntoNewFile', " - 将代码块插入新文件{0}。", '<keybinding:workbench.action.chat.insertIntoNewFile>'),
+		localize('runInTerminal', " - 在终端中运行代码块{0}。\n", '<keybinding:workbench.action.chat.runInTerminal>')].join('\n');
 	}
 
 	private _navigationHint(): string {
-		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
+		return localize('accessibleViewNextPreviousHint', "显示下一项{0}或上一项{1}。", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
 	}
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
 		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
-			return localize('acessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
+			return localize('acessibleViewDisableHint', "\n禁用此功能的辅助功能详细提示{0}。", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
 		}
 		return '';
 	}
@@ -841,19 +841,19 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!providerHasSymbols) {
 			return;
 		}
-		return localize('goToSymbolHint', 'Go to a symbol{0}.', `<keybinding:${AccessibilityCommandId.GoToSymbol}>`);
+		return localize('goToSymbolHint', '转到符号{0}。', `<keybinding:${AccessibilityCommandId.GoToSymbol}>`);
 	}
 
 	private _configureUnassignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureKeybindings)?.getAriaLabel();
-		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Unassigned Keybindings.';
-		return localize('configureKb', '\nConfigure keybindings for commands that lack them {0}.', keybindingToConfigureQuickPick);
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : '通过为命令"辅助功能帮助配置未分配的快捷键"分配快捷键。';
+		return localize('configureKb', '\n为缺少快捷键的命令配置快捷键 {0}。', keybindingToConfigureQuickPick);
 	}
 
 	private _configureAssignedKbHint(): string {
 		const configureKb = this._keybindingService.lookupKeybinding(AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings)?.getAriaLabel();
-		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : 'by assigning a keybinding to the command Accessibility Help Configure Assigned Keybindings.';
-		return localize('configureKbAssigned', '\nConfigure keybindings for commands that already have assignments {0}.', keybindingToConfigureQuickPick);
+		const keybindingToConfigureQuickPick = configureKb ? '(' + configureKb + ')' : '通过为命令"辅助功能帮助配置已分配的快捷键"分配快捷键。';
+		return localize('configureKbAssigned', '\n为已有快捷键的命令配置快捷键 {0}。', keybindingToConfigureQuickPick);
 	}
 
 	private _screenReaderModeHint(provider: AccesibleViewContentProvider): string {
@@ -875,11 +875,11 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _exitDialogHint(provider: AccesibleViewContentProvider): string {
-		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\nExit this dialog (Escape).') : '';
+		return this._verbosityEnabled() && !provider.options.position ? localize('exit', '\n退出此对话框 (Escape)。') : '';
 	}
 
 	private _readMoreHint(provider: AccesibleViewContentProvider): string {
-		return provider.options.readMoreUrl ? localize("openDoc", "\nOpen a browser window with more information related to accessibility{0}.", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
+		return provider.options.readMoreUrl ? localize("openDoc", "\n在浏览器窗口中打开更多辅助功能相关信息{0}。", `<keybinding:${AccessibilityCommandId.AccessibilityHelpOpenHelpLink}>`) : '';
 	}
 }
 
@@ -926,9 +926,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();
 		let hint = null;
 		if (keybinding) {
-			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);
+			hint = localize('acessibleViewHint', "使用 {0} 在辅助功能视图中检查此内容", keybinding);
 		} else {
-			hint = localize('acessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
+			hint = localize('acessibleViewHintNoKbEither', '通过命令"打开辅助功能视图"在辅助功能视图中检查此内容，该命令当前没有分配快捷键。');
 		}
 		return hint;
 	}
@@ -963,8 +963,8 @@ class AccessibleViewSymbolQuickPick {
 	show(provider: AccesibleViewContentProvider): void {
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(this._quickInputService.createQuickPick<IAccessibleViewSymbol>());
-		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "Type to search symbols");
-		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "Go to Symbol Accessible View");
+		quickPick.placeholder = localize('accessibleViewSymbolQuickPickPlaceholder', "输入以搜索符号");
+		quickPick.title = localize('accessibleViewSymbolQuickPickTitle', "转到符号辅助功能视图");
 		const picks = [];
 		const symbols = this._accessibleView.getSymbols();
 		if (!symbols) {

@@ -16,7 +16,7 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 	constructor() {
 		super({
 			id: 'editor.emmet.action.expandAbbreviation',
-			label: nls.localize2('expandAbbreviationAction', "Emmet: Expand Abbreviation"),
+			label: nls.localize2('expandAbbreviationAction', "Emmet: 展开缩写"),
 			precondition: EditorContextKeys.writable,
 			actionName: 'expand_abbreviation',
 			kbOpts: {
@@ -31,7 +31,7 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
-				title: nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"),
+				title: nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: 展开缩写"),
 				order: 3
 			}
 		});

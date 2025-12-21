@@ -23,7 +23,7 @@ export class ToggleMultiCursorModifierAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleMultiCursorModifierAction.ID,
-			title: localize2('toggleLocation', 'Toggle Multi-Cursor Modifier'),
+			title: localize2('toggleLocation', '切换多光标修改键'),
 			f1: true
 		});
 	}
@@ -74,7 +74,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
 	group: '4_config',
 	command: {
 		id: ToggleMultiCursorModifierAction.ID,
-		title: localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor")
+		title: localize('miMultiCursorAlt', "切换为 Alt+单击 添加多光标")
 	},
 	when: multiCursorModifier.isEqualTo('ctrlCmd'),
 	order: 1
@@ -85,8 +85,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
 		id: ToggleMultiCursorModifierAction.ID,
 		title: (
 			isMacintosh
-				? localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
-				: localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor")
+				? localize('miMultiCursorCmd', "切换为 Cmd+单击 添加多光标")
+				: localize('miMultiCursorCtrl', "切换为 Ctrl+单击 添加多光标")
 		)
 	},
 	when: multiCursorModifier.isEqualTo('altKey'),

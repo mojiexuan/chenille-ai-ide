@@ -52,7 +52,7 @@ class InspectContextKeysAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.inspectContextKeys',
-			title: localize2('inspect context keys', 'Inspect Context Keys'),
+			title: localize2('inspect context keys', '检查上下文键'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -118,7 +118,7 @@ class ToggleScreencastModeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
-			title: localize2('toggle screencast mode', 'Toggle Screencast Mode'),
+			title: localize2('toggle screencast mode', '切换屏幕放映模式'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -416,7 +416,7 @@ class LogStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logStorage',
-			title: localize2({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"),
+			title: localize2({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "记录存储数据库内容"),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -428,7 +428,7 @@ class LogStorageAction extends Action2 {
 
 		storageService.log();
 
-		dialogService.info(localize('storageLogDialogMessage', "The storage database contents have been logged to the developer tools."), localize('storageLogDialogDetails', "Open developer tools from the menu and select the Console tab."));
+		dialogService.info(localize('storageLogDialogMessage', "存储数据库内容已记录到开发人员工具。"), localize('storageLogDialogDetails', "从菜单打开开发人员工具并选择控制台选项卡。"));
 	}
 }
 
@@ -437,7 +437,7 @@ class LogWorkingCopiesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logWorkingCopies',
-			title: localize2({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"),
+			title: localize2({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "记录工作副本"),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -477,7 +477,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.removeLargeStorageDatabaseEntries',
-			title: localize2('removeLargeStorageDatabaseEntries', 'Remove Large Storage Database Entries...'),
+			title: localize2('removeLargeStorageDatabaseEntries', '删除大型存储数据库条目...'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -515,7 +515,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 							size: value.length,
 							label: key,
 							description: ByteSize.formatSize(value.length),
-							detail: localize('largeStorageItemDetail', "Scope: {0}, Target: {1}", scope === StorageScope.APPLICATION ? localize('global', "Global") : scope === StorageScope.PROFILE ? localize('profile', "Profile") : localize('workspace', "Workspace"), target === StorageTarget.MACHINE ? localize('machine', "Machine") : localize('user', "User")),
+							detail: localize('largeStorageItemDetail', "范围: {0}，目标: {1}", scope === StorageScope.APPLICATION ? localize('global', "全局") : scope === StorageScope.PROFILE ? localize('profile', "配置文件") : localize('workspace', "工作区"), target === StorageTarget.MACHINE ? localize('machine', "计算机") : localize('user', "用户")),
 						});
 					}
 				}
@@ -533,11 +533,11 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 			picker.ok = false;
 			picker.customButton = true;
 			picker.hideCheckAll = true;
-			picker.customLabel = localize('removeLargeStorageEntriesPickerButton', "Remove");
-			picker.placeholder = localize('removeLargeStorageEntriesPickerPlaceholder', "Select large entries to remove from storage");
+			picker.customLabel = localize('removeLargeStorageEntriesPickerButton', "删除");
+			picker.placeholder = localize('removeLargeStorageEntriesPickerPlaceholder', "选择要从存储中删除的大型条目");
 
 			if (items.length === 0) {
-				picker.description = localize('removeLargeStorageEntriesPickerDescriptionNoEntries', "There are no large storage entries to remove.");
+				picker.description = localize('removeLargeStorageEntriesPickerDescriptionNoEntries', "没有要删除的大型存储条目。");
 			}
 
 			picker.show();
@@ -556,9 +556,9 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
-			message: localize('removeLargeStorageEntriesConfirmRemove', "Do you want to remove the selected storage entries from the database?"),
-			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\nThis action is irreversible and may result in data loss!", selectedItems.map(item => item.label).join('\n')),
-			primaryButton: localize({ key: 'removeLargeStorageEntriesButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
+			message: localize('removeLargeStorageEntriesConfirmRemove', "是否要从数据库中删除所选的存储条目?"),
+			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\n此操作不可逆，可能会导致数据丢失!", selectedItems.map(item => item.label).join('\n')),
+			primaryButton: localize({ key: 'removeLargeStorageEntriesButtonLabel', comment: ['&& denotes a mnemonic'] }, "删除")
 		});
 
 		if (!confirmed) {
@@ -587,7 +587,7 @@ class StartTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.startTrackDisposables',
-			title: localize2('startTrackDisposables', 'Start Tracking Disposables'),
+			title: localize2('startTrackDisposables', '开始跟踪可释放对象'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: ContextKeyExpr.and(DisposablesSnapshotStateContext.isEqualTo('pending').negate(), DisposablesSnapshotStateContext.isEqualTo('started').negate())
@@ -610,7 +610,7 @@ class SnapshotTrackedDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.snapshotTrackedDisposables',
-			title: localize2('snapshotTrackedDisposables', 'Snapshot Tracked Disposables'),
+			title: localize2('snapshotTrackedDisposables', '快照跟踪的可释放对象'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
@@ -630,7 +630,7 @@ class StopTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.stopTrackDisposables',
-			title: localize2('stopTrackDisposables', 'Stop Tracking Disposables'),
+			title: localize2('stopTrackDisposables', '停止跟踪可释放对象'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('pending')
@@ -669,7 +669,7 @@ class PolicyDiagnosticsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.showPolicyDiagnostics',
-			title: localize2('policyDiagnostics', 'Policy Diagnostics'),
+			title: localize2('policyDiagnostics', '策略诊断'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -940,7 +940,7 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 configurationRegistry.registerConfiguration({
 	id: 'screencastMode',
 	order: 9,
-	title: localize('screencastModeConfigurationTitle', "Screencast Mode"),
+	title: localize('screencastModeConfigurationTitle', "屏幕放映模式"),
 	type: 'object',
 	properties: {
 		'screencastMode.verticalOffset': {
@@ -948,43 +948,43 @@ configurationRegistry.registerConfiguration({
 			default: 20,
 			minimum: 0,
 			maximum: 90,
-			description: localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			description: localize('screencastMode.location.verticalPosition', "控制屏幕放映模式覆盖层距底部的垂直偏移量(以工作台高度的百分比表示)。")
 		},
 		'screencastMode.fontSize': {
 			type: 'number',
 			default: 56,
 			minimum: 20,
 			maximum: 100,
-			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
+			description: localize('screencastMode.fontSize', "控制屏幕放映模式键盘的字体大小(以像素为单位)。")
 		},
 		'screencastMode.keyboardOptions': {
 			type: 'object',
-			description: localize('screencastMode.keyboardOptions.description', "Options for customizing the keyboard overlay in screencast mode."),
+			description: localize('screencastMode.keyboardOptions.description', "用于自定义屏幕放映模式中键盘覆盖层的选项。"),
 			properties: {
 				'showKeys': {
 					type: 'boolean',
 					default: true,
-					description: localize('screencastMode.keyboardOptions.showKeys', "Show raw keys.")
+					description: localize('screencastMode.keyboardOptions.showKeys', "显示原始按键。")
 				},
 				'showKeybindings': {
 					type: 'boolean',
 					default: true,
-					description: localize('screencastMode.keyboardOptions.showKeybindings', "Show keyboard shortcuts.")
+					description: localize('screencastMode.keyboardOptions.showKeybindings', "显示键盘快捷方式。")
 				},
 				'showCommands': {
 					type: 'boolean',
 					default: true,
-					description: localize('screencastMode.keyboardOptions.showCommands', "Show command names.")
+					description: localize('screencastMode.keyboardOptions.showCommands', "显示命令名称。")
 				},
 				'showCommandGroups': {
 					type: 'boolean',
 					default: false,
-					description: localize('screencastMode.keyboardOptions.showCommandGroups', "Show command group names, when commands are also shown.")
+					description: localize('screencastMode.keyboardOptions.showCommandGroups', "当同时显示命令时，显示命令组名称。")
 				},
 				'showSingleEditorCursorMoves': {
 					type: 'boolean',
 					default: true,
-					description: localize('screencastMode.keyboardOptions.showSingleEditorCursorMoves', "Show single editor cursor move commands.")
+					description: localize('screencastMode.keyboardOptions.showSingleEditorCursorMoves', "显示单个编辑器光标移动命令。")
 				}
 			},
 			default: {
@@ -1001,20 +1001,20 @@ configurationRegistry.registerConfiguration({
 			default: 800,
 			minimum: 500,
 			maximum: 5000,
-			description: localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
+			description: localize('screencastMode.keyboardOverlayTimeout', "控制屏幕放映模式中键盘覆盖层显示的时长(以毫秒为单位)。")
 		},
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
 			format: 'color-hex',
 			default: '#FF0000',
-			description: localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
+			description: localize('screencastMode.mouseIndicatorColor', "控制屏幕放映模式中鼠标指示器的十六进制颜色(#RGB、#RGBA、#RRGGBB 或 #RRGGBBAA)。")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',
 			default: 20,
 			minimum: 20,
 			maximum: 100,
-			description: localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+			description: localize('screencastMode.mouseIndicatorSize', "控制屏幕放映模式中鼠标指示器的大小(以像素为单位)。")
 		},
 	}
 });

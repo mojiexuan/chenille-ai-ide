@@ -679,7 +679,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',
 	command: {
 		id: NEW_UNTITLED_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "新建文本文件(&N)")
+		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "新建文本文件(N)")
 	},
 	order: 1
 });
@@ -688,7 +688,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "保存(&S)"),
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "保存(S)"),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 1
@@ -698,7 +698,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "另存为(&A)..."),
+		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "另存为(A)..."),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
@@ -708,7 +708,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_ALL_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "全部保存(&L)"),
+		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "全部保存(L)"),
 		precondition: DirtyWorkingCopiesContext
 	},
 	order: 3
@@ -718,7 +718,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '5_autosave',
 	command: {
 		id: ToggleAutoSaveAction.ID,
-		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "自动保存(&U)"),
+		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "自动保存(U)"),
 		toggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
 	},
 	order: 1
@@ -728,7 +728,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "还原文件(&V)"),
+		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "还原文件(V)"),
 		precondition: ContextKeyExpr.or(
 			// Active editor can revert
 			ContextKeyExpr.and(ActiveEditorCanRevertContext),
@@ -743,7 +743,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "关闭编辑器(&C)"),
+		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "关闭编辑器(C)"),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
@@ -755,7 +755,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '3_global_nav',
 	command: {
 		id: 'workbench.action.quickOpen',
-		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "转到文件(&F)...")
+		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "转到文件(F)...")
 	},
 	order: 1
 });

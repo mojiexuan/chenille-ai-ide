@@ -102,7 +102,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: EditorContextKeys.editorSimpleInput.toNegated(),
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize('commandPalette', "Command Palette..."),
+		title: localize('commandPalette', "命令面板..."),
 	},
 	order: 1
 });

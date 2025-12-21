@@ -33,7 +33,7 @@ function announceCursorChange(previousCursorState: CursorState[], cursorState: C
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
 	if (cursorDiff.length >= 1) {
 		const cursorPositions = cursorDiff.map(cs => `line ${cs.viewState.position.lineNumber} column ${cs.viewState.position.column}`).join(', ');
-		const msg = cursorDiff.length === 1 ? nls.localize('cursorAdded', "Cursor added: {0}", cursorPositions) : nls.localize('cursorsAdded', "Cursors added: {0}", cursorPositions);
+		const msg = cursorDiff.length === 1 ? nls.localize('cursorAdded', "已添加光标: {0}", cursorPositions) : nls.localize('cursorsAdded', "已添加光标: {0}", cursorPositions);
 		status(msg);
 	}
 }
@@ -48,7 +48,7 @@ export class InsertCursorAbove extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
-			label: nls.localize2('mutlicursor.insertAbove', "Add Cursor Above"),
+			label: nls.localize2('mutlicursor.insertAbove', "在上面添加光标"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -62,7 +62,7 @@ export class InsertCursorAbove extends EditorAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "&&Add Cursor Above"),
+				title: nls.localize({ key: 'miInsertCursorAbove', comment: ['&& denotes a mnemonic'] }, "在上面添加光标"),
 				order: 2
 			}
 		});
@@ -100,7 +100,7 @@ export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
-			label: nls.localize2('mutlicursor.insertBelow', "Add Cursor Below"),
+			label: nls.localize2('mutlicursor.insertBelow', "在下面添加光标"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -114,7 +114,7 @@ export class InsertCursorBelow extends EditorAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "A&&dd Cursor Below"),
+				title: nls.localize({ key: 'miInsertCursorBelow', comment: ['&& denotes a mnemonic'] }, "在下面添加光标"),
 				order: 3
 			}
 		});
@@ -152,7 +152,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize2('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
+			label: nls.localize2('mutlicursor.insertAtEndOfEachLineSelected', "在行尾添加光标"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -162,7 +162,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "Add C&&ursors to Line Ends"),
+				title: nls.localize({ key: 'miInsertCursorAtEndOfEachLineSelected', comment: ['&& denotes a mnemonic'] }, "在行尾添加光标"),
 				order: 4
 			}
 		});
@@ -206,7 +206,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize2('mutlicursor.addCursorsToBottom', "Add Cursors to Bottom"),
+			label: nls.localize2('mutlicursor.addCursorsToBottom', "向下添加光标"),
 			precondition: undefined
 		});
 	}
@@ -238,7 +238,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToTop',
-			label: nls.localize2('mutlicursor.addCursorsToTop', "Add Cursors to Top"),
+			label: nls.localize2('mutlicursor.addCursorsToTop', "向上添加光标"),
 			precondition: undefined
 		});
 	}
@@ -691,7 +691,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize2('addSelectionToNextFindMatch', "Add Selection to Next Find Match"),
+			label: nls.localize2('addSelectionToNextFindMatch', "将选择添加到下一个查找匹配项"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -701,7 +701,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "Add &&Next Occurrence"),
+				title: nls.localize({ key: 'miAddSelectionToNextFindMatch', comment: ['&& denotes a mnemonic'] }, "添加下一个匹配项"),
 				order: 5
 			}
 		});
@@ -715,12 +715,12 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToPreviousFindMatch',
-			label: nls.localize2('addSelectionToPreviousFindMatch', "Add Selection to Previous Find Match"),
+			label: nls.localize2('addSelectionToPreviousFindMatch', "将选择添加到上一个查找匹配项"),
 			precondition: undefined,
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "Add P&&revious Occurrence"),
+				title: nls.localize({ key: 'miAddSelectionToPreviousFindMatch', comment: ['&& denotes a mnemonic'] }, "添加上一个匹配项"),
 				order: 6
 			}
 		});
@@ -734,7 +734,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToNextFindMatch',
-			label: nls.localize2('moveSelectionToNextFindMatch', "Move Last Selection to Next Find Match"),
+			label: nls.localize2('moveSelectionToNextFindMatch', "将最后一个选择移动到下一个查找匹配项"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -752,7 +752,7 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
-			label: nls.localize2('moveSelectionToPreviousFindMatch', "Move Last Selection to Previous Find Match"),
+			label: nls.localize2('moveSelectionToPreviousFindMatch', "将最后一个选择移动到上一个查找匹配项"),
 			precondition: undefined
 		});
 	}
@@ -765,7 +765,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize2('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
+			label: nls.localize2('selectAllOccurrencesOfFindMatch', "选择所有查找匹配项"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -775,7 +775,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '3_multi',
-				title: nls.localize({ key: 'miSelectHighlights', comment: ['&& denotes a mnemonic'] }, "Select All &&Occurrences"),
+				title: nls.localize({ key: 'miSelectHighlights', comment: ['&& denotes a mnemonic'] }, "选择所有匹配项"),
 				order: 7
 			}
 		});
@@ -789,7 +789,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
 			id: 'editor.action.changeAll',
-			label: nls.localize2('changeAll.label', "Change All Occurrences"),
+			label: nls.localize2('changeAll.label', "更改所有匹配项"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1086,9 +1086,9 @@ export class FocusNextCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusNextCursor',
-			label: nls.localize2('mutlicursor.focusNextCursor', "Focus Next Cursor"),
+			label: nls.localize2('mutlicursor.focusNextCursor', "聚焦下一个光标"),
 			metadata: {
-				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
+				description: nls.localize('mutlicursor.focusNextCursor.description', "聚焦下一个光标"),
 				args: [],
 			},
 			precondition: undefined
@@ -1124,9 +1124,9 @@ export class FocusPreviousCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusPreviousCursor',
-			label: nls.localize2('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
+			label: nls.localize2('mutlicursor.focusPreviousCursor', "聚焦上一个光标"),
 			metadata: {
-				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
+				description: nls.localize('mutlicursor.focusPreviousCursor.description', "聚焦上一个光标"),
 				args: [],
 			},
 			precondition: undefined

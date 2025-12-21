@@ -573,7 +573,7 @@ export class DefaultSettings extends Disposable {
 		return {
 			id: 'mostCommonlyUsed',
 			range: nullRange,
-			title: nls.localize('commonlyUsed', "Commonly Used"),
+			title: nls.localize('commonlyUsed', "常用"),
 			titleRange: nullRange,
 			sections: [
 				{
@@ -1176,7 +1176,7 @@ function escapeInvisibleChars(enumValue: string): string {
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
-	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Override key bindings by placing them into your key bindings file.");
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "通过将键绑定放入键绑定文件来覆盖默认键绑定。");
 	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 
