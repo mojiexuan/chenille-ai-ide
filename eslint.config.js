@@ -1554,6 +1554,15 @@ export default tseslint.config(
 				// It is possible to use /~ in the restrictions property even without using it in
 				// the target property by adding a layer property.
 				{
+					'target': 'src/vs/chenille/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/chenille/~'
+					]
+				},
+				{
 					'target': 'src/vs/base/~',
 					'restrictions': [
 						'vs/base/~'
