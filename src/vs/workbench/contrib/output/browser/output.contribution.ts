@@ -391,7 +391,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFileInNewWindow`,
-					title: nls.localize2('openActiveOutputFileInNewWindow', "Open Output in New Window"),
+					title: nls.localize2('openActiveOutputFileInNewWindow', "在新窗口中打开输出"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),

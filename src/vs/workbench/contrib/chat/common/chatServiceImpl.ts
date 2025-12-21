@@ -394,7 +394,7 @@ export class ChatService extends Disposable implements IChatService {
 		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
 			.map(async (session): Promise<IChatDetail> => {
-				const title = session.title || localize('newChat', "New Chat");
+				const title = session.title || localize('newChat', "新聊天");
 				return {
 					sessionResource: session.sessionResource,
 					title,

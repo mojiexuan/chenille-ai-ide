@@ -54,7 +54,7 @@ export class SearchChatContextContribution extends Disposable implements IWorkbe
 class SearchViewResultChatContextPick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
-	readonly label: string = localize('chatContext.searchResults', 'Search Results');
+	readonly label: string = localize('chatContext.searchResults', '搜索结果');
 	readonly icon: ThemeIcon = Codicon.search;
 	readonly ordinal = 500;
 
@@ -87,7 +87,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 
-	readonly label: string = localize('symbols', 'Symbols...');
+	readonly label: string = localize('symbols', '符号...');
 	readonly icon: ThemeIcon = Codicon.symbolField;
 	readonly ordinal = -200;
 
@@ -107,7 +107,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 	asPicker() {
 
 		return {
-			placeholder: localize('select.symb', "Select a symbol"),
+			placeholder: localize('select.symb', "选择一个符号"),
 			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
 
 				this._provider ??= this._instantiationService.createInstance(SymbolsQuickAccessProvider);
@@ -147,7 +147,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.folder', 'Files & Folders...');
+	readonly label = localize('chatContext.folder', '文件 & 文件夹...');
 	readonly icon = Codicon.folder;
 	readonly ordinal = 600;
 
@@ -166,7 +166,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 	asPicker() {
 
 		return {
-			placeholder: localize('chatContext.attach.files.placeholder', "Search file or folder by name"),
+			placeholder: localize('chatContext.attach.files.placeholder', "按名称搜索文件或文件夹"),
 			picks: picksWithPromiseFn(async (value, token) => {
 
 				const workspaces = this._workspaceService.getWorkspace().folders.map(folder => folder.uri);
@@ -303,7 +303,7 @@ function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMa
 	for (const resource of resources) {
 		const relativePathToRoot = relativePath(workspace, resource);
 		if (!relativePathToRoot) {
-			throw new Error('Resource is not a child of the workspace');
+			throw new Error('资源不是工作区的子级');
 		}
 
 		let dirResource = workspace;

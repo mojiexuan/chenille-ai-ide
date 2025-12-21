@@ -128,9 +128,9 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 
 			const name = $('.name');
 			if (this._historyItemsFilter === 'all') {
-				name.textContent = localize('all', "All");
+				name.textContent = localize('all', "全部");
 			} else if (this._historyItemsFilter === 'auto') {
-				name.textContent = localize('auto', "Auto");
+				name.textContent = localize('auto', "自动");
 			} else if (this._historyItemsFilter.length === 1) {
 				name.textContent = this._historyItemsFilter[0].name;
 			} else {
@@ -143,7 +143,7 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		if (this._historyItemsFilter === 'all') {
-			return localize('allHistoryItemRefs', "All history item references");
+			return localize('allHistoryItemRefs', "所有历史项目引用");
 		} else if (this._historyItemsFilter === 'auto') {
 			const historyProvider = this._repository.provider.historyProvider.get();
 
@@ -164,7 +164,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_REPOSITORY_ACTION_ID,
-			title: localize('repositoryPicker', "Repository Picker"),
+			title: localize('repositoryPicker', "存储库选择器"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			menu: {
@@ -188,7 +188,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_HISTORY_ITEM_REFS_ACTION_ID,
-			title: localize('referencePicker', "History Item Reference Picker"),
+			title: localize('referencePicker', "历史项目引用选择器"),
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
 			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
@@ -210,7 +210,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.revealCurrentHistoryItem',
-			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
+			title: localize('goToCurrentHistoryItem', "转到当前历史记录项目"),
 			icon: Codicon.target,
 			viewId: HISTORY_VIEW_PANE_ID,
 			precondition: ContextKeyExpr.and(
@@ -234,7 +234,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.refresh',
-			title: localize('refreshGraph', "Refresh"),
+			title: localize('refreshGraph', "刷新"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.refresh,
@@ -255,7 +255,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.setListViewMode',
-			title: localize('setListViewMode', "View as List"),
+			title: localize('setListViewMode', "以列表形式查看"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.List),
 			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 1 },
@@ -272,7 +272,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.setTreeViewMode',
-			title: localize('setTreeViewMode', "View as Tree"),
+			title: localize('setTreeViewMode', "以树的形式查看"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.Tree),
 			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 2 },
@@ -289,7 +289,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
-			title: localize('openChanges', "Open Changes"),
+			title: localize('openChanges', "打开更改"),
 			icon: Codicon.diffMultiple,
 			f1: false,
 			menu: [
@@ -370,7 +370,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.openFile',
-			title: localize('openFile', "Open File"),
+			title: localize('openFile', "打开文件"),
 			icon: Codicon.goToFile,
 			f1: false,
 			menu: [
@@ -397,9 +397,9 @@ registerAction2(class extends Action2 {
 
 		let version: string;
 		if (historyItem.id === SCMIncomingHistoryItemId) {
-			version = localize('incomingChanges', "Incoming Changes");
+			version = localize('incomingChanges', "传入更改");
 		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
-			version = localize('outgoingChanges', "Outgoing Changes");
+			version = localize('outgoingChanges', "即将发生的变更");
 		} else {
 			version = historyItem.displayId ?? historyItem.id;
 		}

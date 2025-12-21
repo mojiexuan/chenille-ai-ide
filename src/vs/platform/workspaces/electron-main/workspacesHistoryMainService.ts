@@ -328,8 +328,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			items: [
 				{
 					type: 'task',
-					title: localize('newWindow', "New Window"),
-					description: localize('newWindowDesc', "Opens a new window"),
+					title: localize('newWindow', "新建窗口"),
+					description: localize('newWindowDesc', "打开一个新窗口"),
 					program: process.execPath,
 					args: '-n', // force new window
 					iconPath: process.execPath,
@@ -385,7 +385,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			if (items.length > 0) {
 				jumpList.push({
 					type: 'custom',
-					name: hasWorkspaces ? localize('recentFoldersAndWorkspaces', "Recent Folders & Workspaces") : localize('recentFolders', "Recent Folders"),
+					name: hasWorkspaces ? localize('recentFoldersAndWorkspaces', "最近使用的文件夹和工作区") : localize('recentFolders', "Recent Folders"),
 					items
 				});
 			}

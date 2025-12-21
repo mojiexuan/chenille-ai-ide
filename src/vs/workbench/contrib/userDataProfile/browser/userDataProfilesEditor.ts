@@ -1195,9 +1195,9 @@ class UseAsDefaultProfileRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useAsDefaultProfileContainer = append(parent, $('.profile-row-container'));
-		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use for new windows', "Use for New Windows")));
+		append(useAsDefaultProfileContainer, $('.profile-label-element', undefined, localize('use for new windows', "用于新窗口")));
 		const useAsDefaultProfileValueContainer = append(useAsDefaultProfileContainer, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as the default for new windows");
+		const useAsDefaultProfileTitle = localize('enable for new windows', "将此配置文件用作新窗口的默认配置文件");
 		const useAsDefaultProfileCheckbox = disposables.add(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
 		append(useAsDefaultProfileValueContainer, useAsDefaultProfileCheckbox.domNode);
 		const useAsDefaultProfileLabel = append(useAsDefaultProfileValueContainer, $('.profile-description-element', undefined, useAsDefaultProfileTitle));
@@ -2120,7 +2120,7 @@ class ChangeProfileAction implements IAction {
 	readonly label = 'Change Profile';
 	readonly class = ThemeIcon.asClassName(editIcon);
 	readonly enabled = true;
-	readonly tooltip = localize('change profile', "Change Profile");
+	readonly tooltip = localize('change profile', "更改配置文件");
 	readonly checked = false;
 
 	constructor(
@@ -2200,7 +2200,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 			class: ThemeIcon.asClassName(Codicon.window),
 			enabled: !this.uriIdentityService.extUri.isEqual(item.workspace, item.profileElement.getCurrentWorkspace()),
 			id: 'openWorkspace',
-			tooltip: localize('open', "Open in New Window"),
+			tooltip: localize('open', "在新窗口中打开"),
 			run: () => item.profileElement.openWorkspace(item.workspace)
 		};
 	}
@@ -2211,7 +2211,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 			class: ThemeIcon.asClassName(removeIcon),
 			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id,
 			id: 'deleteTrustedUri',
-			tooltip: localize('deleteTrustedUri', "Delete Path"),
+			tooltip: localize('deleteTrustedUri', "删除路径"),
 			run: () => item.profileElement.updateWorkspaces([], [item.workspace])
 		};
 	}
@@ -2223,7 +2223,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 }
 
 function getHostLabel(labelService: ILabelService, workspaceUri: URI): string {
-	return workspaceUri.authority ? labelService.getHostLabel(workspaceUri.scheme, workspaceUri.authority) : localize('localAuthority', "Local");
+	return workspaceUri.authority ? labelService.getHostLabel(workspaceUri.scheme, workspaceUri.authority) : localize('localAuthority', "本地");
 }
 
 export class UserDataProfilesEditorInput extends EditorInput {
@@ -2250,7 +2250,7 @@ export class UserDataProfilesEditorInput extends EditorInput {
 	}
 
 	override get typeId(): string { return UserDataProfilesEditorInput.ID; }
-	override getName(): string { return localize('userDataProfiles', "Profiles"); }
+	override getName(): string { return localize('userDataProfiles', "配置文件"); }
 	override getIcon(): ThemeIcon | undefined { return defaultUserDataProfileIcon; }
 
 	override async resolve(): Promise<UserDataProfilesEditorModel> {

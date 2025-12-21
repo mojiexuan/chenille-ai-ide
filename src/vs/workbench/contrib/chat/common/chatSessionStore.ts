@@ -509,7 +509,7 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 
 	return {
 		sessionId: session.sessionId,
-		title: title || localize('newChat', "New Chat"),
+		title: title || localize('newChat', "新聊天"),
 		lastMessageDate: session.lastMessageDate,
 		timing,
 		initialLocation: session.initialLocation,

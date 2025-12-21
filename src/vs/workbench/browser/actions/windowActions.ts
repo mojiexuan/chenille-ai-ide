@@ -417,8 +417,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				...localize2('newWindow', "New Window"),
-				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
+				...localize2('newWindow', "新建窗口"),
+				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "新建窗口"),
 			},
 			f1: true,
 			keybinding: {

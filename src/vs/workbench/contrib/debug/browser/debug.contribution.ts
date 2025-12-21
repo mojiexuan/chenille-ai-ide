@@ -262,8 +262,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarDebugMenu,
 	title: {
-		...nls.localize2('runMenu', "Run"),
-		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+		...nls.localize2('runMenu', "运行"),
+		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "运行")
 	},
 	order: 6
 });
@@ -272,7 +272,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: DEBUG_START_COMMAND_ID,
-		title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+		title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "开始调试")
 	},
 	order: 1,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -282,7 +282,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: DEBUG_RUN_COMMAND_ID,
-		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "Run &&Without Debugging")
+		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "不调试运行")
 	},
 	order: 2,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -292,7 +292,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: STOP_ID,
-		title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
+		title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "停止调试"),
 		precondition: CONTEXT_IN_DEBUG_MODE
 	},
 	order: 3,
@@ -303,7 +303,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
 		id: RESTART_SESSION_ID,
-		title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
+		title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "重启调试"),
 		precondition: CONTEXT_IN_DEBUG_MODE
 	},
 	order: 4,
@@ -316,7 +316,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '2_configuration',
 	command: {
 		id: ADD_CONFIGURATION_ID,
-		title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "A&&dd Configuration...")
+		title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "添加配置...")
 	},
 	order: 2,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -327,7 +327,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '3_step',
 	command: {
 		id: STEP_OVER_ID,
-		title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
+		title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "逐过程"),
 		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 	},
 	order: 1,
@@ -338,7 +338,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '3_step',
 	command: {
 		id: STEP_INTO_ID,
-		title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
+		title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "单步执行"),
 		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 	},
 	order: 2,
@@ -349,7 +349,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '3_step',
 	command: {
 		id: STEP_OUT_ID,
-		title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
+		title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "单步停止"),
 		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 	},
 	order: 3,
@@ -360,7 +360,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '3_step',
 	command: {
 		id: CONTINUE_ID,
-		title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+		title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "继续"),
 		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 	},
 	order: 4,
@@ -373,7 +373,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 	group: '1_breakpoints',
 	command: {
 		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
+		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "内联断点")
 	},
 	order: 2,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -381,7 +381,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '4_new_breakpoint',
-	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
+	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "新建断点"),
 	submenu: MenuId.MenubarNewBreakpointMenu,
 	order: 2,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -403,7 +403,7 @@ MenuRegistry.appendMenuItem(MenuId.DebugDisassemblyContext, {
 	group: '3_breakpoints',
 	command: {
 		id: TOGGLE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Breakpoint"),
+		title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "切换断点"),
 	},
 	order: 2,
 	when: CONTEXT_DEBUGGERS_AVAILABLE
@@ -416,7 +416,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: 'z_install',
 	command: {
 		id: 'debug.installAdditionalDebuggers',
-		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
+		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "安装其他调试器...")
 	},
 	order: 1
 });
@@ -443,7 +443,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	ctorDescriptor: new SyncDescriptor(Repl),
 	openCommandActionDescriptor: {
 		id: 'workbench.debug.action.toggleRepl',
-		mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
+		mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "调试控制台"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY },
 		order: 2
 	}
@@ -452,10 +452,10 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: nls.localize2('run and debug', "Run and Debug"),
+	title: nls.localize2('run and debug', "运行和调试"),
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
+		mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "运行"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyD },
 		order: 3
 	},
@@ -467,17 +467,17 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 
 // Register default debug views
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize2('variables', "Variables"), containerIcon: icons.variablesViewIcon, ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize2('watch', "Watch"), containerIcon: icons.watchViewIcon, ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize2('callStack', "Call Stack"), containerIcon: icons.callStackViewIcon, ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize2('breakpoints', "Breakpoints"), containerIcon: icons.breakpointsViewIcon, ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default'), CONTEXT_HAS_DEBUGGED) }], viewContainer);
+viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize2('variables', "变量"), containerIcon: icons.variablesViewIcon, ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize2('watch', "监听"), containerIcon: icons.watchViewIcon, ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize2('callStack', "调用栈"), containerIcon: icons.callStackViewIcon, ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
+viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize2('breakpoints', "断点"), containerIcon: icons.breakpointsViewIcon, ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default'), CONTEXT_HAS_DEBUGGED) }], viewContainer);
 viewsRegistry.registerViews([{ id: WelcomeView.ID, name: WelcomeView.LABEL, containerIcon: icons.runViewIcon, ctorDescriptor: new SyncDescriptor(WelcomeView), order: 1, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
-viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize2('loadedScripts', "Loaded Scripts"), containerIcon: icons.loadedScriptsViewIcon, ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize2('loadedScripts', "已加载脚本"), containerIcon: icons.loadedScriptsViewIcon, ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
 
 // Register disassembly view
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(DisassemblyView, DISASSEMBLY_VIEW_ID, nls.localize('disassembly', "Disassembly")),
+	EditorPaneDescriptor.create(DisassemblyView, DISASSEMBLY_VIEW_ID, nls.localize('disassembly', "反汇编")),
 	[new SyncDescriptor(DisassemblyViewInput)]
 );
 
@@ -486,49 +486,49 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 configurationRegistry.registerConfiguration({
 	id: 'debug',
 	order: 20,
-	title: nls.localize('debugConfigurationTitle', "Debug"),
+	title: nls.localize('debugConfigurationTitle', "调试"),
 	type: 'object',
 	properties: {
 		'debug.showVariableTypes': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showVariableTypes' }, "Show variable type in variable pane during debug session"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showVariableTypes' }, "在调试会话期间在变量窗格中显示变量类型"),
 			default: false
 		},
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "允许在任何文件中设置断点。"),
 			default: false
 		},
 		'debug.gutterMiddleClickAction': {
 			type: 'string',
 			enum: ['logpoint', 'conditionalBreakpoint', 'triggeredBreakpoint', 'none'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'gutterMiddleClickAction' }, 'Controls the action to perform when clicking the editor gutter with the middle mouse button.'),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'gutterMiddleClickAction' }, '控制用鼠标中键单击编辑器边距时要执行的操作。'),
 			enumDescriptions: [
-				nls.localize('debug.gutterMiddleClickAction.logpoint', "Add Logpoint."),
-				nls.localize('debug.gutterMiddleClickAction.conditionalBreakpoint', "Add Conditional Breakpoint."),
-				nls.localize('debug.gutterMiddleClickAction.triggeredBreakpoint', "Add Triggered Breakpoint."),
-				nls.localize('debug.gutterMiddleClickAction.none', "Don't perform any action."),
+				nls.localize('debug.gutterMiddleClickAction.logpoint', "添加日志点。"),
+				nls.localize('debug.gutterMiddleClickAction.conditionalBreakpoint', "添加条件断点。"),
+				nls.localize('debug.gutterMiddleClickAction.triggeredBreakpoint', "添加触发断点。"),
+				nls.localize('debug.gutterMiddleClickAction.none', "不采取任何行动。"),
 			],
 			default: 'logpoint',
 		},
 		'debug.openExplorerOnEnd': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "在调试会话结束时自动打开资源管理器视图。"),
 			default: false
 		},
 		'debug.closeReadonlyTabsOnEnd': {
 			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'closeReadonlyTabsOnEnd' }, "At the end of a debug session, all the read-only tabs associated with that session will be closed"),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'closeReadonlyTabsOnEnd' }, "在调试会话结束时，与该会话关联的所有只读选项卡都将关闭"),
 			default: false
 		},
 		'debug.inlineValues': {
 			type: 'string',
 			'enum': ['on', 'off', 'auto'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "调试时在编辑器中内联显示变量值。"),
 			'enumDescriptions': [
-				nls.localize('inlineValues.on', "Always show variable values inline in editor while debugging."),
-				nls.localize('inlineValues.off', "Never show variable values inline in editor while debugging."),
-				nls.localize('inlineValues.focusNoScroll', "Show variable values inline in editor while debugging when the language supports inline value locations."),
+				nls.localize('inlineValues.on', "调试时，始终在编辑器中内联显示变量值。"),
+				nls.localize('inlineValues.off', "调试时，切勿在编辑器中内联显示变量值。"),
+				nls.localize('inlineValues.focusNoScroll', "当语言支持内联值位置时，在调试时在编辑器中内联显示变量值。"),
 			],
 			default: 'auto'
 		},

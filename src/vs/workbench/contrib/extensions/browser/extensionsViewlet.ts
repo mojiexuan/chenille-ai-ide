@@ -135,7 +135,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.marketplaceAccess',
-			name: localize2('marketPlace', "Marketplace"),
+			name: localize2('marketPlace', "市场"),
 			ctorDescriptor: new SyncDescriptor(class extends ViewPane {
 				public override shouldShowWelcome() {
 					return true;
@@ -154,12 +154,12 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewRegistry.registerViews(viewDescriptors, this.container);
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`),
+			content: localize('sign in', "[登录以访问扩展市场]({0})", `command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
 		});
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
+			content: localize('access denied', "您的帐户无权访问扩展市场。请联系您的管理员。"),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
 		});
 	}
@@ -191,7 +191,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		}
 		const serverLabelChangeEvent = Event.any(this.labelService.onDidChangeFormatters, installedWebExtensionsContextChangeEvent);
 		for (const server of servers) {
-			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
+			const getInstalledViewName = (): string => getViewName(localize('installed', "已安装"), server);
 			const onDidChangeTitle = Event.map<void, string>(serverLabelChangeEvent, () => getInstalledViewName());
 			const id = servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`;
 			/* Installed extensions view */
@@ -217,7 +217,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 						super({
 							id: 'workbench.extensions.installLocalExtensions',
 							get title() {
-								return localize2('select and install local extensions', "Install Local Extensions in '{0}'...", server.label);
+								return localize2('select and install local extensions', "安装本地扩展，从 '{0}'...", server.label);
 							},
 							category: REMOTE_CATEGORY,
 							icon: installLocalInRemoteIcon,
@@ -241,7 +241,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				constructor() {
 					super({
 						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
-						title: localize2('install remote in local', 'Install Remote Extensions Locally...'),
+						title: localize2('install remote in local', '在本地安装远程扩展...'),
 						category: REMOTE_CATEGORY,
 						f1: true
 					});
@@ -259,7 +259,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.popular',
-			name: localize2('popularExtensions', "Popular"),
+			name: localize2('popularExtensions', "流行的"),
 			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{ hideBadge: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions'), CONTEXT_HAS_GALLERY),
 			weight: 60,
@@ -274,7 +274,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'extensions.recommendedList',
-			name: localize2('recommendedExtensions', "Recommended"),
+			name: localize2('recommendedExtensions', "推荐"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand'), CONTEXT_HAS_GALLERY),
 			weight: 40,
@@ -290,7 +290,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			 */
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.enabled',
-				name: localize2('enabledExtensions', "Enabled"),
+				name: localize2('enabledExtensions', "启用"),
 				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
@@ -305,7 +305,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			 */
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.disabled',
-				name: localize2('disabledExtensions', "Disabled"),
+				name: localize2('disabledExtensions', "禁用"),
 				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
@@ -327,7 +327,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.marketplace',
-			name: localize2('marketPlace', "Marketplace"),
+			name: localize2('marketPlace', "市场"),
 			ctorDescriptor: new SyncDescriptor(SearchMarketplaceExtensionsView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchMarketplaceExtensions'), CONTEXT_HAS_GALLERY)
 		});
@@ -337,7 +337,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchInstalled',
-			name: localize2('installed', "Installed"),
+			name: localize2('installed', "已安装"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.or(ContextKeyExpr.has('searchInstalledExtensions'), ContextKeyExpr.has('installedExtensions')),
 		});
@@ -347,7 +347,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchRecentlyUpdated',
-			name: localize2('recently updated', "Recently Updated"),
+			name: localize2('recently updated', "最近更新"),
 			ctorDescriptor: new SyncDescriptor(RecentlyUpdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchRecentlyUpdatedExtensions')),
 			order: 2,
@@ -358,7 +358,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchEnabled',
-			name: localize2('enabled', "Enabled"),
+			name: localize2('enabled', "启用"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchEnabledExtensions')),
 		});
@@ -368,7 +368,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchDisabled',
-			name: localize2('disabled', "Disabled"),
+			name: localize2('disabled', "禁用"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchDisabledExtensions')),
 		});
@@ -378,7 +378,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: OUTDATED_EXTENSIONS_VIEW_ID,
-			name: localize2('availableUpdates', "Available Updates"),
+			name: localize2('availableUpdates', "可用更新"),
 			ctorDescriptor: new SyncDescriptor(OutdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchOutdatedExtensions')),
 			order: 1,
@@ -389,7 +389,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchBuiltin',
-			name: localize2('builtin', "Builtin"),
+			name: localize2('builtin', "内置"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 		});
@@ -399,7 +399,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchWorkspaceUnsupported',
-			name: localize2('workspaceUnsupported', "Workspace Unsupported"),
+			name: localize2('workspaceUnsupported', "工作区不受支持"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchWorkspaceUnsupportedExtensions')),
 		});
@@ -412,7 +412,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: WORKSPACE_RECOMMENDATIONS_VIEW_ID,
-			name: localize2('workspaceRecommendedExtensions', "Workspace Recommendations"),
+			name: localize2('workspaceRecommendedExtensions', "工作空间建议"),
 			ctorDescriptor: new SyncDescriptor(WorkspaceRecommendedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), WorkbenchStateContext.notEqualsTo('empty')),
 			order: 1
@@ -420,7 +420,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.otherRecommendations',
-			name: localize2('otherRecommendedExtensions', "Other Recommendations"),
+			name: localize2('otherRecommendedExtensions', "其他建议"),
 			ctorDescriptor: new SyncDescriptor(RecommendedExtensionsView, [{}]),
 			when: ContextKeyExpr.has('recommendedExtensions'),
 			order: 2
@@ -438,21 +438,21 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		const otherCategoriesQuery = `${otherCategories.map(c => `category:"${c}"`).join(' ')} ${configuredCategories.map(c => `category:"-${c}"`).join(' ')}`;
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinFeatureExtensions',
-			name: localize2('builtinFeatureExtensions', "Features"),
+			name: localize2('builtinFeatureExtensions', "特性"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin ${otherCategoriesQuery}` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinThemeExtensions',
-			name: localize2('builtInThemesExtensions', "Themes"),
+			name: localize2('builtInThemesExtensions', "主题"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:themes` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinProgrammingLanguageExtensions',
-			name: localize2('builtinProgrammingLanguageExtensions', "Programming Languages"),
+			name: localize2('builtinProgrammingLanguageExtensions', "编程语言"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:"programming languages"` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
@@ -465,28 +465,28 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
-			name: localize2('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
+			name: localize2('untrustedUnsupportedExtensions', "在受限模式下禁用"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
-			name: localize2('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
+			name: localize2('untrustedPartiallySupportedExtensions', "受限模式下的限制"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.virtualUnsupportedExtensions',
-			name: localize2('virtualUnsupportedExtensions', "Disabled in Virtual Workspaces"),
+			name: localize2('virtualUnsupportedExtensions', "在虚拟工作区中禁用"),
 			ctorDescriptor: new SyncDescriptor(VirtualWorkspaceUnsupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(VirtualWorkspaceContext, SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.virtualPartiallySupportedExtensions',
-			name: localize2('virtualPartiallySupportedExtensions', "Limited in Virtual Workspaces"),
+			name: localize2('virtualPartiallySupportedExtensions', "虚拟工作空间有限"),
 			ctorDescriptor: new SyncDescriptor(VirtualWorkspacePartiallySupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(VirtualWorkspaceContext, SearchUnsupportedWorkspaceExtensionsContext),
 		});
@@ -499,7 +499,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.deprecatedExtensions',
-			name: localize2('deprecated', "Deprecated"),
+			name: localize2('deprecated', "已弃用"),
 			ctorDescriptor: new SyncDescriptor(DeprecatedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchDeprecatedExtensionsContext),
 		});
@@ -614,7 +614,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		hide(overlay);
 
 		this.header = append(this.root, $('.header'));
-		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
+		const placeholder = localize('searchExtensions', "市场中的搜索扩展");
 
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
@@ -769,7 +769,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 				$('span.message-text-action', {
 					'tabindex': '0',
 					'role': 'button',
-					'aria-label': `${status.message}. ${localize('click show', "Click to Show")}`
+					'aria-label': `${status.message}. ${localize('click show', "单击以显示")}`
 				}, localize('show', "Show")));
 			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
 			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -783,8 +783,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 				$(`span.message-action${ThemeIcon.asCSSSelector(Codicon.close)}`, {
 					'tabindex': '0',
 					'role': 'button',
-					'aria-label': localize('dismiss', "Dismiss"),
-					'title': localize('dismiss', "Dismiss")
+					'aria-label': localize('dismiss', "解雇"),
+					'title': localize('dismiss', "解雇")
 				}));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.CLICK, () => status.dismiss()));
 			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -886,16 +886,16 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 				break;
 			case 1:
 				if (view) {
-					alert(localize('extensionFoundInSection', "1 extension found in the {0} section.", view.name.value));
+					alert(localize('extensionFoundInSection', "在｛0｝节中找到1个扩展名。", view.name.value));
 				} else {
-					alert(localize('extensionFound', "1 extension found."));
+					alert(localize('extensionFound', "找到1个扩展名。"));
 				}
 				break;
 			default:
 				if (view) {
-					alert(localize('extensionsFoundInSection', "{0} extensions found in the {1} section.", count, view.name.value));
+					alert(localize('extensionsFoundInSection', "在｛1｝节中找到｛0｝个扩展名。", count, view.name.value));
 				} else {
-					alert(localize('extensionsFound', "{0} extensions found.", count));
+					alert(localize('extensionsFound', "找到｛0｝个扩展名。", count));
 				}
 				break;
 		}
@@ -945,8 +945,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		const message = err && err.message || '';
 
 		if (/ECONNREFUSED/.test(message)) {
-			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), [
-				new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
+			const error = createErrorWithActions(localize('suggestProxyError', "市场返回“ECONNREFUSED”。请检查“http.proxy”设置。"), [
+				new Action('open user settings', localize('open user settings', "打开用户设置"), undefined, true, () => this.preferencesService.openUserSettings())
 			]);
 
 			this.notificationService.error(error);
@@ -999,13 +999,13 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 			if (newBadgeNumber > 0) {
 				let msg = '';
 				if (outdated) {
-					msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
+					msg += outdated === 1 ? localize('extensionToUpdate', '｛0｝需要更新', outdated) : localize('extensionsToUpdate', '｛0｝需要更新', outdated);
 				}
 				if (outdated > 0 && actionRequired.length > 0) {
 					msg += ', ';
 				}
 				if (actionRequired.length) {
-					msg += actionRequired.length === 1 ? localize('extensionToReload', '{0} requires restart', actionRequired.length) : localize('extensionsToReload', '{0} require restart', actionRequired.length);
+					msg += actionRequired.length === 1 ? localize('extensionToReload', '｛0｝需要重新启动', actionRequired.length) : localize('extensionsToReload', '｛0｝需要重新启动', actionRequired.length);
 				}
 				badge = new NumberBadge(newBadgeNumber, () => msg);
 			}
@@ -1054,19 +1054,19 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					const buttons: IPromptChoice[] = [];
 					if (shouldRestartExtensions || shouldReloadWindow) {
 						buttons.push({
-							label: shouldRestartExtensions ? localize('restartNow', "Restart Extensions") : localize('reloadNow', "Reload Now"),
+							label: shouldRestartExtensions ? localize('restartNow', "重启扩展") : localize('reloadNow', "立即重载"),
 							run: () => shouldRestartExtensions ? this.extensionsWorkbenchService.updateRunningExtensions() : this.hostService.reload()
 						});
 					}
 					if (link) {
 						buttons.push({
-							label: localize('learnMore', "Learn More"),
+							label: localize('learnMore', "了解更多"),
 							run: () => this.commandService.executeCommand('vscode.open', URI.parse(link))
 						});
 					}
 					this.notificationService.prompt(
 						Severity.Warning,
-						localize('malicious warning', "The extension '{0}' was found to be problematic and has been uninstalled", extension.manifest.displayName || extension.identifier.id),
+						localize('malicious warning', "发现扩展'｛0｝'有问题，已将其卸载", extension.manifest.displayName || extension.identifier.id),
 						buttons,
 						{
 							sticky: true,
@@ -1104,10 +1104,10 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 
 		switch (status) {
 			case ExtensionGalleryManifestStatus.RequiresSignIn:
-				badge = new NumberBadge(1, () => localize('signInRequired', "Sign in required to access marketplace"));
+				badge = new NumberBadge(1, () => localize('signInRequired', "需要登录才能访问市场"));
 				break;
 			case ExtensionGalleryManifestStatus.AccessDenied:
-				badge = new WarningBadge(() => localize('accessDenied', "Access denied to marketplace"));
+				badge = new WarningBadge(() => localize('accessDenied', "拒绝进入市场"));
 				break;
 		}
 
@@ -1117,7 +1117,7 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 
 		this.accountBadgeDisposable.clear();
 		if (status === ExtensionGalleryManifestStatus.RequiresSignIn) {
-			const badge = new NumberBadge(1, () => localize('sign in enterprise marketplace', "Sign in to access Marketplace"));
+			const badge = new NumberBadge(1, () => localize('sign in enterprise marketplace', "登录以访问市场"));
 			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 		}
 	}

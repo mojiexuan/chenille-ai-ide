@@ -13,7 +13,7 @@ import { PROFILES_CATEGORY } from '../../../services/userDataProfile/common/user
 
 class CreateTransientProfileAction extends Action2 {
 	static readonly ID = 'workbench.profiles.actions.createTemporaryProfile';
-	static readonly TITLE = localize2('create temporary profile', "New Window with Temporary Profile");
+	static readonly TITLE = localize2('create temporary profile', "带有临时配置文件的新窗口");
 	constructor() {
 		super({
 			id: CreateTransientProfileAction.ID,

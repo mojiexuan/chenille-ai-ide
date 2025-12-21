@@ -2607,8 +2607,8 @@ export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAc
 		super(
 			MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				...localize2('moveEditorToNewWindow', "Move Editor into New Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
+				...localize2('moveEditorToNewWindow', "移动编辑器到新窗口"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "移动编辑器到新窗口"),
 			},
 			undefined,
 			true
@@ -2622,8 +2622,8 @@ export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAct
 		super(
 			COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				...localize2('copyEditorToNewWindow', "Copy Editor into New Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
+				...localize2('copyEditorToNewWindow', "复制编辑器到新窗口"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "复制编辑器到新窗口"),
 			},
 			{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			false
@@ -2666,8 +2666,8 @@ export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToN
 		super(
 			MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				...localize2('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
+				...localize2('moveEditorGroupToNewWindow', "移动编辑器组起到新窗口"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "移动编辑器组起到新窗口"),
 			},
 			true
 		);
@@ -2680,8 +2680,8 @@ export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToN
 		super(
 			COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				...localize2('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
+				...localize2('copyEditorGroupToNewWindow', "复制编辑器组起到新窗口"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "复制编辑器组起到新窗口"),
 			},
 			false
 		);
@@ -2694,8 +2694,8 @@ export class RestoreEditorsToMainWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.restoreEditorsToMainWindow',
 			title: {
-				...localize2('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
-				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
+				...localize2('restoreEditorsToMainWindow', "还原编辑器到主窗口"),
+				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "还原编辑器到主窗口"),
 			},
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext,
@@ -2716,8 +2716,8 @@ export class NewEmptyEditorWindowAction extends Action2 {
 		super({
 			id: NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID,
 			title: {
-				...localize2('newEmptyEditorWindow', "New Empty Editor Window"),
-				mnemonicTitle: localize({ key: 'miNewEmptyEditorWindow', comment: ['&& denotes a mnemonic'] }, "&&New Empty Editor Window"),
+				...localize2('newEmptyEditorWindow', "新建空编辑器窗口"),
+				mnemonicTitle: localize({ key: 'miNewEmptyEditorWindow', comment: ['&& denotes a mnemonic'] }, "新建空编辑器窗口"),
 			},
 			f1: true,
 			category: Categories.View
