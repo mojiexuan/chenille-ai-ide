@@ -397,6 +397,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 	}
 
+	// 使用安装程序调用聊天服务
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
@@ -423,23 +424,23 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 																				// we are already in a chat context
-				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// only enable anonymous selectively
+				disableChatViewReveal: true, 																				// 我们已经处于聊天环境中
+				forceAnonymous: this.chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithoutDialog : undefined	// 仅在需要时启用匿名
 			});
 		} catch (error) {
-			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
+			this.logService.error(`[chat setup] 安装程序运行时出错: ${toErrorMessage(error)}`);
 		} finally {
 			setupListener.dispose();
 		}
 
-		// User has agreed to run the setup
+		// 用户已同意运行安装程序
 		if (typeof result?.success === 'boolean') {
 			if (result.success) {
 				if (result.dialogSkipped) {
-					await widget?.clear(); // make room for the Chat welcome experience
+					await widget?.clear(); // 为聊天欢迎体验腾出空间
 				} else if (requestModel) {
-					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
-					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools
+					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// 用实际的聊天代理替换代理部分...
+					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...然后用实际的聊天工具替换任何工具部件
 
 					await this.forwardRequestToChat(newRequest, progress, chatService, languageModelsService, chatAgentService, chatWidgetService, languageModelToolsService);
 				}
@@ -451,7 +452,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
-		// User has cancelled the setup
+		// 用户已取消安装
 		else {
 			progress({
 				kind: 'markdownContent',

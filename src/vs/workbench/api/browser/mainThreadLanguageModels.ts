@@ -192,7 +192,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			return Disposable.None;
 		}
 
-		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', 'Language Models');
+		const accountLabel = auth.accountLabel ?? localize('languageModelsAccountId', '大语言模型');
 		const disposables = new DisposableStore();
 		this._authenticationService.registerAuthenticationProvider(authProviderId, new LanguageModelAccessAuthProvider(authProviderId, auth.providerLabel, accountLabel));
 		disposables.add(toDisposable(() => {

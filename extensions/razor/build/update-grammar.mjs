@@ -17,7 +17,7 @@ function patchGrammar(grammar) {
 			rule.include = 'text.html.derivative';
 		}
 		for (let property in rule) {
-			let value = rule[property	];
+			let value = rule[property];
 			if (typeof value === 'object') {
 				visit(value, { node: rule, property: property, parent: parent });
 			}

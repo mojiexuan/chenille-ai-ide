@@ -291,7 +291,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	private _updateAgentsContextKeys(): void {
-		// Update the set of context keys used by all agents
+		// 更新所有代理使用的上下文键集
 		this._agentsContextKeys.clear();
 		for (const agent of this._agents.values()) {
 			if (agent.data.when) {
