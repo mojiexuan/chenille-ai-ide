@@ -1,4 +1,4 @@
-# Chenille - Chenille - 毛毛虫
+# Chenille - AI IDE - 毛毛虫
 
 > Code - OSS v1.107.1
 
