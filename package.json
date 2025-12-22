@@ -72,6 +72,8 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.34.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
@@ -110,6 +112,7 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
+    "openai": "^6.15.0",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",

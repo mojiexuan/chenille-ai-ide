@@ -1504,7 +1504,14 @@ export default tseslint.config(
 						'@xterm/xterm',
 						'yauzl',
 						'yazl',
-						'zlib'
+						'zlib',
+						'openai',
+						'openai/resources/index',
+						'openai/core/streaming',
+						'openai/streaming',
+						'@anthropic-ai/sdk',
+						'@anthropic-ai/sdk/resources/messages',
+						'@google/genai'
 					]
 				},
 				{

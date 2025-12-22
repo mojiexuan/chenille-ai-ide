@@ -62,9 +62,22 @@ export interface AiModelMessage {
 export interface ChatCompletionResult {
 	content: string;
 	reasoning?: string;
-	function_call?: any;
+	function_call?: ToolCall[];
 	done: boolean;
 	error?: string;
+}
+
+/**
+ * 工具回调
+ */
+export interface ToolCall {
+	type: 'function';
+	function: ToolCallFunction;
+}
+
+export interface ToolCallFunction {
+	arguments?: string;
+	name?: string;
 }
 
 /**
@@ -142,4 +155,17 @@ export interface AiFunctionDefinitionParameterProperty {
 export interface AiFunctionDefinitionParameterPropertyDescriptor {
 	type: string;
 	description: string;
+}
+
+/**
+ * AI Provider 统一接口
+ * 所有提供商（OpenAI、Anthropic、Google 等）都实现此接口
+ */
+export interface IAIProvider {
+	/** 提供商名称 */
+	readonly name: string;
+	/** 普通对话 */
+	chat(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
+	/** 流式对话 */
+	stream(options: ChatCompletionOptions): Promise<void>;
 }
