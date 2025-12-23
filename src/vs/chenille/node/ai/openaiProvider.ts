@@ -6,8 +6,8 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index';
 import type { Stream } from 'openai/streaming';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, ToolCall } from '../common/types.js';
-import { ChenilleError } from '../common/errors.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, ToolCall } from '../../common/types.js';
+import { ChenilleError } from '../../common/errors.js';
 
 /**
  * 将统一消息格式转换为 OpenAI 格式

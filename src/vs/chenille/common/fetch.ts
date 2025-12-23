@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFetchOptions, IRequestService } from '../common/types.js';
-import { ChenilleError, NetworkError, ParseError } from '../common/errors.js';
-import { prepareRequest } from '../common/utils.js';
+import { IFetchOptions, IRequestService } from './types.js';
+import { ChenilleError, NetworkError, ParseError } from './errors.js';
+import { prepareRequest } from './utils.js';
 
 /**
  * 处理响应
@@ -23,7 +23,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
- * 通用 fetch 请求方法（浏览器端）
+ * 通用 fetch 请求方法
  */
 export async function request<T = unknown, P = unknown>(
 	url: string,
@@ -83,9 +83,9 @@ export function patch<T = unknown, P = unknown>(
 }
 
 /**
- * 浏览器端请求服务
+ * 请求服务实例
  */
-export const browserRequestService: IRequestService = {
+export const requestService: IRequestService = {
 	request,
 	get,
 	post,

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GoogleGenAI, Content, Tool, FunctionDeclaration, Type } from '@google/genai';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage } from '../common/types.js';
-import { ChenilleError } from '../common/errors.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage } from '../../common/types.js';
+import { ChenilleError } from '../../common/errors.js';
 
 /**
  * 将统一消息格式转换为 Google 格式

@@ -1006,6 +1006,15 @@ export default tseslint.config(
 			'local/code-amd-node-module': 'warn'
 		}
 	},
+	// chenille common/ai layer - allow direct npm imports for AI SDKs
+	{
+		files: [
+			'src/vs/chenille/common/ai/**/*.ts'
+		],
+		rules: {
+			'local/code-amd-node-module': 'off'
+		}
+	},
 	// node/electron layer
 	{
 		files: [
@@ -1566,7 +1575,14 @@ export default tseslint.config(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
-						'vs/chenille/~'
+						'vs/chenille/~',
+						'vs/workbench/services/*/~',
+						'openai',
+						'openai/resources/index',
+						'openai/streaming',
+						'@anthropic-ai/sdk',
+						'@anthropic-ai/sdk/resources/messages',
+						'@google/genai'
 					]
 				},
 				{
@@ -1729,6 +1745,7 @@ export default tseslint.config(
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
+						'vs/chenille/~',
 						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
 						{
@@ -1785,6 +1802,7 @@ export default tseslint.config(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/code/~',
+						'vs/chenille/~',
 						{
 							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/workbench.web.main.js'
@@ -1813,7 +1831,8 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/server/~'
+						'vs/server/~',
+						'vs/chenille/~'
 					]
 				},
 				{

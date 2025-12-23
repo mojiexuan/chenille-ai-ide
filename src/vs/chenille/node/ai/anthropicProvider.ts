@@ -5,7 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, TextBlock, ToolUseBlock, ContentBlockDeltaEvent } from '@anthropic-ai/sdk/resources/messages';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage } from '../common/types.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage } from '../../common/types.js';
 
 /**
  * 将统一消息格式转换为 Anthropic 格式

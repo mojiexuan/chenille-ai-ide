@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AiProvider, ChatCompletionOptions, ChatCompletionResult, IAIProvider } from '../common/types.js';
-import { ChenilleError } from '../common/errors.js';
+import { AiProvider, ChatCompletionOptions, ChatCompletionResult, IAIProvider } from '../../common/types.js';
+import { ChenilleError } from '../../common/errors.js';
 import { OpenAIProvider } from './openaiProvider.js';
 import { AnthropicProvider } from './anthropicProvider.js';
 import { GoogleProvider } from './googleProvider.js';

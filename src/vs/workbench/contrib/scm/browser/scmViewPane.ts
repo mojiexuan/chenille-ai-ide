@@ -94,7 +94,7 @@ import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../b
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { HiddenItemStrategy, IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { clamp, rot } from '../../../../base/common/numbers.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -108,9 +108,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import product from '../../../../platform/product/common/product.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { ICommitMessageService } from '../../../../chenille/common/commitMessage.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -1378,30 +1376,65 @@ registerAction2(class extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.SCMInputBox,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate(),
-					ChatContextKeys.Setup.installed.negate(),
-					ContextKeyExpr.equals('scmProvider', 'git')
-				)
+				when: ContextKeyExpr.equals('scmProvider', 'git')
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-
-		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
-		if (!result) {
+	override async run(accessor: ServicesAccessor, provider: URI | undefined, context: ISCMInputValueProviderContext[] | undefined, token: CancellationToken | undefined): Promise<void> {
+		if (!provider || !context) {
 			return;
 		}
 
-		const command = product.defaultChatAgent?.generateCommitMessageCommand;
-		if (!command) {
+		const scmService = accessor.get(ISCMService);
+		const notificationService = accessor.get(INotificationService);
+		const commitMessageService = accessor.get(ICommitMessageService);
+
+		// 找到对应的 repository
+		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === provider.toString());
+		if (!repository) {
 			return;
 		}
 
-		await commandService.executeCommand(command, ...args);
+		// 收集变更文件信息
+		const changes: string[] = [];
+		for (const group of context) {
+			for (const resource of group.resources) {
+				changes.push(resource.fsPath);
+			}
+		}
+
+		if (changes.length === 0) {
+			notificationService.info(localize('noDiff', "没有检测到代码变更"));
+			return;
+		}
+
+		try {
+			// 构建变更摘要作为 diff 信息
+			const diffSummary = `变更文件列表:\n${changes.map(f => `- ${f}`).join('\n')}`;
+
+			// 清空当前输入
+			repository.input.setValue('', false);
+
+			// 监听流式事件
+			let content = '';
+			const disposable = commitMessageService.onStreamChunk(chunk => {
+				if (token?.isCancellationRequested) {
+					return;
+				}
+				content += chunk;
+				repository.input.setValue(content, false);
+			});
+
+			try {
+				// 流式生成 commit message
+				await commitMessageService.generateCommitMessageStream(diffSummary, token);
+			} finally {
+				disposable.dispose();
+			}
+		} catch (error) {
+			notificationService.error(localize('generateCommitMessageError', "生成提交消息失败: {0}", String(error)));
+		}
 	}
 });
 
@@ -1448,10 +1481,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			// Save last action
 			if (this._runningActions.size === 0) {
-				const actionId = action.id === SCMInputWidgetCommandId.SetupAction
-					? product.defaultChatAgent?.generateCommitMessageCommand ?? action.id
-					: action.id;
-				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, actionId, StorageScope.PROFILE, StorageTarget.USER);
+				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, action.id, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
