@@ -1571,12 +1571,15 @@ Update \`.github/copilot-instructions.md\` for the user, then ask for feedback o
 		}
 	});
 
+	// Chenille 设置按钮 - 直接打开设置弹窗
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "配置聊天"),
+		command: {
+			id: 'chenille.openSettings',
+			title: localize2('chenilleSettings.label', "Chenille 设置"),
+			icon: Codicon.gear,
+		},
 		group: 'navigation',
 		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.gear,
 		order: 6
 	});
 }

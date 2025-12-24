@@ -1,0 +1,268 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Dialog Styles */
+.chenille-dialog-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: var(--vscode-widget-shadow);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2000;
+}
+
+.chenille-dialog {
+	width: 800px;
+	height: 600px;
+	max-width: 90vw;
+	max-height: 80vh;
+	background: var(--vscode-quickInput-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.chenille-dialog-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-sideBar-background);
+}
+
+.chenille-dialog-title {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chenille-dialog-close {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 4px;
+	color: var(--vscode-icon-foreground);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chenille-dialog-close:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chenille-dialog-body {
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+}
+
+/* Settings Panel */
+.chenille-settings-panel {
+	display: flex;
+	height: 100%;
+	width: 100%;
+}
+
+.chenille-settings-menu {
+	width: 180px;
+	min-width: 180px;
+	border-right: 1px solid var(--vscode-widget-border);
+	padding: 8px 0;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-sideBar-background);
+}
+
+.chenille-menu-item {
+	padding: 8px 16px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+}
+
+.chenille-menu-item:hover:not(.disabled) {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chenille-menu-item.active {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chenille-menu-item.disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.chenille-settings-content {
+	flex: 1;
+	padding: 16px 20px;
+	overflow: auto;
+	background: var(--vscode-editor-background);
+}
+
+/* Content Panel Styles */
+.chenille-panel-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.chenille-panel-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chenille-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chenille-list-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 12px;
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+}
+
+.chenille-list-item:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.chenille-list-item-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.chenille-list-item-name {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chenille-list-item-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-list-item-actions {
+	display: flex;
+	gap: 4px;
+}
+
+/* Button Styles */
+.chenille-btn {
+	padding: 4px 10px;
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+	font-size: 13px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chenille-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.chenille-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.chenille-btn-secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chenille-btn-secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chenille-btn-danger {
+	background: transparent;
+	color: var(--vscode-errorForeground);
+}
+
+.chenille-btn-danger:hover {
+	background: var(--vscode-inputValidation-errorBackground);
+}
+
+/* Form Styles */
+.chenille-form {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	max-width: 400px;
+}
+
+.chenille-form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chenille-form-label {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.chenille-form-input,
+.chenille-form-select,
+.chenille-form-textarea {
+	padding: 6px 8px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 2px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	font-family: inherit;
+}
+
+.chenille-form-input:focus,
+.chenille-form-select:focus,
+.chenille-form-textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.chenille-form-textarea {
+	min-height: 100px;
+	resize: vertical;
+}
+
+.chenille-form-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.chenille-empty-state {
+	text-align: center;
+	padding: 40px 20px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+}

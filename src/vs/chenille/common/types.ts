@@ -114,6 +114,7 @@ export interface AiModel {
 	model: string;
 	baseUrl: string;
 	apiKey: string;
+	contextSize?: number;
 }
 
 /**
