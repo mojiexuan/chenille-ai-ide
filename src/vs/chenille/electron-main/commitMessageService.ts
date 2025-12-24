@@ -10,7 +10,7 @@ import { ICommitMessageService } from '../common/commitMessage.js';
 import { AIClient } from '../node/ai/aiClient.js';
 import { AiProvider, AiAgent, AiModel, AiPrompt } from '../common/types.js';
 
-const DEEPSEEK_API_KEY = 'sk-f05a360ffd5c49b18cd5b2338da44a70';
+const DEEPSEEK_API_KEY = 'xxx';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const DEEPSEEK_MODEL = 'deepseek-chat';
 
