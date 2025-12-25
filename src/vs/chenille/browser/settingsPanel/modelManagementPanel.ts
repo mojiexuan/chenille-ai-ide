@@ -51,7 +51,7 @@ export class ModelManagementPanel extends Disposable {
 	}
 
 	private render(): void {
-		// Header
+		// 头
 		const header = append(this.container, $('.chenille-panel-header'));
 		append(header, $('.chenille-panel-title')).textContent = localize('modelManagement', "模型管理");
 
@@ -60,11 +60,11 @@ export class ModelManagementPanel extends Disposable {
 		append(addBtn, document.createTextNode(localize('addModel', "添加模型")));
 		addBtn.addEventListener('click', () => this.showForm());
 
-		// List
+		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
 		this.renderList();
 
-		// Form (hidden initially)
+		// 表单（最初隐藏）
 		this.formContainer = append(this.container, $('.chenille-form'));
 		this.formContainer.style.display = 'none';
 	}
@@ -117,13 +117,13 @@ export class ModelManagementPanel extends Disposable {
 
 		clearNode(this.formContainer);
 
-		// Name
+		// 名称
 		const nameInput = this.createInputGroup(this.formContainer, localize('modelName', "名称"), 'text', model?.name ?? '');
 		if (model) {
 			nameInput.readOnly = true;
 		}
 
-		// Provider
+		// 服务商
 		const providerGroup = append(this.formContainer, $('.chenille-form-group'));
 		append(providerGroup, $('.chenille-form-label')).textContent = localize('provider', "服务商");
 		const providerSelect = append(providerGroup, $('select.chenille-form-select')) as HTMLSelectElement;
@@ -142,10 +142,10 @@ export class ModelManagementPanel extends Disposable {
 		// ApiKey
 		const apiKeyInput = this.createInputGroup(this.formContainer, localize('apiKey', "API Key"), 'password', model?.apiKey ?? '');
 
-		// Model
+		// 模型
 		const modelInput = this.createInputGroup(this.formContainer, localize('model', "模型"), 'text', model?.model ?? '');
 
-		// Context Size
+		// 上下文大小
 		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(model?.contextSize ?? 4096));
 
 		this.formInputs = {
@@ -157,7 +157,7 @@ export class ModelManagementPanel extends Disposable {
 			contextSize: contextSizeInput,
 		};
 
-		// Actions
+		// 操作
 		const actions = append(this.formContainer, $('.chenille-form-actions'));
 
 		const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
@@ -210,7 +210,7 @@ export class ModelManagementPanel extends Disposable {
 			return;
 		}
 
-		// Check duplicate name when adding new
+		// 添加新时检查重复名称
 		if (!this.editingModel && this.modelStorage.get(model.name)) {
 			alert(localize('nameDuplicate', "名称已存在"));
 			return;

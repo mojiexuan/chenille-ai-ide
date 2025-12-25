@@ -81,12 +81,12 @@ export class ChenilleSettingsPanel extends Disposable {
 
 		this.currentPanel = panelType;
 
-		// Update menu active state
+		// 更新菜单活动状态
 		this.menuItemElements.forEach((element, id) => {
 			element.classList.toggle('active', id === panelType);
 		});
 
-		// Clear and render content
+		// 清除并呈现内容
 		this.panelDisposables.clear();
 		clearNode(this.contentContainer);
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Dialog Styles */
+/* 弹窗样式 */
 .chenille-dialog-modal {
 	position: fixed;
 	top: 0;
@@ -69,7 +69,7 @@
 	display: flex;
 }
 
-/* Settings Panel */
+/* 设置面板 */
 .chenille-settings-panel {
 	display: flex;
 	height: 100%;
@@ -116,7 +116,7 @@
 	background: var(--vscode-editor-background);
 }
 
-/* Content Panel Styles */
+/* 内容面板样式 */
 .chenille-panel-header {
 	display: flex;
 	justify-content: space-between;
@@ -172,7 +172,7 @@
 	gap: 4px;
 }
 
-/* Button Styles */
+/* 按钮样式 */
 .chenille-btn {
 	padding: 4px 10px;
 	border: none;
@@ -211,7 +211,7 @@
 	background: var(--vscode-inputValidation-errorBackground);
 }
 
-/* Form Styles */
+/* 表单样式 */
 .chenille-form {
 	display: flex;
 	flex-direction: column;

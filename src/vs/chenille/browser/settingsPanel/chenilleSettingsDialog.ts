@@ -30,7 +30,7 @@ export class ChenilleSettingsDialog extends Disposable {
 	show(): void {
 		const container = getWindow(document).document.body;
 
-		// Modal backdrop
+		// 模态背景
 		this.modalElement = append(container, $('.chenille-dialog-modal'));
 		this.dialogDisposables.add(addDisposableListener(this.modalElement, EventType.CLICK, (e) => {
 			if (e.target === this.modalElement) {
@@ -38,10 +38,10 @@ export class ChenilleSettingsDialog extends Disposable {
 			}
 		}));
 
-		// Dialog container
+		// 对话框容器
 		this.dialogElement = append(this.modalElement, $('.chenille-dialog'));
 
-		// Header
+		// 头
 		const header = append(this.dialogElement, $('.chenille-dialog-header'));
 		append(header, $('.chenille-dialog-title')).textContent = localize('chenilleSettings', "Chenille 设置");
 
@@ -51,11 +51,11 @@ export class ChenilleSettingsDialog extends Disposable {
 		closeBtn.title = localize('close', "关闭");
 		this.dialogDisposables.add(addDisposableListener(closeBtn, EventType.CLICK, () => this.hide()));
 
-		// Body
+		// 体
 		const body = append(this.dialogElement, $('.chenille-dialog-body'));
 		this.dialogDisposables.add(this.instantiationService.createInstance(ChenilleSettingsPanel, body));
 
-		// ESC to close
+		// ESC 关闭
 		this.dialogDisposables.add(addDisposableListener(getWindow(document), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
 				this.hide();

@@ -41,7 +41,7 @@ export class PromptManagementPanel extends Disposable {
 	}
 
 	private render(): void {
-		// Header
+		// 头
 		const header = append(this.container, $('.chenille-panel-header'));
 		append(header, $('.chenille-panel-title')).textContent = localize('promptManagement', "提示词管理");
 
@@ -50,11 +50,11 @@ export class PromptManagementPanel extends Disposable {
 		append(addBtn, document.createTextNode(localize('addPrompt', "添加提示词")));
 		addBtn.addEventListener('click', () => this.showForm());
 
-		// List
+		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
 		this.renderList();
 
-		// Form (hidden initially)
+		// 表单（初始隐藏）
 		this.formContainer = append(this.container, $('.chenille-form'));
 		this.formContainer.style.display = 'none';
 	}
@@ -107,7 +107,7 @@ export class PromptManagementPanel extends Disposable {
 
 		clearNode(this.formContainer);
 
-		// Name
+		// 名称
 		const nameGroup = append(this.formContainer, $('.chenille-form-group'));
 		append(nameGroup, $('.chenille-form-label')).textContent = localize('promptName', "名称");
 		const nameInput = append(nameGroup, $('input.chenille-form-input')) as HTMLInputElement;
@@ -116,13 +116,13 @@ export class PromptManagementPanel extends Disposable {
 			nameInput.readOnly = true;
 		}
 
-		// Description
+		// 描述
 		const descGroup = append(this.formContainer, $('.chenille-form-group'));
 		append(descGroup, $('.chenille-form-label')).textContent = localize('description', "描述");
 		const descInput = append(descGroup, $('input.chenille-form-input')) as HTMLInputElement;
 		descInput.value = prompt?.description ?? '';
 
-		// Content
+		// 内容
 		const contentGroup = append(this.formContainer, $('.chenille-form-group'));
 		append(contentGroup, $('.chenille-form-label')).textContent = localize('content', "内容");
 		const contentInput = append(contentGroup, $('textarea.chenille-form-textarea')) as HTMLTextAreaElement;
@@ -135,7 +135,7 @@ export class PromptManagementPanel extends Disposable {
 			content: contentInput,
 		};
 
-		// Actions
+		// 活动
 		const actions = append(this.formContainer, $('.chenille-form-actions'));
 
 		const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
@@ -176,7 +176,7 @@ export class PromptManagementPanel extends Disposable {
 			return;
 		}
 
-		// Check duplicate name when adding new
+		// 添加新时检查重复名称
 		if (!this.editingPrompt && this.promptStorage.get(prompt.name)) {
 			alert(localize('nameDuplicate', "名称已存在"));
 			return;
