@@ -60,14 +60,15 @@ export class AnthropicProvider implements IAIProvider {
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 1) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
 		const response = await client.messages.create({
-			model: options.agent.model.model,
+			model: model.model,
 			messages: toAnthropicMessages(options.messages),
 			system: extractSystemPrompt(options.messages),
 			temperature,
-			max_tokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : 4096,
+			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
 			tools: toAnthropicTools(options),
 		});
 
@@ -97,14 +98,15 @@ export class AnthropicProvider implements IAIProvider {
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 1) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
 		const stream = client.messages.stream({
-			model: options.agent.model.model,
+			model: model.model,
 			messages: toAnthropicMessages(options.messages),
 			system: extractSystemPrompt(options.messages),
 			temperature,
-			max_tokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : 4096,
+			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
 			tools: toAnthropicTools(options),
 		});
 

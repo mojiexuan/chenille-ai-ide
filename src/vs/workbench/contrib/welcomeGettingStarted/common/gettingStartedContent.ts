@@ -279,7 +279,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'videoTutorial',
 					title: localize('gettingStarted.videoTutorial.title', "观看视频教程"),
 					description: localize('gettingStarted.videoTutorial.description.interpolated', "观看一系列简短实用的 Chenille 核心功能视频教程中的第一个。\n{0}", Button(localize('watch', "观看教程"), 'https://aka.ms/vscode-getting-started-video')),
-					media: { type: 'svg', altText: 'Chenille 设置', path: 'learn.svg' },
+					media: { type: 'svg', altText: 'Chenille AI 设置', path: 'learn.svg' },
 				}
 			]
 		}
@@ -494,7 +494,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					when: 'workspacePlatform != \'webworker\' && syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
-						type: 'svg', altText: 'Chenille 设置', path: 'settings.svg'
+						type: 'svg', altText: 'Chenille AI 设置', path: 'settings.svg'
 					},
 				},
 				{

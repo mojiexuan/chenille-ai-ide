@@ -12,35 +12,22 @@ export const ICommitMessageService = createDecorator<ICommitMessageService>('com
 
 /**
  * 提交消息生成服务接口
+ * 调用方只需传入 changes，agent 由服务内部加载
  */
 export interface ICommitMessageService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * 流式生成时触发的事件，每次收到内容块时触发
-	 */
 	readonly onStreamChunk: Event<string>;
 
-	/**
-	 * 生成提交消息
-	 * @param changes Git diff 或文件列表
-	 * @param token 取消令牌
-	 * @returns 生成的提交消息
-	 */
 	generateCommitMessage(changes: string, token?: CancellationToken): Promise<string>;
 
-	/**
-	 * 流式生成提交消息
-	 * @param changes Git diff 或文件列表
-	 * @param token 取消令牌
-	 */
 	generateCommitMessageStream(changes: string, token?: CancellationToken): Promise<void>;
 }
 
 export const CommitMessageChannelName = 'commitMessage';
 
 /**
- * CommitMessageService 的 IPC Channel（服务端）
+ * IPC Channel（服务端 - main 进程）
  */
 export class CommitMessageChannel implements IServerChannel {
 	constructor(private readonly service: ICommitMessageService) { }
@@ -54,15 +41,17 @@ export class CommitMessageChannel implements IServerChannel {
 
 	call<T>(_context: unknown, command: string, args?: unknown[], token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
-			case 'generateCommitMessage': return this.service.generateCommitMessage(args?.[0] as string, token) as Promise<T>;
-			case 'generateCommitMessageStream': return this.service.generateCommitMessageStream(args?.[0] as string, token) as Promise<T>;
+			case 'generateCommitMessage':
+				return this.service.generateCommitMessage(args?.[0] as string, token) as Promise<T>;
+			case 'generateCommitMessageStream':
+				return this.service.generateCommitMessageStream(args?.[0] as string, token) as Promise<T>;
 		}
 		throw new Error(`无效的调用命令: ${command}`);
 	}
 }
 
 /**
- * CommitMessageService 的 IPC Channel 客户端（浏览器端）
+ * IPC Channel 客户端（browser 端调用 main 进程）
  */
 export class CommitMessageChannelClient implements ICommitMessageService {
 	declare readonly _serviceBrand: undefined;

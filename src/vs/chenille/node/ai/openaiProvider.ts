@@ -78,13 +78,14 @@ export class OpenAIProvider implements IAIProvider {
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 2) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
 		const response = await client.chat.completions.create({
-			model: options.agent.model.model,
+			model: model.model,
 			messages: toOpenAIMessages(options),
 			temperature,
-			max_completion_tokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : undefined,
+			max_completion_tokens: model.maxTokens > 0 ? model.maxTokens : undefined,
 			tools: toOpenAITools(options),
 			tool_choice: options.tool_choice,
 			stream: false,
@@ -110,13 +111,14 @@ export class OpenAIProvider implements IAIProvider {
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 2) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
 		const stream: Stream<OpenAI.Chat.Completions.ChatCompletionChunk> = await client.chat.completions.create({
-			model: options.agent.model.model,
+			model: model.model,
 			messages: toOpenAIMessages(options),
 			temperature,
-			max_completion_tokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : undefined,
+			max_completion_tokens: model.maxTokens > 0 ? model.maxTokens : undefined,
 			tools: toOpenAITools(options),
 			tool_choice: options.tool_choice,
 			stream: true,

@@ -6,7 +6,7 @@
 import { $, append, clearNode } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IAiModelStorageService } from '../../common/modelStorage.js';
+import { IAiModelStorageService } from '../../common/storageIpc.js';
 import { AiModel, AiProvider } from '../../common/types.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -25,13 +25,14 @@ interface FormInputs {
 	apiKey: HTMLInputElement;
 	model: HTMLInputElement;
 	contextSize: HTMLInputElement;
+	maxTokens: HTMLInputElement;
+	temperature: HTMLInputElement;
 }
 
 export class ModelManagementPanel extends Disposable {
 	private container: HTMLElement;
 	private listContainer: HTMLElement | undefined;
 	private formContainer: HTMLElement | undefined;
-	private isEditing = false;
 	private editingModel: AiModel | undefined;
 	private formInputs: FormInputs | undefined;
 
@@ -42,12 +43,6 @@ export class ModelManagementPanel extends Disposable {
 		super();
 		this.container = parent;
 		this.render();
-
-		this._register(this.modelStorage.onDidChangeModels(() => {
-			if (!this.isEditing) {
-				this.renderList();
-			}
-		}));
 	}
 
 	private render(): void {
@@ -69,13 +64,13 @@ export class ModelManagementPanel extends Disposable {
 		this.formContainer.style.display = 'none';
 	}
 
-	private renderList(): void {
+	private async renderList(): Promise<void> {
 		if (!this.listContainer) {
 			return;
 		}
 		clearNode(this.listContainer);
 
-		const models = this.modelStorage.getAll();
+		const models = await this.modelStorage.getAll();
 
 		if (models.length === 0) {
 			const empty = append(this.listContainer, $('.chenille-empty-state'));
@@ -110,7 +105,6 @@ export class ModelManagementPanel extends Disposable {
 			return;
 		}
 
-		this.isEditing = true;
 		this.editingModel = model;
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
@@ -148,6 +142,15 @@ export class ModelManagementPanel extends Disposable {
 		// 上下文大小
 		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(model?.contextSize ?? 4096));
 
+		// 最大输出Token
+		const maxTokensInput = this.createInputGroup(this.formContainer, localize('maxTokens', "最大输出Token"), 'number', String(model?.maxTokens ?? 2048));
+
+		// 温度
+		const temperatureInput = this.createInputGroup(this.formContainer, localize('temperature', "温度 (0-2)"), 'number', String(model?.temperature ?? 0.7));
+		temperatureInput.step = '0.1';
+		temperatureInput.min = '0';
+		temperatureInput.max = '2';
+
 		this.formInputs = {
 			name: nameInput,
 			provider: providerSelect,
@@ -155,6 +158,8 @@ export class ModelManagementPanel extends Disposable {
 			apiKey: apiKeyInput,
 			model: modelInput,
 			contextSize: contextSizeInput,
+			maxTokens: maxTokensInput,
+			temperature: temperatureInput,
 		};
 
 		// 操作
@@ -183,7 +188,6 @@ export class ModelManagementPanel extends Disposable {
 			return;
 		}
 
-		this.isEditing = false;
 		this.editingModel = undefined;
 		this.formInputs = undefined;
 		this.formContainer.style.display = 'none';
@@ -191,7 +195,7 @@ export class ModelManagementPanel extends Disposable {
 		this.renderList();
 	}
 
-	private saveModel(): void {
+	private async saveModel(): Promise<void> {
 		if (!this.formInputs) {
 			return;
 		}
@@ -203,6 +207,8 @@ export class ModelManagementPanel extends Disposable {
 			apiKey: this.formInputs.apiKey.value,
 			model: this.formInputs.model.value,
 			contextSize: parseInt(this.formInputs.contextSize.value) || 4096,
+			maxTokens: parseInt(this.formInputs.maxTokens.value) || 2048,
+			temperature: parseFloat(this.formInputs.temperature.value) || 0.7,
 		};
 
 		if (!model.name) {
@@ -211,18 +217,19 @@ export class ModelManagementPanel extends Disposable {
 		}
 
 		// 添加新时检查重复名称
-		if (!this.editingModel && this.modelStorage.get(model.name)) {
+		if (!this.editingModel && await this.modelStorage.get(model.name)) {
 			alert(localize('nameDuplicate', "名称已存在"));
 			return;
 		}
 
-		this.modelStorage.save(model);
+		await this.modelStorage.save(model);
 		this.hideForm();
 	}
 
-	private deleteModel(name: string): void {
+	private async deleteModel(name: string): Promise<void> {
 		if (confirm(localize('confirmDelete', "确定要删除模型 '{0}' 吗？", name))) {
-			this.modelStorage.delete(name);
+			await this.modelStorage.delete(name);
+			this.renderList();
 		}
 	}
 

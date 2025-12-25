@@ -124,6 +124,11 @@ import { NativeWebContentExtractorService } from '../../platform/webContentExtra
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { ICommitMessageService, CommitMessageChannel, CommitMessageChannelName } from '../../chenille/common/commitMessage.js';
 import { CommitMessageMainService } from '../../chenille/electron-main/commitMessageService.js';
+import { IAiModelStorageService, ModelStorageChannel, ModelStorageChannelName, IAiPromptStorageService, PromptStorageChannel, PromptStorageChannelName, IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName } from '../../chenille/common/storageIpc.js';
+import { AiModelStorageMainService } from '../../chenille/electron-main/modelStorage.js';
+import { AiPromptStorageMainService } from '../../chenille/electron-main/promptStorage.js';
+import { AiAgentStorageMainService } from '../../chenille/electron-main/agentStorage.js';
+import { IAiAgentMainService, AiAgentMainService } from '../../chenille/electron-main/agentService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1108,7 +1113,11 @@ export class CodeApplication extends Disposable {
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
-		// Chenille: 提交消息生成服务
+		// Chenille: AI 存储服务
+		services.set(IAiModelStorageService, new SyncDescriptor(AiModelStorageMainService));
+		services.set(IAiPromptStorageService, new SyncDescriptor(AiPromptStorageMainService));
+		services.set(IAiAgentStorageService, new SyncDescriptor(AiAgentStorageMainService));
+		services.set(IAiAgentMainService, new SyncDescriptor(AiAgentMainService));
 		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
 
 		// Dev Only: CSS service (for ESM)
@@ -1243,6 +1252,16 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Chenille: 存储服务 IPC
+		const modelStorageChannel = new ModelStorageChannel(accessor.get(IAiModelStorageService));
+		mainProcessElectronServer.registerChannel(ModelStorageChannelName, modelStorageChannel);
+
+		const promptStorageChannel = new PromptStorageChannel(accessor.get(IAiPromptStorageService));
+		mainProcessElectronServer.registerChannel(PromptStorageChannelName, promptStorageChannel);
+
+		const agentStorageChannel = new AgentStorageChannel(accessor.get(IAiAgentStorageService));
+		mainProcessElectronServer.registerChannel(AgentStorageChannelName, agentStorageChannel);
 
 		// Chenille: 提交消息生成服务
 		const commitMessageChannel = new CommitMessageChannel(accessor.get(ICommitMessageService));

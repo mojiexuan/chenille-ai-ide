@@ -92,9 +92,6 @@ import '../platform/extensionManagement/electron-browser/extensionsProfileScanne
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
 
-// Chenille: 提交消息生成服务
-import '../chenille/electron-browser/commitMessageService.js';
-
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
@@ -190,6 +187,7 @@ import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
 // Chenille
 import '../chenille/browser/chenille.contribution.js';
+import '../chenille/electron-browser/chenille.contribution.js';
 
 //#endregion
 

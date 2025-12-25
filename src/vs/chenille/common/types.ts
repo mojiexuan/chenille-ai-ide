@@ -95,14 +95,28 @@ export interface ChatCompletionOptions {
 }
 
 /**
- * AI Agent
+ * AI Agent（运行时组合）
  */
 export interface AiAgent {
-	name: string;
 	model: AiModel;
 	prompt: AiPrompt;
-	maxTokens: number;
-	temperature: number;
+}
+
+/**
+ * 智能体类型枚举
+ */
+export enum AgentType {
+	COMMIT_MESSAGE = 'commitMessage',
+	CODE_WRITER = 'codeWriter',
+}
+
+/**
+ * 智能体配置（用于存储）
+ */
+export interface AiAgentConfig {
+	type: AgentType;
+	modelName: string;
+	promptName: string;
 }
 
 /**
@@ -114,7 +128,9 @@ export interface AiModel {
 	model: string;
 	baseUrl: string;
 	apiKey: string;
-	contextSize?: number;
+	contextSize: number;
+	maxTokens: number;
+	temperature: number;
 }
 
 /**

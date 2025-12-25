@@ -80,15 +80,16 @@ export class GoogleProvider implements IAIProvider {
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 2) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
 		const response = await client.models.generateContent({
-			model: options.agent.model.model,
+			model: model.model,
 			contents: toGoogleContents(options.messages),
 			config: {
 				systemInstruction: extractSystemInstruction(options.messages),
 				temperature,
-				maxOutputTokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : undefined,
+				maxOutputTokens: model.maxTokens > 0 ? model.maxTokens : undefined,
 				tools: toGoogleTools(options),
 			},
 		});
@@ -125,15 +126,16 @@ export class GoogleProvider implements IAIProvider {
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
 		const client = this.createClient(options);
-		const temperature = Math.min(Math.max(0, options.agent.temperature), 2) || 0.7;
+		const { model } = options.agent;
+		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
 		const response = await client.models.generateContentStream({
-			model: options.agent.model.model,
+			model: model.model,
 			contents: toGoogleContents(options.messages),
 			config: {
 				systemInstruction: extractSystemInstruction(options.messages),
 				temperature,
-				maxOutputTokens: options.agent.maxTokens > 0 ? options.agent.maxTokens : undefined,
+				maxOutputTokens: model.maxTokens > 0 ? model.maxTokens : undefined,
 				tools: toGoogleTools(options),
 			},
 		});

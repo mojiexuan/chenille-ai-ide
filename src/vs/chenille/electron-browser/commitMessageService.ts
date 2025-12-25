@@ -9,16 +9,15 @@ import { InstantiationType, registerSingleton } from '../../platform/instantiati
 
 /**
  * Electron 桌面端的提交消息服务
- * 通过 IMainProcessService 与主进程通信
+ * 通过 IPC 代理到主进程
  */
 // @ts-expect-error: interface is implemented via proxy
 export class ElectronCommitMessageService implements ICommitMessageService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
-		// 通过 IPC channel 代理到主进程的服务
 		const channel = mainProcessService.getChannel(CommitMessageChannelName);
 		return new CommitMessageChannelClient(channel);
 	}

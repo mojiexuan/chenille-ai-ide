@@ -8,10 +8,9 @@ import { $, append, clearNode } from '../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IAiModelStorageService } from '../../common/modelStorage.js';
-import { IAiPromptStorageService } from '../../common/promptStorage.js';
 import { ModelManagementPanel } from './modelManagementPanel.js';
 import { PromptManagementPanel } from './promptManagementPanel.js';
+import { AgentManagementPanel } from './agentManagementPanel.js';
 
 export type PanelType = 'model' | 'prompt' | 'agent';
 
@@ -38,8 +37,6 @@ export class ChenilleSettingsPanel extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAiModelStorageService _modelStorage: IAiModelStorageService,
-		@IAiPromptStorageService _promptStorage: IAiPromptStorageService,
 	) {
 		super();
 		this.container = append(parent, $('.chenille-settings-panel'));
@@ -66,8 +63,7 @@ export class ChenilleSettingsPanel extends Disposable {
 			}
 
 			if (item.id === 'agent') {
-				menuItem.classList.add('disabled');
-				menuItem.title = localize('comingSoon', "即将推出");
+				menuItem.addEventListener('click', () => this.switchPanel(item.id));
 			} else {
 				menuItem.addEventListener('click', () => this.switchPanel(item.id));
 			}
@@ -75,10 +71,6 @@ export class ChenilleSettingsPanel extends Disposable {
 	}
 
 	private switchPanel(panelType: PanelType): void {
-		if (panelType === 'agent') {
-			return;
-		}
-
 		this.currentPanel = panelType;
 
 		// 更新菜单活动状态
@@ -99,6 +91,11 @@ export class ChenilleSettingsPanel extends Disposable {
 			case 'prompt':
 				this.panelDisposables.add(
 					this.instantiationService.createInstance(PromptManagementPanel, this.contentContainer)
+				);
+				break;
+			case 'agent':
+				this.panelDisposables.add(
+					this.instantiationService.createInstance(AgentManagementPanel, this.contentContainer)
 				);
 				break;
 		}

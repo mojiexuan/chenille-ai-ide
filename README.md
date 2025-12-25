@@ -101,7 +101,58 @@ npm run watch
 .\scripts\code.bat
 ```
 
+## 调试
+
+快捷键 `Ctrl` + `Shift` + `I`
+
 ## 构建
+
+### 安装依赖
+
+```bash
+npm install
+```
+
+### 构建命令
+
+根据目标平台运行对应的 gulp 任务：
+
+**Windows:**
+
+```bash
+npm run gulp vscode-win32-x64-min      # x64 架构
+npm run gulp vscode-win32-arm64-min    # ARM64 架构
+```
+
+**macOS:**
+
+```bash
+npm run gulp vscode-darwin-x64-min     # Intel Mac
+npm run gulp vscode-darwin-arm64-min   # Apple Silicon
+```
+
+**Linux:**
+
+```bash
+npm run gulp vscode-linux-x64-min      # x64
+npm run gulp vscode-linux-arm64-min    # ARM64
+npm run gulp vscode-linux-armhf-min    # ARM 32位
+```
+
+### 输出位置
+
+构建产物输出到项目根目录的上一级目录，例如：
+
+- `../VSCode-win32-x64/`
+- `../VSCode-darwin-arm64/`
+
+### 开发构建（不压缩）
+
+不带 `-min` 后缀的版本不进行代码压缩混淆，适合开发调试：
+
+```bash
+npm run gulp vscode-win32-x64    # Windows 开发版
+```
 
 ## License
 

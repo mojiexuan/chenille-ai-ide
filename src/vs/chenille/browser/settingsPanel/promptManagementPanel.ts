@@ -6,7 +6,7 @@
 import { $, append, clearNode } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IAiPromptStorageService } from '../../common/promptStorage.js';
+import { IAiPromptStorageService } from '../../common/storageIpc.js';
 import { AiPrompt } from '../../common/types.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -21,7 +21,6 @@ export class PromptManagementPanel extends Disposable {
 	private container: HTMLElement;
 	private listContainer: HTMLElement | undefined;
 	private formContainer: HTMLElement | undefined;
-	private isEditing = false;
 	private editingPrompt: AiPrompt | undefined;
 	private formInputs: FormInputs | undefined;
 
@@ -32,12 +31,6 @@ export class PromptManagementPanel extends Disposable {
 		super();
 		this.container = parent;
 		this.render();
-
-		this._register(this.promptStorage.onDidChangePrompts(() => {
-			if (!this.isEditing) {
-				this.renderList();
-			}
-		}));
 	}
 
 	private render(): void {
@@ -59,13 +52,13 @@ export class PromptManagementPanel extends Disposable {
 		this.formContainer.style.display = 'none';
 	}
 
-	private renderList(): void {
+	private async renderList(): Promise<void> {
 		if (!this.listContainer) {
 			return;
 		}
 		clearNode(this.listContainer);
 
-		const prompts = this.promptStorage.getAll();
+		const prompts = await this.promptStorage.getAll();
 
 		if (prompts.length === 0) {
 			const empty = append(this.listContainer, $('.chenille-empty-state'));
@@ -100,7 +93,6 @@ export class PromptManagementPanel extends Disposable {
 			return;
 		}
 
-		this.isEditing = true;
 		this.editingPrompt = prompt;
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
@@ -152,7 +144,6 @@ export class PromptManagementPanel extends Disposable {
 			return;
 		}
 
-		this.isEditing = false;
 		this.editingPrompt = undefined;
 		this.formInputs = undefined;
 		this.formContainer.style.display = 'none';
@@ -160,7 +151,7 @@ export class PromptManagementPanel extends Disposable {
 		this.renderList();
 	}
 
-	private savePrompt(): void {
+	private async savePrompt(): Promise<void> {
 		if (!this.formInputs) {
 			return;
 		}
@@ -177,18 +168,19 @@ export class PromptManagementPanel extends Disposable {
 		}
 
 		// 添加新时检查重复名称
-		if (!this.editingPrompt && this.promptStorage.get(prompt.name)) {
+		if (!this.editingPrompt && await this.promptStorage.get(prompt.name)) {
 			alert(localize('nameDuplicate', "名称已存在"));
 			return;
 		}
 
-		this.promptStorage.save(prompt);
+		await this.promptStorage.save(prompt);
 		this.hideForm();
 	}
 
-	private deletePrompt(name: string): void {
+	private async deletePrompt(name: string): Promise<void> {
 		if (confirm(localize('confirmDeletePrompt', "确定要删除提示词 '{0}' 吗？", name))) {
-			this.promptStorage.delete(name);
+			await this.promptStorage.delete(name);
+			this.renderList();
 		}
 	}
 }
