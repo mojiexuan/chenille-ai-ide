@@ -30,13 +30,15 @@
 
 ---
 
-## Code -OSS
+## 版本追踪
 
-| 版本     | 日期                      |
-| -------- | ------------------------- |
-| v1.107.1 | 2025 年 12 月 17 日 21:53 |
+| Chenille AI IDE | Code -OSS 版本 | 日期                      |
+| --------------- | -------------- | ------------------------- |
+| v0.0.0          | v1.107.1       | 2025 年 12 月 17 日 21:53 |
 
-## 环境
+## 开发
+
+### 环境
 
 > Python = 3.13
 
@@ -54,9 +56,9 @@
 
 > git
 
-## 依赖
+### 依赖
 
-### 安装 `electron`
+#### 安装 `electron`
 
 直接去下载包
 
@@ -67,7 +69,7 @@
 `C:\Users\<你>\AppData\Local\electron\Cache\
 `
 
-### 设置临时环境变量
+#### 设置临时环境变量
 
 ```bash
 $Env:ELECTRON_SKIP_BINARY_DOWNLOAD="1"
@@ -77,7 +79,7 @@ $Env:ELECTRON_SKIP_BINARY_DOWNLOAD="1"
 $Env:ELECTRON_CACHE="$Env:LOCALAPPDATA\electron"
 ```
 
-## 仓库
+### 仓库
 
 需要先初始化`git`仓库， Chenille 的 postinstall 脚本需要在 Git 仓库中运行。
 
@@ -87,7 +89,7 @@ git add .
 git commit -m "Initial commit"
 ```
 
-### 安装依赖
+#### 安装依赖
 
 正式安装依赖，需要 **梯子**
 
@@ -95,25 +97,25 @@ git commit -m "Initial commit"
 npm install
 ```
 
-### 关于镜像源
+#### 关于镜像源
 
-#### 查看镜像源
+##### 查看镜像源
 
 ```bash
 npm get registry
 ```
 
-#### 设置镜像源
+##### 设置镜像源
 
 ```bash
 npm config set registry https://registry.npmmirror.com/
 ```
 
-## 开发
+### 启动
 
 > 需要启动两个终端
 
-### 终端-1
+#### 终端-1
 
 持续监听文件变化并自动重新编译
 
@@ -123,7 +125,7 @@ npm run watch
 
 出现 `Finished compilation with 0 errors after xx ms` 则编译成功。
 
-### 终端-2
+#### 终端-2
 
 启动开发版本
 

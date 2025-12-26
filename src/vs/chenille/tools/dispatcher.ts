@@ -88,7 +88,7 @@ function parseToolArguments(toolCall: ToolCall): Record<string, unknown> {
 	try {
 		return JSON.parse(argsString);
 	} catch {
-		console.error('[ChenilleToolDispatcher] Failed to parse tool arguments:', argsString);
+		console.error('[ChenilleToolDispatcher] 解析工具参数失败:', argsString);
 		return {};
 	}
 }
@@ -130,7 +130,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			return {
 				success: false,
 				content: '',
-				error: 'Tool name is required'
+				error: '工具名称是必需的'
 			};
 		}
 
@@ -140,7 +140,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			return {
 				success: false,
 				content: '',
-				error: `Unknown tool: ${toolName}. Available tools: ${Object.keys(TOOL_NAME_TO_ID).join(', ')}`
+				error: `未知工具: ${toolName}. 可用工具: ${Object.keys(TOOL_NAME_TO_ID).join(', ')}`
 			};
 		}
 
@@ -152,7 +152,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			return {
 				success: false,
 				content: '',
-				error: `Tool not registered: ${internalToolId}. The tool may not be available in this context.`
+				error: `工具未注册: ${internalToolId}. 在这种情况下，该工具可能不可用.`
 			};
 		}
 
@@ -186,13 +186,13 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					if (part.kind === 'text') {
 						return part.value;
 					} else if (part.kind === 'data') {
-						return `[Binary data: ${part.value.mimeType}]`;
+						return `[二进制数据: ${part.value.mimeType}]`;
 					}
 					return JSON.stringify(part);
 				})
 				.join('\n');
 
-			console.log(`[ChenilleToolDispatcher] Tool ${toolName} completed successfully`);
+			console.log(`[ChenilleToolDispatcher] 工具 ${toolName} 已成功完成`);
 
 			return {
 				success: true,
@@ -201,7 +201,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			console.error(`[ChenilleToolDispatcher] Tool execution failed: ${toolName}`, error);
+			console.error(`[ChenilleToolDispatcher] 工具执行失败: ${toolName}`, error);
 
 			return {
 				success: false,
@@ -222,7 +222,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				results.push({
 					success: false,
 					content: '',
-					error: 'Cancelled'
+					error: '已取消'
 				});
 				continue;
 			}
