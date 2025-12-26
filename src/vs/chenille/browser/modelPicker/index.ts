@@ -3,5 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { CHENILLE_TOOLS, getToolByName, getToolNames, getToolsSubset } from './definitions.js';
-export { IChenilleToolDispatcher, ChenilleToolDispatcher, IToolResult, getInternalToolId, getAllToolNames } from './dispatcher.js';
+export {
+	ChenilleModelPickerActionItem,
+	ChenilleModelPickerDelegate,
+	IChenilleModelPickerDelegate
+} from './chenilleModelPickerActionItem.js';

@@ -111,8 +111,8 @@ import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatS
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
-import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { ChenilleModelPickerActionItem, ChenilleModelPickerDelegate } from '../../../../chenille/browser/modelPicker/chenilleModelPickerActionItem.js';
 
 const $ = dom.$;
 
@@ -315,7 +315,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private withinEditSessionKey: IContextKey<boolean>;
 	private filePartOfEditSessionKey: IContextKey<boolean>;
 	private chatSessionHasOptions: IContextKey<boolean>;
-	private modelWidget: ModelPickerActionItem | undefined;
+	private modelWidget: ChenilleModelPickerActionItem | undefined;
+	private chenilleModelDelegate: ChenilleModelPickerDelegate | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem> = new Map();
 	private chatSessionPickerContainer: HTMLElement | undefined;
@@ -1135,7 +1136,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 				return attachment;
-			}))).filter(attachment => attachment !== undefined);
+			}))).filter((attachment): attachment is IChatRequestVariableEntry => attachment !== undefined);
 		}
 
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
@@ -1606,21 +1607,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChatOpenModelPickerActionId && action instanceof MenuItemAction) {
-					if (!this._currentLanguageModel) {
-						this.setCurrentLanguageModelToDefault();
+					// 使用 Chenille 模型选择器
+					if (!this.chenilleModelDelegate) {
+						this.chenilleModelDelegate = this.instantiationService.createInstance(ChenilleModelPickerDelegate);
+						this._register(this.chenilleModelDelegate);
 					}
-
-					const itemDelegate: IModelPickerDelegate = {
-						getCurrentModel: () => this._currentLanguageModel,
-						onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
-						setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-							this._waitForPersistedLanguageModel.clear();
-							this.setCurrentLanguageModel(model);
-							this.renderAttachedContext();
-						},
-						getModels: () => this.getModels()
-					};
-					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, undefined, itemDelegate);
+					return this.modelWidget = this.instantiationService.createInstance(ChenilleModelPickerActionItem, action, this.chenilleModelDelegate);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
@@ -1919,7 +1911,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.configurationService.getValue<boolean>('chat.implicitContext.enableImplicitContext')) {
 			// if currently opened file is deleted, do not show implicit context
-			const implicitValue = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
+			const implicitContextValue = this.implicitContext?.value;
+			const implicitValue = URI.isUri(implicitContextValue) && URI.isUri(attachment.value) && isEqual(implicitContextValue, attachment.value);
 
 			if (this.implicitContext?.isFile && implicitValue) {
 				this.implicitContext.enabled = false;
