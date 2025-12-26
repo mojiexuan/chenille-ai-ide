@@ -172,6 +172,14 @@ export interface AiFunctionDefinitionParameterProperty {
 export interface AiFunctionDefinitionParameterPropertyDescriptor {
 	type: string;
 	description: string;
+	/** 数组元素类型 */
+	items?: AiFunctionDefinitionParameterPropertyDescriptor | { type: string };
+	/** 枚举值 */
+	enum?: string[];
+	/** 嵌套对象属性 */
+	properties?: AiFunctionDefinitionParameterProperty;
+	/** 嵌套对象必需字段 */
+	required?: string[];
 }
 
 /**

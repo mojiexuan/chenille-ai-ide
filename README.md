@@ -192,6 +192,14 @@ npm run gulp vscode-win32-x64    # Windows 开发版
 
 ## License
 
+### Microsoft 部分
+
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license.
+
+### Chenille 部分
+
+Copyright (c) Chenille. All rights reserved.
+
+Licensed under the MIT License.
