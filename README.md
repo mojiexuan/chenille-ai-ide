@@ -32,9 +32,9 @@
 
 ## 版本追踪
 
-| Chenille AI IDE | Code -OSS 版本 | 日期                      |
-| --------------- | -------------- | ------------------------- |
-| v0.0.0          | v1.107.1       | 2025 年 12 月 17 日 21:53 |
+| Chenille AI IDE | Code -OSS 版本                                               | 日期                      |
+| --------------- | ------------------------------------------------------------ | ------------------------- |
+| v0.0.0          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2025 年 12 月 17 日 21:53 |
 
 ## 开发
 
@@ -196,10 +196,10 @@ npm run gulp vscode-win32-x64    # Windows 开发版
 
 Copyright (c) Microsoft Corporation. All rights reserved.
 
-Licensed under the [MIT](LICENSE.txt) license.
+Licensed under the [MIT](https://github.com/microsoft/vscode/blob/main/LICENSE.txt) license.
 
 ### Chenille 部分
 
 Copyright (c) Chenille. All rights reserved.
 
-Licensed under the MIT License.
+Licensed under the [MIT](/LICENSE.md) License.
