@@ -184,8 +184,8 @@ export async function findFiles(
 					excludePattern: excludePattern ? { [excludePattern]: true } : undefined
 				};
 
-				const results = await searchService.fileSearch(query as any);
-				const files = results.results.map((r: any) => toRelativePath(r.resource, workspaceService));
+				const results = await searchService.fileSearch(query);
+				const files = results.results.map((r) => toRelativePath(r.resource, workspaceService));
 
 				return {
 					success: true,

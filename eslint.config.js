@@ -1586,6 +1586,16 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/chenille/tools/**',
+					'restrictions': [
+						'vs/base/common/**',
+						'vs/platform/*/common/**',
+						'vs/chenille/**',
+						'vs/workbench/services/*/common/**',
+						'vs/workbench/contrib/chat/common/**'
+					]
+				},
+				{
 					'target': 'src/vs/base/~',
 					'restrictions': [
 						'vs/base/~'

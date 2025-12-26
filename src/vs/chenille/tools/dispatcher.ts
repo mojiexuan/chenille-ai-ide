@@ -27,7 +27,22 @@ import {
 	deleteFile,
 	renameFile,
 	getOpenEditors,
-	FileToolResult
+	FileToolResult,
+	// 导入参数类型
+	ReadFileParams,
+	GetFileInfoParams,
+	CheckFileExistsParams,
+	ListDirectoryParams,
+	FindFilesParams,
+	SearchInFileParams,
+	SearchInFilesParams,
+	ReplaceInFileParams,
+	InsertInFileParams,
+	DeleteLinesParams,
+	CreateFileParams,
+	DeleteFileParams,
+	RenameFileParams,
+	GetOpenEditorsParams
 } from './fileTools/index.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 
@@ -120,19 +135,35 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 };
 
 /**
- * 解析工具调用参数
+ * 解析并验证工具调用参数
  */
-function parseToolArguments(toolCall: ToolCall): Record<string, unknown> {
+function parseToolArguments<T extends object>(toolCall: ToolCall, requiredFields: (keyof T)[] = []): T | null {
 	const argsString = toolCall.function.arguments;
+
+	// 无参数时，如果没有必需字段则返回空对象
 	if (!argsString) {
-		return {};
+		if (requiredFields.length === 0) {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions -- 空对象对于无必需参数的情况是安全的
+			return {} as T;
+		}
+		return null;
 	}
 
 	try {
-		return JSON.parse(argsString);
+		const parsed: T = JSON.parse(argsString);
+
+		// 验证必需字段
+		for (const field of requiredFields) {
+			if (parsed[field] === undefined) {
+				console.error(`[ChenilleToolDispatcher] 缺少必需参数: ${String(field)}`);
+				return null;
+			}
+		}
+
+		return parsed;
 	} catch {
 		console.error('[ChenilleToolDispatcher] 解析工具参数失败:', argsString);
-		return {};
+		return null;
 	}
 }
 
@@ -188,141 +219,150 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			};
 		}
 
-		// 解析参数
-		const parameters = parseToolArguments(toolCall);
-
-		console.log(`[ChenilleToolDispatcher] 调用工具: ${toolName}`, parameters);
+		console.log(`[ChenilleToolDispatcher] 调用工具: ${toolName}`);
 
 		// 检查是否为 Chenille 文件工具
 		if (isChenilleFileTool(toolName)) {
-			return this.dispatchFileTools(toolName, parameters);
+			return this.dispatchFileTools(toolName, toolCall);
 		}
 
 		// 否则调用 VS Code 内部工具
-		return this.dispatchVSCodeTool(toolName, parameters, token);
+		return this.dispatchVSCodeTool(toolName, toolCall, token);
 	}
 
 	/**
 	 * 调度 Chenille 文件工具
 	 */
-	private async dispatchFileTools(toolName: string, params: Record<string, unknown>): Promise<IToolResult> {
+	private async dispatchFileTools(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
 		try {
 			let result: FileToolResult<unknown>;
 
 			switch (toolName) {
-				case 'readFile':
-					result = await readFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'readFile': {
+					const params = parseToolArguments<ReadFileParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await readFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'getFileInfo':
-					result = await getFileInfo(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'getFileInfo': {
+					const params = parseToolArguments<GetFileInfoParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await getFileInfo(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'checkFileExists':
-					result = await checkFileExists(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'checkFileExists': {
+					const params = parseToolArguments<CheckFileExistsParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await checkFileExists(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'listDirectory':
-					result = await listDirectory(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'listDirectory': {
+					const params = parseToolArguments<ListDirectoryParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await listDirectory(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'findFiles':
-					result = await findFiles(
-						params as any,
-						this.fileService,
-						this.workspaceService,
-						this.searchService
-					);
+				case 'findFiles': {
+					const params = parseToolArguments<FindFilesParams>(toolCall, ['pattern']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: pattern' };
+					}
+					result = await findFiles(params, this.fileService, this.workspaceService, this.searchService);
 					break;
+				}
 
-				case 'searchInFile':
-					result = await searchInFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'searchInFile': {
+					const params = parseToolArguments<SearchInFileParams>(toolCall, ['path', 'query']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path, query' };
+					}
+					result = await searchInFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'searchInFiles':
-					result = await searchInFiles(
-						params as any,
-						this.fileService,
-						this.workspaceService,
-						this.searchService
-					);
+				case 'searchInFiles': {
+					const params = parseToolArguments<SearchInFilesParams>(toolCall, ['query']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: query' };
+					}
+					result = await searchInFiles(params, this.fileService, this.workspaceService, this.searchService);
 					break;
+				}
 
-				case 'replaceInFile':
-					result = await replaceInFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'replaceInFile': {
+					const params = parseToolArguments<ReplaceInFileParams>(toolCall, ['path', 'oldText', 'newText']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path, oldText, newText' };
+					}
+					result = await replaceInFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'insertInFile':
-					result = await insertInFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'insertInFile': {
+					const params = parseToolArguments<InsertInFileParams>(toolCall, ['path', 'line', 'content']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path, line, content' };
+					}
+					result = await insertInFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'deleteLines':
-					result = await deleteLines(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'deleteLines': {
+					const params = parseToolArguments<DeleteLinesParams>(toolCall, ['path', 'startLine', 'endLine']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path, startLine, endLine' };
+					}
+					result = await deleteLines(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'createFile':
-					result = await createFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'createFile': {
+					const params = parseToolArguments<CreateFileParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await createFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'deleteFile':
-					result = await deleteFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'deleteFile': {
+					const params = parseToolArguments<DeleteFileParams>(toolCall, ['path']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: path' };
+					}
+					result = await deleteFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'renameFile':
-					result = await renameFile(
-						params as any,
-						this.fileService,
-						this.workspaceService
-					);
+				case 'renameFile': {
+					const params = parseToolArguments<RenameFileParams>(toolCall, ['oldPath', 'newPath']);
+					if (!params) {
+						return { success: false, content: '', error: '缺少必需参数: oldPath, newPath' };
+					}
+					result = await renameFile(params, this.fileService, this.workspaceService);
 					break;
+				}
 
-				case 'getOpenEditors':
-					result = await getOpenEditors(
-						params as any,
-						this.editorService,
-						this.workspaceService
-					);
+				case 'getOpenEditors': {
+					const params = parseToolArguments<GetOpenEditorsParams>(toolCall);
+					if (!params) {
+						return { success: false, content: '', error: '参数解析失败' };
+					}
+					result = await getOpenEditors(params, this.editorService, this.workspaceService);
 					break;
+				}
 
 				default:
 					return {
@@ -363,7 +403,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	 */
 	private async dispatchVSCodeTool(
 		toolName: string,
-		parameters: Record<string, unknown>,
+		toolCall: ToolCall,
 		token: CancellationToken
 	): Promise<IToolResult> {
 		// 获取内部工具 ID
@@ -388,6 +428,9 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			};
 		}
 
+		// 解析参数
+		const parameters = parseToolArguments<Record<string, unknown>>(toolCall) ?? {};
+
 		try {
 			// 构建调用上下文
 			const invocation: IToolInvocation = {
@@ -401,7 +444,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				userSelectedTools: undefined,
 			};
 
-			// 调用工具（注意：可能需要根据实际 API 调整参数）
+			// 调用工具
 			const result = await this.toolsService.invokeTool(
 				invocation,
 				async () => 0, // countTokens callback
@@ -410,7 +453,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 			// 提取结果内容
 			const content = result.content
-				.map((part: any) => {
+				.map((part) => {
 					if (part.kind === 'text') {
 						return part.value;
 					} else if (part.kind === 'data') {
