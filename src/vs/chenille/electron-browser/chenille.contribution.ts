@@ -6,3 +6,4 @@
 // 注册 electron-browser 服务
 import './storageService.js';
 import './commitMessageService.js';
+import './chatService.js';

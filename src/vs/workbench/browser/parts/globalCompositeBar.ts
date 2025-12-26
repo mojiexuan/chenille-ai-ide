@@ -147,7 +147,9 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private get accountsVisibilityPreference(): boolean {
-		return isAccountsActionVisible(this.storageService);
+		// 禁用账户按钮 - 本地运行不需要登录
+		return false;
+		// return isAccountsActionVisible(this.storageService);
 	}
 
 	private set accountsVisibilityPreference(value: boolean) {

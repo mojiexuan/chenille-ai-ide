@@ -140,7 +140,15 @@ export class GoogleProvider implements IAIProvider {
 			},
 		});
 
+		// 累积工具调用
+		const accumulatedToolCalls: { name: string; arguments: string }[] = [];
+
 		for await (const chunk of response) {
+			// 检查取消
+			if (options.token?.isCancellationRequested) {
+				break;
+			}
+
 			const parts = chunk.candidates?.[0]?.content?.parts ?? [];
 
 			for (const part of parts) {
@@ -154,19 +162,38 @@ export class GoogleProvider implements IAIProvider {
 					};
 					options.call?.(result);
 				} else if (typeof funcPart.functionCall === 'object' && funcPart.functionCall) {
-					const result: ChatCompletionResult = {
-						content: '',
-						function_call: [{
-							type: 'function',
-							function: {
-								name: funcPart.functionCall.name,
-								arguments: JSON.stringify(funcPart.functionCall.args ?? {}),
-							},
-						}],
-						done: false,
-					};
-					options.call?.(result);
+					// 累积工具调用，而不是立即发送
+					accumulatedToolCalls.push({
+						name: funcPart.functionCall.name ?? '',
+						arguments: JSON.stringify(funcPart.functionCall.args ?? {}),
+					});
 				}
+			}
+		}
+
+		// 如果被取消，不发送工具调用和完成信号
+		if (options.token?.isCancellationRequested) {
+			return;
+		}
+
+		// 流结束后，发送累积的工具调用
+		if (accumulatedToolCalls.length > 0) {
+			const toolCalls = accumulatedToolCalls
+				.filter(tc => tc.name)
+				.map(tc => ({
+					type: 'function' as const,
+					function: {
+						name: tc.name,
+						arguments: tc.arguments,
+					},
+				}));
+
+			if (toolCalls.length > 0) {
+				options.call?.({
+					content: '',
+					function_call: toolCalls,
+					done: false,
+				});
 			}
 		}
 

@@ -1421,7 +1421,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[listSmoothScrolling]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: localize('list smoothScrolling setting', "Controls whether lists and trees have smooth scrolling."),
 		},
 		[mouseWheelScrollSensitivityKey]: {

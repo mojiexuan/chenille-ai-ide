@@ -110,8 +110,27 @@ export class AnthropicProvider implements IAIProvider {
 			tools: toAnthropicTools(options),
 		});
 
+		// 累积工具调用（流式 API 中工具调用是增量发送的）
+		const accumulatedToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+		let currentToolIndex = -1;
+
 		for await (const event of stream) {
-			if (event.type === 'content_block_delta') {
+			// 检查取消
+			if (options.token?.isCancellationRequested) {
+				stream.controller.abort();
+				break;
+			}
+
+			if (event.type === 'content_block_start') {
+				// 新的内容块开始
+				if (event.content_block.type === 'tool_use') {
+					currentToolIndex++;
+					accumulatedToolCalls.set(currentToolIndex, {
+						name: event.content_block.name,
+						arguments: '',
+					});
+				}
+			} else if (event.type === 'content_block_delta') {
 				const deltaEvent = event as ContentBlockDeltaEvent;
 				const delta = deltaEvent.delta;
 				if (delta.type === 'text_delta') {
@@ -121,18 +140,41 @@ export class AnthropicProvider implements IAIProvider {
 					};
 					options.call?.(result);
 				} else if (delta.type === 'input_json_delta') {
-					const result: ChatCompletionResult = {
-						content: '',
-						function_call: [{
-							type: 'function',
-							function: {
-								arguments: delta.partial_json,
-							},
-						}],
-						done: false,
-					};
-					options.call?.(result);
+					// 累积工具调用参数
+					const existing = accumulatedToolCalls.get(currentToolIndex);
+					if (existing) {
+						existing.arguments += delta.partial_json;
+					}
 				}
+			}
+		}
+
+		// 如果被取消，不发送工具调用和完成信号
+		if (options.token?.isCancellationRequested) {
+			return;
+		}
+
+		// 流结束后，发送累积的工具调用
+		if (accumulatedToolCalls.size > 0) {
+			const toolCalls = [];
+			for (const [, tc] of accumulatedToolCalls) {
+				if (tc.name) {
+					toolCalls.push({
+						type: 'function' as const,
+						function: {
+							name: tc.name,
+							arguments: tc.arguments,
+						},
+					});
+				}
+			}
+
+			if (toolCalls.length > 0) {
+				options.call?.({
+					content: '',
+					function_call: toolCalls,
+					done: false,
+				});
 			}
 		}
 

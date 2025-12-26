@@ -191,18 +191,31 @@ export function getAllToolNames(): string[] {
 // ==================== 工具调度器实现 ====================
 
 import { ILanguageModelToolsService, IToolInvocation } from '../../workbench/contrib/chat/common/languageModelToolsService.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 
 export class ChenilleToolDispatcher extends Disposable implements IChenilleToolDispatcher {
 	readonly _serviceBrand: undefined;
 
+	private _toolsService: ILanguageModelToolsService | undefined;
+
 	constructor(
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
+	}
+
+	/**
+	 * 延迟获取 ILanguageModelToolsService 以避免循环依赖
+	 */
+	private get toolsService(): ILanguageModelToolsService {
+		if (!this._toolsService) {
+			this._toolsService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelToolsService));
+		}
+		return this._toolsService;
 	}
 
 	/**

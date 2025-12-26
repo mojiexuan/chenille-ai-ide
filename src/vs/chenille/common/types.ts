@@ -92,6 +92,8 @@ export interface ChatCompletionOptions {
 	| 'none'
 	| { type: 'function'; function: { name: string } };
 	call?: (data: ChatCompletionResult) => void;
+	/** 取消令牌 */
+	token?: { isCancellationRequested: boolean };
 }
 
 /**

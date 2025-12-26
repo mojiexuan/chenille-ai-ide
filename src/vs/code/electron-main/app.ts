@@ -129,6 +129,8 @@ import { AiModelStorageMainService } from '../../chenille/electron-main/modelSto
 import { AiPromptStorageMainService } from '../../chenille/electron-main/promptStorage.js';
 import { AiAgentStorageMainService } from '../../chenille/electron-main/agentStorage.js';
 import { IAiAgentMainService, AiAgentMainService } from '../../chenille/electron-main/agentService.js';
+import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '../../chenille/common/chatService.js';
+import { ChenilleAiMainService } from '../../chenille/electron-main/chatService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1119,6 +1121,7 @@ export class CodeApplication extends Disposable {
 		services.set(IAiAgentStorageService, new SyncDescriptor(AiAgentStorageMainService));
 		services.set(IAiAgentMainService, new SyncDescriptor(AiAgentMainService));
 		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
+		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1266,6 +1269,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: 提交消息生成服务
 		const commitMessageChannel = new CommitMessageChannel(accessor.get(ICommitMessageService));
 		mainProcessElectronServer.registerChannel(CommitMessageChannelName, commitMessageChannel);
+
+		// Chenille: Chat 服务
+		const chatChannel = new ChenilleAiChannel(accessor.get(IChenilleAiService));
+		mainProcessElectronServer.registerChannel(ChenilleAiChannelName, chatChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

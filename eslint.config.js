@@ -1576,6 +1576,7 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/chenille/~',
+						'vs/chenille/**',
 						'vs/workbench/services/*/~',
 						'openai',
 						'openai/resources/index',

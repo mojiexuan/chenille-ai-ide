@@ -124,27 +124,76 @@ export class OpenAIProvider implements IAIProvider {
 			stream: true,
 		});
 
+		// 累积工具调用（流式 API 中工具调用是增量发送的）
+		const accumulatedToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+
 		for await (const chunk of stream) {
+			// 检查取消
+			if (options.token?.isCancellationRequested) {
+				stream.controller.abort();
+				break;
+			}
+
 			if (chunk.choices.length === 0) {
 				continue;
 			}
 
 			const delta = chunk.choices[0].delta as DeltaWithReasoning;
+
+			// 累积工具调用
+			if (delta.tool_calls?.length) {
+				for (const tc of delta.tool_calls) {
+					const index = tc.index;
+					const existing = accumulatedToolCalls.get(index) ?? { name: '', arguments: '' };
+
+					if (tc.function?.name) {
+						existing.name = tc.function.name;
+					}
+					if (tc.function?.arguments) {
+						existing.arguments += tc.function.arguments;
+					}
+
+					accumulatedToolCalls.set(index, existing);
+				}
+			}
+
 			const result: ChatCompletionResult = {
 				content: delta.content ?? '',
 				reasoning: delta.reasoning_content ?? undefined,
-				function_call: delta.tool_calls?.map(tc => ({
-					type: 'function' as const,
-					function: {
-						name: tc.function?.name,
-						arguments: tc.function?.arguments,
-					},
-				})),
 				done: false,
 			};
 
-			if (result.content || result.reasoning || result.function_call) {
+			if (result.content || result.reasoning) {
 				options.call?.(result);
+			}
+		}
+
+		// 如果被取消，不发送工具调用和完成信号
+		if (options.token?.isCancellationRequested) {
+			return;
+		}
+
+		// 流结束后，发送累积的工具调用
+		if (accumulatedToolCalls.size > 0) {
+			const toolCalls: ToolCall[] = [];
+			for (const [, tc] of accumulatedToolCalls) {
+				if (tc.name) {
+					toolCalls.push({
+						type: 'function' as const,
+						function: {
+							name: tc.name,
+							arguments: tc.arguments,
+						},
+					});
+				}
+			}
+
+			if (toolCalls.length > 0) {
+				options.call?.({
+					content: '',
+					function_call: toolCalls,
+					done: false,
+				});
 			}
 		}
 
