@@ -31,6 +31,12 @@ const AGENT_DEFINITIONS: AgentDefinition[] = [
 		description: localize('codeWriterAgentDesc', "辅助编写和生成代码"),
 		icon: Codicon.code,
 	},
+	{
+		type: AgentType.INLINE_COMPLETION,
+		name: localize('inlineCompletionAgent', "代码补全"),
+		description: localize('inlineCompletionAgentDesc', "光标处智能代码补全，按 Tab 接受"),
+		icon: Codicon.sparkle,
+	},
 ];
 
 export class AgentManagementPanel extends Disposable {

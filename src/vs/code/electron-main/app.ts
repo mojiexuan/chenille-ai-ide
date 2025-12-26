@@ -131,6 +131,8 @@ import { AiAgentStorageMainService } from '../../chenille/electron-main/agentSto
 import { IAiAgentMainService, AiAgentMainService } from '../../chenille/electron-main/agentService.js';
 import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '../../chenille/common/chatService.js';
 import { ChenilleAiMainService } from '../../chenille/electron-main/chatService.js';
+import { IChenilleInlineCompletionService, ChenilleInlineCompletionChannel, ChenilleInlineCompletionChannelName } from '../../chenille/common/inlineCompletionService.js';
+import { ChenilleInlineCompletionMainService } from '../../chenille/electron-main/inlineCompletionService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1122,6 +1124,7 @@ export class CodeApplication extends Disposable {
 		services.set(IAiAgentMainService, new SyncDescriptor(AiAgentMainService));
 		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
 		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
+		services.set(IChenilleInlineCompletionService, new SyncDescriptor(ChenilleInlineCompletionMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1273,6 +1276,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: Chat 服务
 		const chatChannel = new ChenilleAiChannel(accessor.get(IChenilleAiService));
 		mainProcessElectronServer.registerChannel(ChenilleAiChannelName, chatChannel);
+
+		// Chenille: Inline Completion 服务
+		const inlineCompletionChannel = new ChenilleInlineCompletionChannel(accessor.get(IChenilleInlineCompletionService));
+		mainProcessElectronServer.registerChannel(ChenilleInlineCompletionChannelName, inlineCompletionChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

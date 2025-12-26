@@ -109,6 +109,8 @@ export class AiAgentMainService extends Disposable implements IAiAgentMainServic
 				return localize('commitMessageAgent', "Commit 消息生成");
 			case AgentType.CODE_WRITER:
 				return localize('codeWriterAgent', "代码编写");
+			case AgentType.INLINE_COMPLETION:
+				return localize('inlineCompletionAgent', "代码补全");
 			default:
 				return type;
 		}

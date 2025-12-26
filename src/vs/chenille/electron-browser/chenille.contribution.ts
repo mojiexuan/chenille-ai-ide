@@ -7,3 +7,4 @@
 import './storageService.js';
 import './commitMessageService.js';
 import './chatService.js';
+import './inlineCompletionService.js';

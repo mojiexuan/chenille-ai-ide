@@ -110,6 +110,7 @@ export interface AiAgent {
 export enum AgentType {
 	COMMIT_MESSAGE = 'commitMessage',
 	CODE_WRITER = 'codeWriter',
+	INLINE_COMPLETION = 'inlineCompletion',
 }
 
 /**
