@@ -133,6 +133,8 @@ import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '..
 import { ChenilleAiMainService } from '../../chenille/electron-main/chatService.js';
 import { IChenilleInlineCompletionService, ChenilleInlineCompletionChannel, ChenilleInlineCompletionChannelName } from '../../chenille/common/inlineCompletionService.js';
 import { ChenilleInlineCompletionMainService } from '../../chenille/electron-main/inlineCompletionService.js';
+import { IChenilleVersionCheckService, ChenilleVersionCheckChannel, ChenilleVersionCheckChannelName } from '../../chenille/common/versionCheckService.js';
+import { ChenilleVersionCheckMainService } from '../../chenille/electron-main/versionCheckService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1125,6 +1127,7 @@ export class CodeApplication extends Disposable {
 		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
 		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
 		services.set(IChenilleInlineCompletionService, new SyncDescriptor(ChenilleInlineCompletionMainService));
+		services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1280,6 +1283,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: Inline Completion 服务
 		const inlineCompletionChannel = new ChenilleInlineCompletionChannel(accessor.get(IChenilleInlineCompletionService));
 		mainProcessElectronServer.registerChannel(ChenilleInlineCompletionChannelName, inlineCompletionChannel);
+
+		// Chenille: 版本检查服务
+		const versionCheckChannel = new ChenilleVersionCheckChannel(accessor.get(IChenilleVersionCheckService));
+		mainProcessElectronServer.registerChannel(ChenilleVersionCheckChannelName, versionCheckChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

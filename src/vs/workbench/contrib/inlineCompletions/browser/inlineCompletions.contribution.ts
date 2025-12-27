@@ -14,6 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChenilleInlineCompletionProvider } from './chenilleInlineCompletionProvider.js';
+import { ChenilleVersionCheckUIService } from '../../../../chenille/browser/versionCheck.contribution.js';
 // import { InlineCompletionLanguageStatusBarContribution } from './inlineCompletionLanguageStatusBarContribution.js';
 
 // 移除底部状态栏的内联建议图标
@@ -62,4 +63,24 @@ registerWorkbenchContribution2(
 	ChenilleInlineCompletionContribution.ID,
 	ChenilleInlineCompletionContribution,
 	WorkbenchPhase.AfterRestored
+);
+
+/**
+ * Chenille 版本检查功能注册
+ */
+class ChenilleVersionCheckContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'chenille.versionCheck';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(instantiationService.createInstance(ChenilleVersionCheckUIService));
+	}
+}
+
+registerWorkbenchContribution2(
+	ChenilleVersionCheckContribution.ID,
+	ChenilleVersionCheckContribution,
+	WorkbenchPhase.Eventually
 );

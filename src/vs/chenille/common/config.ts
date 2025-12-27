@@ -3,9 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// 注册 electron-browser 服务
-import './storageService.js';
-import './commitMessageService.js';
-import './chatService.js';
-import './inlineCompletionService.js';
-import './versionCheckService.js';
+export interface ConfigAppVersion {
+	name: string;
+	code: number;
+}
+
+export interface ConfigApp {
+	name: string;
+	version: ConfigAppVersion;
+}
+
+export interface Config {
+	app: ConfigApp;
+}
+
+export const config: Config = {
+	app: {
+		name: 'Chenille AI IDE',
+		version: {
+			name: '0.0.1',
+			code: 1
+		}
+	}
+};
