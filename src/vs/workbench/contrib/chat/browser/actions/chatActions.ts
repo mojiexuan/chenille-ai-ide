@@ -1516,25 +1516,25 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 
 			// Use chat command to open and send the query
-			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
+			const query = `分析此代码库以生成或更新 \`.github/copilot-instructions.md\` 文件，用于指导 AI 编码代理。
 
-Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
-- The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
-- Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
-- Project-specific conventions and patterns that differ from common practices
-- Integration points, external dependencies, and cross-component communication patterns
+重点发现能帮助 AI 代理在此代码库中快速上手的关键知识。请考虑以下方面：
+- 需要阅读多个文件才能理解的"全局"架构 - 主要组件、服务边界、数据流以及结构决策背后的"原因"
+- 关键的开发者工作流程（构建、测试、调试），特别是那些仅通过文件检查无法明显发现的命令
+- 与常见实践不同的项目特定约定和模式
+- 集成点、外部依赖和跨组件通信模式
 
-Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
+从 \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` 中获取现有的 AI 约定（执行一次 glob 搜索）。
 
-Guidelines (read more at https://aka.ms/vscode-instructions-docs):
-- If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
-- Write concise, actionable instructions (~20-50 lines) using markdown structure
-- Include specific examples from the codebase when describing patterns
-- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
-- Document only discoverable patterns, not aspirational practices
-- Reference key files/directories that exemplify important patterns
+指南（详情请阅读 https://aka.ms/vscode-instructions-docs）：
+- 如果 \`.github/copilot-instructions.md\` 已存在，请智能合并 - 保留有价值的内容，同时更新过时的部分
+- 使用 markdown 结构编写简洁、可操作的指令（约 20-50 行）
+- 在描述模式时包含代码库中的具体示例
+- 避免通用建议（如"编写测试"、"处理错误"）- 专注于此项目的特定方法
+- 仅记录可发现的模式，而非理想化的实践
+- 引用体现重要模式的关键文件/目录
 
-Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
+为用户更新 \`.github/copilot-instructions.md\`，然后询问对任何不清楚或不完整部分的反馈以进行迭代。`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',

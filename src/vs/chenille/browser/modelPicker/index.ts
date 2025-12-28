@@ -8,3 +8,7 @@ export {
 	ChenilleModelPickerDelegate,
 	IChenilleModelPickerDelegate
 } from './chenilleModelPickerActionItem.js';
+
+export {
+	ChenilleModePickerActionItem
+} from './chenilleModePickerActionItem.js';

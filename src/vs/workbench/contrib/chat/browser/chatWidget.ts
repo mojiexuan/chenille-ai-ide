@@ -1013,7 +1013,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			title = localize('editsTitle', "在上下文中编辑");
 		} else {
-			title = localize('agentTitle', "使用 Agent 构建");
+			title = localize('agentTitle', "使用 Chenille Agent 构建");
 		}
 
 		return {

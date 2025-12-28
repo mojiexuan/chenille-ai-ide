@@ -9,11 +9,13 @@ import { IChenilleChatController, ChenilleChatControllerImpl } from './chat/chen
 import { IChenilleChatIntegration, ChenilleChatIntegrationImpl, ChenilleChatProviderImpl } from './chat/index.js';
 import { IChenilleToolDispatcher, ChenilleToolDispatcher } from '../tools/dispatcher.js';
 import { IChenilleChatProvider } from '../common/chatProvider.js';
+import { IChenilleChatModeService, ChenilleChatModeService } from '../common/chatMode.js';
 
 // 注册 Action
 registerChenilleSettingsAction();
 
 // 注册服务
+registerSingleton(IChenilleChatModeService, ChenilleChatModeService, InstantiationType.Delayed);
 registerSingleton(IChenilleToolDispatcher, ChenilleToolDispatcher, InstantiationType.Delayed);
 registerSingleton(IChenilleChatController, ChenilleChatControllerImpl, InstantiationType.Delayed);
 registerSingleton(IChenilleChatIntegration, ChenilleChatIntegrationImpl, InstantiationType.Delayed);

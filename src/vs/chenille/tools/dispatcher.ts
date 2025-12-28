@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
-import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { ISearchService } from '../../workbench/services/search/common/search.js';
@@ -135,35 +135,68 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 };
 
 /**
+ * 截断过长的内容
+ */
+function truncateContent(content: string, maxLength: number): string {
+	if (content.length <= maxLength) {
+		return content;
+	}
+	return content.substring(0, maxLength) + '\n\n[内容已截断，共 ' + content.length + ' 字符，显示前 ' + maxLength + ' 字符]';
+}
+
+/** 工具执行超时时间（毫秒） */
+const TOOL_TIMEOUT = 30000;
+
+/**
+ * 带超时的 Promise 包装
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, toolName: string): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(`工具 "${toolName}" 执行超时（${ms / 1000}秒）`)), ms)
+		)
+	]);
+}
+
+/**
  * 解析并验证工具调用参数
  */
-function parseToolArguments<T extends object>(toolCall: ToolCall, requiredFields: (keyof T)[] = []): T | null {
+function parseToolArguments<T extends object>(toolCall: ToolCall, requiredFields: (keyof T)[] = []): { success: true; data: T } | { success: false; error: string } {
 	const argsString = toolCall.function.arguments;
+	const toolName = toolCall.function.name ?? 'unknown';
 
 	// 无参数时，如果没有必需字段则返回空对象
-	if (!argsString) {
+	if (!argsString || argsString.trim() === '') {
 		if (requiredFields.length === 0) {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions -- 空对象对于无必需参数的情况是安全的
-			return {} as T;
+			return { success: true, data: {} as T };
 		}
-		return null;
+		return {
+			success: false,
+			error: `工具 "${toolName}" 缺少必需参数: ${requiredFields.join(', ')}`
+		};
 	}
 
 	try {
 		const parsed: T = JSON.parse(argsString);
 
 		// 验证必需字段
-		for (const field of requiredFields) {
-			if (parsed[field] === undefined) {
-				console.error(`[ChenilleToolDispatcher] 缺少必需参数: ${String(field)}`);
-				return null;
-			}
+		const missingFields = requiredFields.filter(field => parsed[field] === undefined || parsed[field] === null);
+		if (missingFields.length > 0) {
+			return {
+				success: false,
+				error: `工具 "${toolName}" 缺少必需参数: ${missingFields.map(String).join(', ')}`
+			};
 		}
 
-		return parsed;
-	} catch {
-		console.error('[ChenilleToolDispatcher] 解析工具参数失败:', argsString);
-		return null;
+		return { success: true, data: parsed };
+	} catch (e) {
+		const parseError = e instanceof Error ? e.message : String(e);
+		return {
+			success: false,
+			error: `工具 "${toolName}" 参数解析失败: ${parseError}。原始参数: ${argsString.substring(0, 200)}`
+		};
 	}
 }
 
@@ -191,7 +224,6 @@ export function getAllToolNames(): string[] {
 // ==================== 工具调度器实现 ====================
 
 import { ILanguageModelToolsService, IToolInvocation } from '../../workbench/contrib/chat/common/languageModelToolsService.js';
-import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 
 export class ChenilleToolDispatcher extends Disposable implements IChenilleToolDispatcher {
 	readonly _serviceBrand: undefined;
@@ -232,15 +264,35 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			};
 		}
 
-		console.log(`[ChenilleToolDispatcher] 调用工具: ${toolName}`);
+		try {
+			let result: IToolResult;
 
-		// 检查是否为 Chenille 文件工具
-		if (isChenilleFileTool(toolName)) {
-			return this.dispatchFileTools(toolName, toolCall);
+			// 检查是否为 Chenille 文件工具
+			if (isChenilleFileTool(toolName)) {
+				result = await withTimeout(
+					this.dispatchFileTools(toolName, toolCall),
+					TOOL_TIMEOUT,
+					toolName
+				);
+			} else {
+				// 否则调用 VS Code 内部工具
+				result = await withTimeout(
+					this.dispatchVSCodeTool(toolName, toolCall, token),
+					TOOL_TIMEOUT,
+					toolName
+				);
+			}
+
+			return result;
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: errorMessage
+			};
 		}
-
-		// 否则调用 VS Code 内部工具
-		return this.dispatchVSCodeTool(toolName, toolCall, token);
 	}
 
 	/**
@@ -252,128 +304,128 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 			switch (toolName) {
 				case 'readFile': {
-					const params = parseToolArguments<ReadFileParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<ReadFileParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await readFile(params, this.fileService, this.workspaceService);
+					result = await readFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'getFileInfo': {
-					const params = parseToolArguments<GetFileInfoParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<GetFileInfoParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await getFileInfo(params, this.fileService, this.workspaceService);
+					result = await getFileInfo(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'checkFileExists': {
-					const params = parseToolArguments<CheckFileExistsParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<CheckFileExistsParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await checkFileExists(params, this.fileService, this.workspaceService);
+					result = await checkFileExists(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'listDirectory': {
-					const params = parseToolArguments<ListDirectoryParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<ListDirectoryParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await listDirectory(params, this.fileService, this.workspaceService);
+					result = await listDirectory(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'findFiles': {
-					const params = parseToolArguments<FindFilesParams>(toolCall, ['pattern']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: pattern' };
+					const parsed = parseToolArguments<FindFilesParams>(toolCall, ['pattern']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await findFiles(params, this.fileService, this.workspaceService, this.searchService);
+					result = await findFiles(parsed.data, this.fileService, this.workspaceService, this.searchService);
 					break;
 				}
 
 				case 'searchInFile': {
-					const params = parseToolArguments<SearchInFileParams>(toolCall, ['path', 'query']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path, query' };
+					const parsed = parseToolArguments<SearchInFileParams>(toolCall, ['path', 'query']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await searchInFile(params, this.fileService, this.workspaceService);
+					result = await searchInFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'searchInFiles': {
-					const params = parseToolArguments<SearchInFilesParams>(toolCall, ['query']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: query' };
+					const parsed = parseToolArguments<SearchInFilesParams>(toolCall, ['query']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await searchInFiles(params, this.fileService, this.workspaceService, this.searchService);
+					result = await searchInFiles(parsed.data, this.fileService, this.workspaceService, this.searchService);
 					break;
 				}
 
 				case 'replaceInFile': {
-					const params = parseToolArguments<ReplaceInFileParams>(toolCall, ['path', 'oldText', 'newText']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path, oldText, newText' };
+					const parsed = parseToolArguments<ReplaceInFileParams>(toolCall, ['path', 'oldText', 'newText']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await replaceInFile(params, this.fileService, this.workspaceService);
+					result = await replaceInFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'insertInFile': {
-					const params = parseToolArguments<InsertInFileParams>(toolCall, ['path', 'line', 'content']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path, line, content' };
+					const parsed = parseToolArguments<InsertInFileParams>(toolCall, ['path', 'line', 'content']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await insertInFile(params, this.fileService, this.workspaceService);
+					result = await insertInFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'deleteLines': {
-					const params = parseToolArguments<DeleteLinesParams>(toolCall, ['path', 'startLine', 'endLine']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path, startLine, endLine' };
+					const parsed = parseToolArguments<DeleteLinesParams>(toolCall, ['path', 'startLine', 'endLine']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await deleteLines(params, this.fileService, this.workspaceService);
+					result = await deleteLines(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'createFile': {
-					const params = parseToolArguments<CreateFileParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<CreateFileParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await createFile(params, this.fileService, this.workspaceService);
+					result = await createFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'deleteFile': {
-					const params = parseToolArguments<DeleteFileParams>(toolCall, ['path']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: path' };
+					const parsed = parseToolArguments<DeleteFileParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await deleteFile(params, this.fileService, this.workspaceService);
+					result = await deleteFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'renameFile': {
-					const params = parseToolArguments<RenameFileParams>(toolCall, ['oldPath', 'newPath']);
-					if (!params) {
-						return { success: false, content: '', error: '缺少必需参数: oldPath, newPath' };
+					const parsed = parseToolArguments<RenameFileParams>(toolCall, ['oldPath', 'newPath']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await renameFile(params, this.fileService, this.workspaceService);
+					result = await renameFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
 				case 'getOpenEditors': {
-					const params = parseToolArguments<GetOpenEditorsParams>(toolCall);
-					if (!params) {
-						return { success: false, content: '', error: '参数解析失败' };
+					const parsed = parseToolArguments<GetOpenEditorsParams>(toolCall);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
 					}
-					result = await getOpenEditors(params, this.editorService, this.workspaceService);
+					result = await getOpenEditors(parsed.data, this.editorService, this.workspaceService);
 					break;
 				}
 
@@ -381,34 +433,147 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					return {
 						success: false,
 						content: '',
-						error: `未知的文件工具: ${toolName}`
+						error: `未知的文件工具: ${toolName}。可用工具: ${[...CHENILLE_FILE_TOOLS].join(', ')}`
 					};
 			}
 
 			// 转换结果
-			if (result.success) {
-				return {
-					success: true,
-					content: JSON.stringify(result.data, null, 2)
-				};
-			} else {
-				return {
-					success: false,
-					content: result.data ? JSON.stringify(result.data, null, 2) : '',
-					error: result.error
-				};
-			}
+			return this.formatFileToolResult(toolName, result);
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			console.error(`[ChenilleToolDispatcher] 文件工具执行失败: ${toolName}`, error);
-
 			return {
 				success: false,
 				content: '',
 				error: errorMessage
 			};
 		}
+	}
+
+	/**
+	 * 格式化文件工具结果，使其更易于 AI 理解
+	 */
+	private formatFileToolResult(toolName: string, result: FileToolResult<unknown>): IToolResult {
+		if (!result.success) {
+			// 失败情况：提取详细错误信息
+			const errorData = result.data as Record<string, unknown> | undefined;
+			let errorDetail = result.error ?? '未知错误';
+
+			// 如果 data 中有更详细的错误信息（如 replaceInFile 的失败详情）
+			if (errorData && typeof errorData === 'object') {
+				const errorField = (errorData as { error?: unknown }).error;
+				if (typeof errorField === 'string') {
+					errorDetail = errorField;
+				}
+				const detailsField = (errorData as { details?: unknown }).details;
+				if (detailsField && typeof detailsField === 'object') {
+					const suggestion = (detailsField as { suggestion?: unknown }).suggestion;
+					if (typeof suggestion === 'string') {
+						errorDetail += `\n建议: ${suggestion}`;
+					}
+				}
+			}
+
+			return {
+				success: false,
+				content: result.data ? JSON.stringify(result.data, null, 2) : '',
+				error: errorDetail
+			};
+		}
+
+		// 成功情况：根据工具类型生成清晰的成功消息
+		const data = result.data as Record<string, unknown>;
+		let summary = '操作成功';
+
+		switch (toolName) {
+			case 'replaceInFile': {
+				const replacedCount = data.replacedCount as number | undefined;
+				const lineNumbers = data.lineNumbers as number[] | undefined;
+				if (replacedCount !== undefined) {
+					summary = `替换成功: 共替换 ${replacedCount} 处`;
+					if (lineNumbers?.length) {
+						summary += `，位于第 ${lineNumbers.join(', ')} 行`;
+					}
+				}
+				break;
+			}
+			case 'insertInFile': {
+				const insertedAt = data.insertedAt as number | undefined;
+				const newLineCount = data.newLineCount as number | undefined;
+				summary = `插入成功: 内容已插入到第 ${insertedAt ?? '?'} 行，文件现有 ${newLineCount ?? '?'} 行`;
+				break;
+			}
+			case 'deleteLines': {
+				const deletedLineCount = data.deletedLineCount as number | undefined;
+				const newLineCount = data.newLineCount as number | undefined;
+				summary = `删除成功: 已删除 ${deletedLineCount ?? '?'} 行，文件现有 ${newLineCount ?? '?'} 行`;
+				break;
+			}
+			case 'createFile': {
+				const lineCount = data.lineCount as number | undefined;
+				summary = `文件创建成功，共 ${lineCount ?? 0} 行`;
+				break;
+			}
+			case 'deleteFile': {
+				const deleted = data.deleted as boolean | undefined;
+				summary = deleted ? '文件已删除' : '文件不存在（无需删除）';
+				break;
+			}
+			case 'renameFile': {
+				summary = '文件重命名/移动成功';
+				break;
+			}
+			case 'readFile': {
+				const totalLines = data.totalLines as number | undefined;
+				const readRange = data.readRange as [number, number] | undefined;
+				if (readRange) {
+					summary = `读取成功: 第 ${readRange[0]}-${readRange[1]} 行（共 ${totalLines ?? '?'} 行）`;
+				}
+				break;
+			}
+			case 'searchInFile':
+			case 'searchInFiles': {
+				const totalMatches = data.totalMatches as number | undefined;
+				summary = `搜索完成: 找到 ${totalMatches ?? 0} 个匹配`;
+				break;
+			}
+			case 'findFiles': {
+				const totalFound = data.totalFound as number | undefined;
+				summary = `搜索完成: 找到 ${totalFound ?? 0} 个文件`;
+				break;
+			}
+			case 'listDirectory': {
+				const totalCount = data.totalCount as number | undefined;
+				summary = `列出完成: 共 ${totalCount ?? 0} 个条目`;
+				break;
+			}
+			case 'checkFileExists': {
+				const exists = data.exists as boolean | undefined;
+				const type = data.type as string | undefined;
+				summary = exists ? `存在 (${type ?? 'unknown'})` : '不存在';
+				break;
+			}
+			case 'getFileInfo': {
+				const exists = data.exists as boolean | undefined;
+				summary = exists ? '文件信息获取成功' : '文件不存在';
+				break;
+			}
+			case 'getOpenEditors': {
+				const totalCount = data.totalCount as number | undefined;
+				summary = `获取成功: 共 ${totalCount ?? 0} 个打开的编辑器`;
+				break;
+			}
+		}
+
+		// 构建最终内容：摘要 + 详细数据
+		const content = JSON.stringify(result.data, null, 2);
+		const truncatedContent = truncateContent(content, 50000);
+		const finalContent = `${summary}\n\n${truncatedContent}`;
+
+		return {
+			success: true,
+			content: finalContent
+		};
 	}
 
 	/**
@@ -442,7 +607,8 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		}
 
 		// 解析参数
-		const parameters = parseToolArguments<Record<string, unknown>>(toolCall) ?? {};
+		const parsed = parseToolArguments<Record<string, unknown>>(toolCall);
+		const parameters = parsed.success ? parsed.data : {};
 
 		try {
 			// 构建调用上下文
@@ -476,8 +642,6 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				})
 				.join('\n');
 
-			console.log(`[ChenilleToolDispatcher] 工具 ${toolName} 执行成功`);
-
 			return {
 				success: true,
 				content
@@ -485,8 +649,6 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			console.error(`[ChenilleToolDispatcher] VS Code 工具执行失败: ${toolName}`, error);
-
 			return {
 				success: false,
 				content: '',

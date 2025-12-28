@@ -16,9 +16,13 @@ import { CHENILLE_TOOLS } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { IChenilleChatModeService } from '../../common/chatMode.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 15;
+
+/** 聊天模式下的系统提示后缀 */
+const CHAT_MODE_SYSTEM_SUFFIX = '\n\n[当前为聊天模式，请直接回答用户问题，不要尝试调用任何工具。]';
 
 /**
  * Chat 响应块类型
@@ -115,6 +119,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		@IChenilleToolDispatcher private readonly toolDispatcher: IChenilleToolDispatcher,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
 	) {
 		super();
 	}
@@ -163,6 +168,18 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 		const messages: AiModelMessage[] = [];
 
+		// 检查当前模式
+		const isAgentMode = this.modeService.isAgentMode();
+		const isChatMode = this.modeService.isChatMode();
+
+		// 聊天模式下，在用户消息前添加模式提示
+		if (isChatMode) {
+			messages.push({
+				role: 'system',
+				content: CHAT_MODE_SYSTEM_SUFFIX.trim()
+			});
+		}
+
 		// 添加历史消息
 		if (request.history?.length) {
 			messages.push(...request.history);
@@ -171,39 +188,35 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		// 添加用户输入
 		messages.push({ role: 'user', content: request.input });
 
-		const tools = request.enableTools !== false ? CHENILLE_TOOLS : undefined;
+		// 只有智能体模式才启用工具
+		const tools = (isAgentMode && request.enableTools !== false) ? CHENILLE_TOOLS : undefined;
 		let fullResponse = '';
 		let toolRound = 0;
 
 		try {
-			// 工具调用循环
+			// 工具调用循环（聊天模式下只执行一轮）
 			while (toolRound < MAX_TOOL_ROUNDS) {
-				console.log(`[ChenilleChatController] 开始第 ${toolRound + 1} 轮对话`);
+				// 估算上下文长度并在必要时压缩
+				this.compressMessagesIfNeeded(messages);
 
 				if (cts.token.isCancellationRequested) {
-					console.log('[ChenilleChatController] 请求已取消');
 					this._onChunk.fire({ done: true, error: localize('chenille.cancelled', "已取消") });
 					return fullResponse;
 				}
 
-				console.log(`[ChenilleChatController] 调用 executeOneRound，消息数: ${messages.length}`);
 				const roundResult = await this.executeOneRound(messages, tools, cts.token);
-				console.log(`[ChenilleChatController] executeOneRound 返回，内容长度: ${roundResult.content.length}, 工具调用数: ${roundResult.toolCalls?.length ?? 0}`);
 
 				fullResponse += roundResult.content;
 
-				// 无工具调用，对话结束
-				if (!roundResult.toolCalls?.length) {
-					console.log('[ChenilleChatController] 无工具调用，对话结束');
+				// 无工具调用或聊天模式，对话结束
+				if (!roundResult.toolCalls?.length || isChatMode) {
 					this._onChunk.fire({ done: true });
 					return fullResponse;
 				}
 
-				// 执行工具调用
+				// 执行工具调用（仅智能体模式）
 				toolRound++;
-				console.log(`[ChenilleChatController] 执行工具调用，轮次: ${toolRound}`);
 				await this.executeToolCalls(roundResult.toolCalls, messages, cts.token);
-				console.log(`[ChenilleChatController] 工具调用完成，继续下一轮`);
 			}
 
 			// 超过最大轮次
@@ -235,14 +248,12 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 		// 为每轮请求生成唯一 ID，用于过滤 IPC 事件
 		const requestId = generateUuid();
-		console.log(`[ChenilleChatController] executeOneRound 开始, requestId: ${requestId}`);
 
 		// 使用 Promise 来等待流完成
 		const streamPromise = new Promise<void>((resolve, reject) => {
 			const disposable = this.aiService.onStreamChunk((chunk: IStreamChunkWithId) => {
 				// 只处理属于当前请求的事件
 				if (chunk.requestId !== requestId) {
-					console.log(`[ChenilleChatController] 忽略其他请求的事件, 期望: ${requestId}, 收到: ${chunk.requestId}`);
 					return;
 				}
 
@@ -263,20 +274,17 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 				// 工具调用
 				if (chunk.function_call?.length) {
-					console.log(`[ChenilleChatController] 收到工具调用: ${chunk.function_call.map(tc => tc.function.name).join(', ')}`);
 					toolCalls = chunk.function_call;
 					this._onChunk.fire({ toolCalls, done: false });
 				}
 
 				// 错误
 				if (chunk.error) {
-					console.log(`[ChenilleChatController] 收到错误: ${chunk.error}`);
 					streamError = new Error(chunk.error);
 				}
 
 				// 完成
 				if (chunk.done) {
-					console.log(`[ChenilleChatController] 收到完成信号，requestId: ${requestId}, toolCalls: ${toolCalls?.length ?? 0}`);
 					disposable.dispose();
 					if (streamError) {
 						reject(streamError);
@@ -288,12 +296,9 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		});
 
 		// 发起请求并等待完成
-		console.log(`[ChenilleChatController] 调用 aiService.streamChat, requestId: ${requestId}`);
 		try {
 			await this.aiService.streamChat({ requestId, messages, tools }, token);
-			console.log(`[ChenilleChatController] aiService.streamChat Promise 完成, requestId: ${requestId}`);
 		} catch (error) {
-			console.log(`[ChenilleChatController] aiService.streamChat 错误: ${error}`);
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			this._onChunk.fire({ done: true, error: errorMessage });
 			throw error;
@@ -307,7 +312,6 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			throw error;
 		}
 
-		console.log(`[ChenilleChatController] executeOneRound 完成, requestId: ${requestId}, content: ${content.length}, toolCalls: ${toolCalls?.length ?? 0}`);
 		return { content, toolCalls };
 	}
 
@@ -333,6 +337,11 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		// 执行每个工具
 		for (const toolCall of toolCalls) {
 			if (token.isCancellationRequested) {
+				// 取消时也要告诉 AI
+				messages.push({
+					role: 'user',
+					content: '[工具执行已取消]',
+				});
 				break;
 			}
 
@@ -358,6 +367,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 				});
 
 			} catch (error) {
+				// 捕获所有异常，确保不会中断工作流
 				const errorMessage = error instanceof Error ? error.message : String(error);
 
 				this._onChunk.fire({
@@ -369,10 +379,13 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					done: false,
 				});
 
+				// 将错误信息添加到消息历史，让 AI 知道发生了什么
 				messages.push({
 					role: 'user',
 					content: this.formatToolError(toolName, errorMessage),
 				});
+
+				// 继续执行下一个工具，不中断
 			}
 		}
 	}
@@ -381,10 +394,18 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	 * 格式化工具执行结果
 	 */
 	private formatToolResult(toolName: string, result: IToolResult): string {
+		// 限制工具结果长度，避免上下文过长
+		const MAX_RESULT_LENGTH = 8000;
+		let content = result.content;
+
+		if (content.length > MAX_RESULT_LENGTH) {
+			content = content.substring(0, MAX_RESULT_LENGTH) + `\n\n[结果已截断，原始长度: ${result.content.length} 字符]`;
+		}
+
 		if (result.success) {
-			return `工具 "${toolName}" 执行成功:\n\`\`\`\n${result.content}\n\`\`\``;
+			return `工具 "${toolName}" 执行成功:\n\`\`\`\n${content}\n\`\`\``;
 		} else {
-			return `工具 "${toolName}" 执行失败:\n错误: ${result.error}\n${result.content ? `输出:\n\`\`\`\n${result.content}\n\`\`\`` : ''}`;
+			return `工具 "${toolName}" 执行失败:\n错误: ${result.error}\n${content ? `输出:\n\`\`\`\n${content}\n\`\`\`` : ''}`;
 		}
 	}
 
@@ -393,5 +414,65 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	 */
 	private formatToolError(toolName: string, error: string): string {
 		return `工具 "${toolName}" 执行异常:\n错误: ${error}`;
+	}
+
+	/**
+	 * 估算消息的 token 数量（粗略估算：1 token ≈ 4 字符）
+	 */
+	private estimateTokens(messages: AiModelMessage[]): number {
+		let totalChars = 0;
+		for (const msg of messages) {
+			totalChars += msg.content.length;
+		}
+		return Math.ceil(totalChars / 4);
+	}
+
+	/**
+	 * 压缩消息历史以避免上下文过长
+	 * 策略：保留第一条用户消息和最近的消息，压缩中间的工具结果
+	 */
+	private compressMessagesIfNeeded(messages: AiModelMessage[]): void {
+		const MAX_CONTEXT_TOKENS = 60000; // 保守估计，留出空间给响应
+		const MAX_SINGLE_MESSAGE_CHARS = 6000; // 单条消息最大字符数
+
+		let estimatedTokens = this.estimateTokens(messages);
+
+		// 如果上下文不太长，不需要压缩
+		if (estimatedTokens < MAX_CONTEXT_TOKENS) {
+			return;
+		}
+
+		// 压缩策略：截断过长的单条消息（主要是工具结果）
+		for (let i = 1; i < messages.length - 2; i++) { // 保留第一条和最后两条
+			const msg = messages[i];
+			if (msg.content.length > MAX_SINGLE_MESSAGE_CHARS) {
+				// 截断并添加提示
+				const truncated = msg.content.substring(0, MAX_SINGLE_MESSAGE_CHARS);
+				messages[i] = {
+					...msg,
+					content: truncated + `\n\n[消息已压缩，原始长度: ${msg.content.length} 字符]`
+				};
+			}
+		}
+
+		// 重新估算
+		estimatedTokens = this.estimateTokens(messages);
+
+		// 如果仍然过长，删除中间的一些消息
+		if (estimatedTokens > MAX_CONTEXT_TOKENS && messages.length > 6) {
+			// 保留前 2 条和后 4 条，删除中间的
+			const keepStart = 2;
+			const keepEnd = 4;
+			const toRemove = messages.length - keepStart - keepEnd;
+
+			if (toRemove > 0) {
+				const removed = messages.splice(keepStart, toRemove);
+				// 插入一条摘要消息
+				messages.splice(keepStart, 0, {
+					role: 'user',
+					content: `[已省略 ${removed.length} 条中间消息以节省上下文空间]`
+				});
+			}
+		}
 	}
 }

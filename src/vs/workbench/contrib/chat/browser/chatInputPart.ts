@@ -111,8 +111,7 @@ import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatS
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
-import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { ChenilleModelPickerActionItem, ChenilleModelPickerDelegate } from '../../../../chenille/browser/modelPicker/chenilleModelPickerActionItem.js';
+import { ChenilleModelPickerActionItem, ChenilleModelPickerDelegate, ChenilleModePickerActionItem } from '../../../../chenille/browser/modelPicker/index.js';
 
 const $ = dom.$;
 
@@ -317,7 +316,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionHasOptions: IContextKey<boolean>;
 	private modelWidget: ChenilleModelPickerActionItem | undefined;
 	private chenilleModelDelegate: ChenilleModelPickerDelegate | undefined;
-	private modeWidget: ModePickerActionItem | undefined;
+	private modeWidget: ChenilleModePickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem> = new Map();
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
@@ -1614,11 +1613,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					return this.modelWidget = this.instantiationService.createInstance(ChenilleModelPickerActionItem, action, this.chenilleModelDelegate);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
-					const delegate: IModePickerDelegate = {
-						currentMode: this._currentModeObservable,
-						sessionResource: () => this._widget?.viewModel?.sessionResource,
-					};
-					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate);
+					// 使用 Chenille 模式选择器（智能体/聊天）
+					return this.modeWidget = this.instantiationService.createInstance(ChenilleModePickerActionItem, action);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);

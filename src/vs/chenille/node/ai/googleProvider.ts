@@ -43,6 +43,30 @@ function toGoogleType(type: string): Type {
 }
 
 /**
+ * 将属性描述符转换为 Google 格式
+ */
+function toGoogleProperty(value: { type: string; description: string; items?: { type: string }; properties?: Record<string, { type: string; description: string }> }): Record<string, unknown> {
+	const prop: Record<string, unknown> = {
+		type: toGoogleType(value.type),
+		description: value.description,
+	};
+
+	// 处理数组类型
+	if (value.type === 'array' && value.items) {
+		prop.items = { type: toGoogleType(value.items.type) };
+	}
+
+	// 处理嵌套对象
+	if (value.type === 'object' && value.properties) {
+		prop.properties = Object.fromEntries(
+			Object.entries(value.properties).map(([k, v]) => [k, toGoogleProperty(v)])
+		);
+	}
+
+	return prop;
+}
+
+/**
  * 将统一工具格式转换为 Google 格式
  */
 function toGoogleTools(options: ChatCompletionOptions): Tool[] | undefined {
@@ -57,7 +81,7 @@ function toGoogleTools(options: ChatCompletionOptions): Tool[] | undefined {
 			properties: Object.fromEntries(
 				Object.entries(t.function.parameters.properties).map(([key, value]) => [
 					key,
-					{ type: toGoogleType(value.type), description: value.description }
+					toGoogleProperty(value)
 				])
 			),
 			required: t.function.parameters.required,
@@ -106,13 +130,15 @@ export class GoogleProvider implements IAIProvider {
 
 		const functionCalls = parts.filter((p): p is { functionCall: { name?: string; args?: Record<string, unknown> } } =>
 			typeof (p as { functionCall?: unknown }).functionCall === 'object');
-		const functionCall = functionCalls.length > 0 ? functionCalls.map(p => ({
-			type: 'function' as const,
-			function: {
-				name: p.functionCall?.name,
-				arguments: JSON.stringify(p.functionCall?.args ?? {}),
-			},
-		})) : undefined;
+		const functionCall = functionCalls.length > 0 ? functionCalls
+			.filter(p => p.functionCall?.name) // 过滤掉没有 name 的
+			.map(p => ({
+				type: 'function' as const,
+				function: {
+					name: p.functionCall.name!,
+					arguments: JSON.stringify(p.functionCall?.args ?? {}),
+				},
+			})) : undefined;
 
 		const result: ChatCompletionResult = {
 			content,
