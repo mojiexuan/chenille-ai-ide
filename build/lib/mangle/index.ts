@@ -335,6 +335,9 @@ const skippedExportMangledProjects = [
 	'microsoft-authentication',
 	'github-authentication',
 	'html-language-features/server',
+
+	// External dependencies that should not be mangled
+	'node_modules/google-auth-library',
 ];
 
 const skippedExportMangledSymbols = [
@@ -588,6 +591,10 @@ export class Mangler {
 			}
 		};
 		const appendRename = (newText: string, loc: ts.RenameLocation) => {
+			// Skip node_modules files to avoid conflicts with external dependencies
+			if (loc.fileName.includes('node_modules')) {
+				return;
+			}
 			appendEdit(loc.fileName, {
 				newText: (loc.prefixText || '') + newText + (loc.suffixText || ''),
 				offset: loc.textSpan.start,

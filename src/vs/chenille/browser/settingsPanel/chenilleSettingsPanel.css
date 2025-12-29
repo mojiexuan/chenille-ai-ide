@@ -426,3 +426,36 @@
 	border-radius: 6px;
 	margin-top: 12px;
 }
+
+/* 内置提示词样式 */
+.chenille-list-item-builtin {
+	background: var(--vscode-sideBar-background);
+	border-style: dashed;
+}
+
+.chenille-list-item-name-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.chenille-badge {
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-weight: 500;
+	text-transform: uppercase;
+}
+
+.chenille-badge-builtin {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+/* 只读表单样式 */
+.chenille-form-input[readonly],
+.chenille-form-textarea[readonly] {
+	background: var(--vscode-input-background);
+	opacity: 0.8;
+	cursor: not-allowed;
+}

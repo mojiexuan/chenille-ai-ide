@@ -143,6 +143,8 @@ export interface AiPrompt {
 	name: string;
 	description: string;
 	content: string;
+	/** 是否为内置提示词（只读，不可编辑/删除） */
+	isBuiltin?: boolean;
 }
 
 /**

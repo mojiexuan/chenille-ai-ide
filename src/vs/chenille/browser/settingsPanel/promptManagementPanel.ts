@@ -23,6 +23,7 @@ export class PromptManagementPanel extends Disposable {
 	private formContainer: HTMLElement | undefined;
 	private editingPrompt: AiPrompt | undefined;
 	private formInputs: FormInputs | undefined;
+	private isViewMode: boolean = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -69,31 +70,54 @@ export class PromptManagementPanel extends Disposable {
 		for (const prompt of prompts) {
 			const item = append(this.listContainer, $('.chenille-list-item'));
 
+			// 内置提示词添加特殊样式
+			if (prompt.isBuiltin) {
+				item.classList.add('chenille-list-item-builtin');
+			}
+
 			const info = append(item, $('.chenille-list-item-info'));
-			append(info, $('.chenille-list-item-name')).textContent = prompt.name;
+			const nameContainer = append(info, $('.chenille-list-item-name-container'));
+			append(nameContainer, $('.chenille-list-item-name')).textContent = prompt.name;
+
+			// 内置提示词显示标签
+			if (prompt.isBuiltin) {
+				const badge = append(nameContainer, $('.chenille-badge.chenille-badge-builtin'));
+				badge.textContent = localize('builtin', "内置");
+			}
+
 			append(info, $('.chenille-list-item-desc')).textContent =
 				prompt.description || localize('noDescription', "无描述");
 
 			const actions = append(item, $('.chenille-list-item-actions'));
 
-			const editBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
-			append(editBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.edit)}`));
-			editBtn.title = localize('edit', "编辑");
-			editBtn.addEventListener('click', () => this.showForm(prompt));
+			if (prompt.isBuiltin) {
+				// 内置提示词只有查看按钮
+				const viewBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
+				append(viewBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.eye)}`));
+				viewBtn.title = localize('view', "查看");
+				viewBtn.addEventListener('click', () => this.showForm(prompt, true));
+			} else {
+				// 用户提示词有编辑和删除按钮
+				const editBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
+				append(editBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.edit)}`));
+				editBtn.title = localize('edit', "编辑");
+				editBtn.addEventListener('click', () => this.showForm(prompt, false));
 
-			const deleteBtn = append(actions, $('button.chenille-btn.chenille-btn-danger'));
-			append(deleteBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.trash)}`));
-			deleteBtn.title = localize('delete', "删除");
-			deleteBtn.addEventListener('click', () => this.deletePrompt(prompt.name));
+				const deleteBtn = append(actions, $('button.chenille-btn.chenille-btn-danger'));
+				append(deleteBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.trash)}`));
+				deleteBtn.title = localize('delete', "删除");
+				deleteBtn.addEventListener('click', () => this.deletePrompt(prompt.name));
+			}
 		}
 	}
 
-	private showForm(prompt?: AiPrompt): void {
+	private showForm(prompt?: AiPrompt, viewOnly: boolean = false): void {
 		if (!this.formContainer || !this.listContainer) {
 			return;
 		}
 
 		this.editingPrompt = prompt;
+		this.isViewMode = viewOnly || (prompt?.isBuiltin ?? false);
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
 
@@ -104,15 +128,14 @@ export class PromptManagementPanel extends Disposable {
 		append(nameGroup, $('.chenille-form-label')).textContent = localize('promptName', "名称");
 		const nameInput = append(nameGroup, $('input.chenille-form-input')) as HTMLInputElement;
 		nameInput.value = prompt?.name ?? '';
-		if (prompt) {
-			nameInput.readOnly = true;
-		}
+		nameInput.readOnly = !!prompt || this.isViewMode;
 
 		// 描述
 		const descGroup = append(this.formContainer, $('.chenille-form-group'));
 		append(descGroup, $('.chenille-form-label')).textContent = localize('description', "描述");
 		const descInput = append(descGroup, $('input.chenille-form-input')) as HTMLInputElement;
 		descInput.value = prompt?.description ?? '';
+		descInput.readOnly = this.isViewMode;
 
 		// 内容
 		const contentGroup = append(this.formContainer, $('.chenille-form-group'));
@@ -120,6 +143,7 @@ export class PromptManagementPanel extends Disposable {
 		const contentInput = append(contentGroup, $('textarea.chenille-form-textarea')) as HTMLTextAreaElement;
 		contentInput.value = prompt?.content ?? '';
 		contentInput.placeholder = localize('promptContentPlaceholder', "输入提示词内容...");
+		contentInput.readOnly = this.isViewMode;
 
 		this.formInputs = {
 			name: nameInput,
@@ -130,12 +154,14 @@ export class PromptManagementPanel extends Disposable {
 		// 活动
 		const actions = append(this.formContainer, $('.chenille-form-actions'));
 
-		const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
-		saveBtn.textContent = localize('save', "保存");
-		saveBtn.addEventListener('click', () => this.savePrompt());
+		if (!this.isViewMode) {
+			const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
+			saveBtn.textContent = localize('save', "保存");
+			saveBtn.addEventListener('click', () => this.savePrompt());
+		}
 
 		const cancelBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
-		cancelBtn.textContent = localize('cancel', "取消");
+		cancelBtn.textContent = this.isViewMode ? localize('close', "关闭") : localize('cancel', "取消");
 		cancelBtn.addEventListener('click', () => this.hideForm());
 	}
 
