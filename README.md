@@ -206,6 +206,26 @@ npm run gulp vscode-linux-armhf-min    # ARM 32位
 npm run gulp vscode-win32-x64    # Windows 开发版
 ```
 
+### 生成安装包（Windows）
+
+构建完成后，可以生成 `.exe` 安装程序：
+
+```bash
+# 1. 先生成 inno_updater（自动更新组件）
+npm run gulp vscode-win32-x64-inno-updater
+
+# 2. 生成安装包
+npm run gulp vscode-win32-x64-user-setup    # 用户版（安装到用户目录，无需管理员权限）
+npm run gulp vscode-win32-x64-system-setup  # 系统版（安装到 Program Files，需管理员权限）
+```
+
+安装包输出位置：
+
+- 用户版：`.build/win32-x64/user-setup/`
+- 系统版：`.build/win32-x64/system-setup/`
+
+> ARM64 架构将 `x64` 替换为 `arm64` 即可
+
 ## License
 
 ### Microsoft 部分
