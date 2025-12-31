@@ -1,0 +1,15 @@
+diff --git a/node_modules/@vscode/gulp-electron/src/win32.js b/node_modules/@vscode/gulp-electron/src/win32.js
+index 1234567..abcdefg 100644
+--- a/node_modules/@vscode/gulp-electron/src/win32.js
++++ b/node_modules/@vscode/gulp-electron/src/win32.js
+@@ -18,7 +18,9 @@ function getOriginalAppFullName(opts) {
+ }
+
+ function getSignTool() {
+-  let windowsSDKDir= "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\";
++  let windowsSDKDir = process.env.WindowsSdkDir
++    ? path.join(process.env.WindowsSdkDir, "bin") + "\\"
++    : "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\";
+   if (!fs.existsSync(windowsSDKDir)) {
+     throw `There is no Windows 10 SDK installed at ${windowsSDKDir}.`;
+   }

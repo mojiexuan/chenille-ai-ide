@@ -184,3 +184,10 @@ for (const dir of dirs) {
 
 child_process.execSync('git config pull.rebase merges');
 child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+
+// Apply patches to node_modules
+const patchesDir = path.join(root, 'patches');
+if (fs.existsSync(patchesDir)) {
+	log('.', 'Applying patches...');
+	run('npx', ['patch-package'], { cwd: root, stdio: 'inherit', shell: true });
+}

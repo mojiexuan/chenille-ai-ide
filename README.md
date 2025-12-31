@@ -155,6 +155,22 @@ npm install
 
 **Windows:**
 
+若你的 Windows SDK 安装在非默认目录，你可能需要临时设置环境变量
+
+```bash
+$env:WindowsSdkDir = "E:\Windows Kits\10\"
+$env:WindowsSDKVersion = "10.0.22621.0\"
+```
+
+#### 应用补丁
+
+```bash
+npx patch-package
+```
+
+> 提示：若打包时仍从默认目录查找 SDK，你可将 `node_modules\@vscode\gulp-electron\src\win32.js`中的 `let windowsSDKDir= "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\";
+`修改为真实的值
+
 ```bash
 npm run gulp vscode-win32-x64-min      # x64 架构
 npm run gulp vscode-win32-arm64-min    # ARM64 架构
