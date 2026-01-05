@@ -97,8 +97,10 @@ export class GoogleProvider implements IAIProvider {
 	readonly name = 'google';
 
 	private createClient(options: ChatCompletionOptions): GoogleGenAI {
+		const baseUrl = options.agent.model.baseUrl || undefined;
 		return new GoogleGenAI({
 			apiKey: options.agent.model.apiKey,
+			httpOptions: baseUrl ? { baseUrl } : undefined,
 		});
 	}
 

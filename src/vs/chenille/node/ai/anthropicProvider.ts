@@ -101,56 +101,80 @@ export class AnthropicProvider implements IAIProvider {
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		const stream = client.messages.stream({
-			model: model.model,
-			messages: toAnthropicMessages(options.messages),
-			system: extractSystemPrompt(options.messages),
-			temperature,
-			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-			tools: toAnthropicTools(options),
-		});
+		let stream;
+		try {
+			stream = client.messages.stream({
+				model: model.model,
+				messages: toAnthropicMessages(options.messages),
+				system: extractSystemPrompt(options.messages),
+				temperature,
+				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
+				tools: toAnthropicTools(options),
+			});
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.call?.({ content: '', done: true, error: errorMessage });
+			return;
+		}
 
 		// 累积工具调用（流式 API 中工具调用是增量发送的）
 		const accumulatedToolCalls: Map<number, { name: string; arguments: string }> = new Map();
 		let currentToolIndex = -1;
+		let hasReceivedContent = false; // 追踪是否收到过任何内容
 
-		for await (const event of stream) {
-			// 检查取消
-			if (options.token?.isCancellationRequested) {
-				stream.controller.abort();
-				break;
-			}
-
-			if (event.type === 'content_block_start') {
-				// 新的内容块开始
-				if (event.content_block.type === 'tool_use') {
-					currentToolIndex++;
-					accumulatedToolCalls.set(currentToolIndex, {
-						name: event.content_block.name,
-						arguments: '',
-					});
+		try {
+			for await (const event of stream) {
+				// 检查取消
+				if (options.token?.isCancellationRequested) {
+					stream.controller.abort();
+					break;
 				}
-			} else if (event.type === 'content_block_delta') {
-				const deltaEvent = event as ContentBlockDeltaEvent;
-				const delta = deltaEvent.delta;
-				if (delta.type === 'text_delta') {
-					const result: ChatCompletionResult = {
-						content: delta.text,
-						done: false,
-					};
-					options.call?.(result);
-				} else if (delta.type === 'input_json_delta') {
-					// 累积工具调用参数
-					const existing = accumulatedToolCalls.get(currentToolIndex);
-					if (existing) {
-						existing.arguments += delta.partial_json;
+
+				if (event.type === 'content_block_start') {
+					hasReceivedContent = true;
+					// 新的内容块开始
+					if (event.content_block.type === 'tool_use') {
+						currentToolIndex++;
+						accumulatedToolCalls.set(currentToolIndex, {
+							name: event.content_block.name,
+							arguments: '',
+						});
 					}
+				} else if (event.type === 'content_block_delta') {
+					hasReceivedContent = true;
+					const deltaEvent = event as ContentBlockDeltaEvent;
+					const delta = deltaEvent.delta;
+					if (delta.type === 'text_delta') {
+						const result: ChatCompletionResult = {
+							content: delta.text,
+							done: false,
+						};
+						options.call?.(result);
+					} else if (delta.type === 'input_json_delta') {
+						// 累积工具调用参数
+						const existing = accumulatedToolCalls.get(currentToolIndex);
+						if (existing) {
+							existing.arguments += delta.partial_json;
+						}
+					}
+				} else if (event.type === 'message_start' || event.type === 'message_delta') {
+					hasReceivedContent = true;
 				}
 			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.call?.({ content: '', done: true, error: errorMessage });
+			return;
 		}
 
 		// 如果被取消，不发送工具调用和完成信号
 		if (options.token?.isCancellationRequested) {
+			return;
+		}
+
+		// 检查是否收到过任何内容
+		if (!hasReceivedContent) {
+			options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
 			return;
 		}
 

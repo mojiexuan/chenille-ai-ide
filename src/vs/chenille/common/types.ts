@@ -37,10 +37,47 @@ export interface IRequestService {
  * 支持的AI平台提供商枚举
  */
 export enum AiProvider {
-	DEEPSEEK = 'deepseek',
 	OPENAI = 'openai',
 	GOOGLE = 'google',
 	ANTHROPIC = 'anthropic',
+}
+
+/**
+ * 获取服务商的 API 端点路径（SDK 内部拼接的路径）
+ */
+export function getProviderEndpointPath(provider: AiProvider): string {
+	switch (provider) {
+		case AiProvider.OPENAI:
+			return '/chat/completions';  // OpenAI SDK 的 baseURL 默认已包含 /v1
+		case AiProvider.ANTHROPIC:
+			return '/v1/messages';  // Anthropic SDK 会拼接 /v1/messages
+		case AiProvider.GOOGLE:
+			return '/v1beta/models/{model}:generateContent';
+		default:
+			return '';
+	}
+}
+
+/**
+ * 获取完整的请求 URL 预览
+ */
+export function getFullEndpointUrl(baseUrl: string, provider: AiProvider): string {
+	if (!baseUrl) {
+		// 显示默认端点
+		switch (provider) {
+			case AiProvider.OPENAI:
+				return 'https://api.openai.com/v1/chat/completions';
+			case AiProvider.ANTHROPIC:
+				return 'https://api.anthropic.com/v1/messages';
+			case AiProvider.GOOGLE:
+				return 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent';
+			default:
+				return '';
+		}
+	}
+	// 移除末尾斜杠
+	const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+	return cleanBaseUrl + getProviderEndpointPath(provider);
 }
 
 /**

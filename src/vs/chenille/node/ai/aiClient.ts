@@ -34,7 +34,6 @@ function getProvider(provider: AiProvider): IAIProvider {
 
 // 注册内置 Provider
 registerProvider(AiProvider.OPENAI, new OpenAIProvider());
-registerProvider(AiProvider.DEEPSEEK, new OpenAIProvider()); // DeepSeek 兼容 OpenAI API
 registerProvider(AiProvider.ANTHROPIC, new AnthropicProvider());
 registerProvider(AiProvider.GOOGLE, new GoogleProvider());
 

@@ -7,13 +7,12 @@ import { $, append, clearNode } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IAiModelStorageService } from '../../common/storageIpc.js';
-import { AiModel, AiProvider } from '../../common/types.js';
+import { AiModel, AiProvider, getFullEndpointUrl } from '../../common/types.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 
 const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
-	{ value: AiProvider.OPENAI, label: 'OpenAI' },
-	{ value: AiProvider.DEEPSEEK, label: 'DeepSeek' },
+	{ value: AiProvider.OPENAI, label: 'OpenAI (兼容)' },
 	{ value: AiProvider.ANTHROPIC, label: 'Anthropic' },
 	{ value: AiProvider.GOOGLE, label: 'Google' },
 ];
@@ -22,6 +21,7 @@ interface FormInputs {
 	name: HTMLInputElement;
 	provider: HTMLSelectElement;
 	baseUrl: HTMLInputElement;
+	baseUrlPreview: HTMLElement;
 	apiKey: HTMLInputElement;
 	model: HTMLInputElement;
 	contextSize: HTMLInputElement;
@@ -131,7 +131,47 @@ export class ModelManagementPanel extends Disposable {
 		}
 
 		// BaseUrl
-		const baseUrlInput = this.createInputGroup(this.formContainer, localize('baseUrl', "Base URL"), 'text', model?.baseUrl ?? '');
+		const baseUrlGroup = append(this.formContainer, $('.chenille-form-group'));
+		append(baseUrlGroup, $('.chenille-form-label')).textContent = localize('baseUrl', "Base URL");
+		const baseUrlInput = append(baseUrlGroup, $('input.chenille-form-input')) as HTMLInputElement;
+		baseUrlInput.type = 'text';
+		baseUrlInput.value = model?.baseUrl ?? '';
+		baseUrlInput.placeholder = 'https://api.openai.com';
+
+		// URL 预览
+		const baseUrlPreview = append(baseUrlGroup, $('.chenille-form-hint'));
+		baseUrlPreview.style.fontSize = '12px';
+		baseUrlPreview.style.color = 'var(--vscode-descriptionForeground)';
+		baseUrlPreview.style.marginTop = '4px';
+		baseUrlPreview.style.wordBreak = 'break-all';
+
+		// 更新 URL 预览的函数
+		const updateUrlPreview = () => {
+			const provider = providerSelect.value as AiProvider;
+
+			// Google 不支持自定义 baseURL
+			if (provider === AiProvider.GOOGLE) {
+				baseUrlInput.value = '';
+				baseUrlInput.disabled = true;
+				baseUrlInput.placeholder = localize('googleNoCustomUrl', "Google 仅支持官方 API");
+				baseUrlPreview.textContent = `→ https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`;
+			} else {
+				baseUrlInput.disabled = false;
+				baseUrlInput.placeholder = 'https://api.openai.com';
+				const baseUrl = baseUrlInput.value.trim();
+				if (baseUrl) {
+					const fullUrl = getFullEndpointUrl(baseUrl, provider);
+					baseUrlPreview.textContent = `→ ${fullUrl}`;
+				} else {
+					baseUrlPreview.textContent = localize('baseUrlHint', "请输入 API 地址，将自动拼接端点路径");
+				}
+			}
+		};
+
+		// 监听变化
+		baseUrlInput.addEventListener('input', updateUrlPreview);
+		providerSelect.addEventListener('change', updateUrlPreview);
+		updateUrlPreview(); // 初始化
 
 		// ApiKey
 		const apiKeyInput = this.createInputGroup(this.formContainer, localize('apiKey', "API Key"), 'password', model?.apiKey ?? '');
@@ -155,6 +195,7 @@ export class ModelManagementPanel extends Disposable {
 			name: nameInput,
 			provider: providerSelect,
 			baseUrl: baseUrlInput,
+			baseUrlPreview: baseUrlPreview,
 			apiKey: apiKeyInput,
 			model: modelInput,
 			contextSize: contextSizeInput,
