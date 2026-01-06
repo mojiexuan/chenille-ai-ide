@@ -10,6 +10,7 @@ import { IChenilleChatIntegration, ChenilleChatIntegrationImpl, ChenilleChatProv
 import { IChenilleToolDispatcher, ChenilleToolDispatcher } from '../tools/dispatcher.js';
 import { IChenilleChatProvider } from '../common/chatProvider.js';
 import { IChenilleChatModeService, ChenilleChatModeService } from '../common/chatMode.js';
+import { IContextCollapseService, ContextCollapseService } from './chat/contextCollapseService.js';
 
 // 注册 Action
 registerChenilleSettingsAction();
@@ -20,3 +21,4 @@ registerSingleton(IChenilleToolDispatcher, ChenilleToolDispatcher, Instantiation
 registerSingleton(IChenilleChatController, ChenilleChatControllerImpl, InstantiationType.Delayed);
 registerSingleton(IChenilleChatIntegration, ChenilleChatIntegrationImpl, InstantiationType.Delayed);
 registerSingleton(IChenilleChatProvider, ChenilleChatProviderImpl, InstantiationType.Delayed);
+registerSingleton(IContextCollapseService, ContextCollapseService, InstantiationType.Delayed);

@@ -11,15 +11,15 @@ import { INotificationService, Severity } from '../../../platform/notification/c
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CHENILLE_SETTINGS_ACTION_ID } from '../settingsPanel/chenilleSettingsAction.js';
 import { localize } from '../../../nls.js';
-import { AiModelMessage, ToolCall } from '../../common/types.js';
+import { AiModelMessage, AiToolCall, TokenUsage } from '../../common/types.js';
 import { CHENILLE_TOOLS } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
 
-/** 最大工具调用轮次 */
-const MAX_TOOL_ROUNDS = 15;
+/** 最大工具调用轮次（设置为较大值，实际上不限制） */
+const MAX_TOOL_ROUNDS = 1000;
 
 /** 聊天模式下的系统提示后缀 */
 const CHAT_MODE_SYSTEM_SUFFIX = '\n\n[当前为聊天模式，请直接回答用户问题，不要尝试调用任何工具。]';
@@ -32,8 +32,8 @@ export interface IChenilleChatChunk {
 	content?: string;
 	/** 推理内容增量 */
 	reasoning?: string;
-	/** 工具调用（完整列表） */
-	toolCalls?: ToolCall[];
+	/** 工具调用（完整列表，带 ID） */
+	toolCalls?: AiToolCall[];
 	/** 工具执行结果 */
 	toolResult?: {
 		toolName: string;
@@ -44,6 +44,8 @@ export interface IChenilleChatChunk {
 	done: boolean;
 	/** 错误信息 */
 	error?: string;
+	/** Token 使用量（仅在 done=true 时有值） */
+	usage?: TokenUsage;
 }
 
 /**
@@ -85,6 +87,11 @@ export interface IChenilleChatController {
 	 * 提示用户配置
 	 */
 	promptConfiguration(): void;
+
+	/**
+	 * 获取当前模型的上下文大小
+	 */
+	getContextSize(): Promise<number>;
 
 	/**
 	 * 发送 Chat 请求
@@ -148,6 +155,10 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		});
 	}
 
+	async getContextSize(): Promise<number> {
+		return this.aiService.getContextSize();
+	}
+
 	cancel(): void {
 		this._currentCts?.cancel();
 		this._currentCts = undefined;
@@ -192,6 +203,8 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		const tools = (isAgentMode && request.enableTools !== false) ? CHENILLE_TOOLS : undefined;
 		let fullResponse = '';
 		let toolRound = 0;
+		// 累计 token 使用量
+		let totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
 		try {
 			// 工具调用循环（聊天模式下只执行一轮）
@@ -208,11 +221,28 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 				fullResponse += roundResult.content;
 
+				// 累计 token 使用量
+				if (roundResult.usage) {
+					totalUsage.promptTokens += roundResult.usage.promptTokens;
+					totalUsage.completionTokens += roundResult.usage.completionTokens;
+					totalUsage.totalTokens += roundResult.usage.totalTokens;
+				}
+
 				// 无工具调用或聊天模式，对话结束
 				if (!roundResult.toolCalls?.length || isChatMode) {
-					this._onChunk.fire({ done: true });
+					this._onChunk.fire({ done: true, usage: totalUsage });
 					return fullResponse;
 				}
+
+				// 有工具调用时，需要添加 assistant 消息来保持对话顺序
+				// 包含 tool_calls 数组，这是 OpenAI API 要求的格式
+				// 包含 reasoning_content，这是 DeepSeek 等模型要求的格式
+				messages.push({
+					role: 'assistant',
+					content: roundResult.content || '',
+					tool_calls: roundResult.toolCalls,
+					reasoning_content: roundResult.reasoning,
+				});
 
 				// 执行工具调用（仅智能体模式）
 				toolRound++;
@@ -221,7 +251,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 			// 超过最大轮次
 			const error = localize('chenille.maxToolRounds', "工具调用轮次超过限制 ({0})", MAX_TOOL_ROUNDS);
-			this._onChunk.fire({ done: true, error });
+			this._onChunk.fire({ done: true, error, usage: totalUsage });
 			return fullResponse;
 
 		} finally {
@@ -241,9 +271,11 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		messages: AiModelMessage[],
 		tools: typeof CHENILLE_TOOLS | undefined,
 		token: CancellationToken
-	): Promise<{ content: string; toolCalls?: ToolCall[] }> {
+	): Promise<{ content: string; reasoning?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
 		let content = '';
-		let toolCalls: ToolCall[] | undefined;
+		let reasoning = '';
+		let toolCalls: AiToolCall[] | undefined;
+		let usage: TokenUsage | undefined;
 		let streamError: Error | undefined;
 
 		// 为每轮请求生成唯一 ID，用于过滤 IPC 事件
@@ -269,18 +301,28 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 				// 推理内容
 				if (chunk.reasoning) {
+					reasoning += chunk.reasoning;
 					this._onChunk.fire({ reasoning: chunk.reasoning, done: false });
 				}
 
-				// 工具调用
-				if (chunk.function_call?.length) {
-					toolCalls = chunk.function_call;
+				// 工具调用（可能同时包含累积的 reasoning）
+				if (chunk.tool_calls?.length) {
+					toolCalls = chunk.tool_calls;
+					// 工具调用 chunk 可能包含累积的 reasoning（DeepSeek 等模型）
+					if (chunk.reasoning && !reasoning) {
+						reasoning = chunk.reasoning;
+					}
 					this._onChunk.fire({ toolCalls, done: false });
 				}
 
 				// 错误
 				if (chunk.error) {
 					streamError = new Error(chunk.error);
+				}
+
+				// Token 使用量（在 done 时返回）
+				if (chunk.usage) {
+					usage = chunk.usage;
 				}
 
 				// 完成
@@ -312,34 +354,24 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			throw error;
 		}
 
-		return { content, toolCalls };
+		return { content, reasoning: reasoning || undefined, toolCalls, usage };
 	}
 
 	/**
 	 * 执行工具调用并更新消息历史
 	 */
 	private async executeToolCalls(
-		toolCalls: ToolCall[],
+		toolCalls: AiToolCall[],
 		messages: AiModelMessage[],
 		token: CancellationToken
 	): Promise<void> {
-		// 添加 assistant 的工具调用消息
-		const toolCallsDescription = toolCalls
-			.map(tc => tc.function.name)
-			.filter(Boolean)
-			.join(', ');
-
-		messages.push({
-			role: 'assistant',
-			content: `[调用工具: ${toolCallsDescription}]`,
-		});
-
 		// 执行每个工具
 		for (const toolCall of toolCalls) {
 			if (token.isCancellationRequested) {
-				// 取消时也要告诉 AI
+				// 取消时也要告诉 AI（使用 tool 角色）
 				messages.push({
-					role: 'user',
+					role: 'tool',
+					tool_call_id: toolCall.id,
 					content: '[工具执行已取消]',
 				});
 				break;
@@ -348,7 +380,12 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			const toolName = toolCall.function.name ?? 'unknown';
 
 			try {
-				const result = await this.toolDispatcher.dispatch(toolCall, token);
+				// 将 AiToolCall 转换为 ToolCall 格式供 dispatcher 使用
+				const dispatchToolCall = {
+					type: 'function' as const,
+					function: toolCall.function,
+				};
+				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token);
 
 				// 发送工具结果事件
 				this._onChunk.fire({
@@ -360,10 +397,11 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					done: false,
 				});
 
-				// 添加工具结果到消息历史
+				// 添加工具结果到消息历史（使用 tool 角色和 tool_call_id）
 				messages.push({
-					role: 'user',
-					content: this.formatToolResult(toolName, result),
+					role: 'tool',
+					tool_call_id: toolCall.id,
+					content: this.formatToolResultContent(toolName, result),
 				});
 
 			} catch (error) {
@@ -379,10 +417,11 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					done: false,
 				});
 
-				// 将错误信息添加到消息历史，让 AI 知道发生了什么
+				// 将错误信息添加到消息历史（使用 tool 角色和 tool_call_id）
 				messages.push({
-					role: 'user',
-					content: this.formatToolError(toolName, errorMessage),
+					role: 'tool',
+					tool_call_id: toolCall.id,
+					content: this.formatToolErrorContent(toolName, errorMessage),
 				});
 
 				// 继续执行下一个工具，不中断
@@ -391,9 +430,9 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	}
 
 	/**
-	 * 格式化工具执行结果
+	 * 格式化工具执行结果内容（用于 tool 消息）
 	 */
-	private formatToolResult(toolName: string, result: IToolResult): string {
+	private formatToolResultContent(toolName: string, result: IToolResult): string {
 		// 限制工具结果长度，避免上下文过长
 		const MAX_RESULT_LENGTH = 8000;
 		let content = result.content;
@@ -403,17 +442,18 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		}
 
 		if (result.success) {
-			return `工具 "${toolName}" 执行成功:\n\`\`\`\n${content}\n\`\`\``;
+			// 确保返回非空内容
+			return content || `工具 "${toolName}" 执行成功`;
 		} else {
-			return `工具 "${toolName}" 执行失败:\n错误: ${result.error}\n${content ? `输出:\n\`\`\`\n${content}\n\`\`\`` : ''}`;
+			return `错误: ${result.error}${content ? `\n${content}` : ''}`;
 		}
 	}
 
 	/**
-	 * 格式化工具执行错误
+	 * 格式化工具执行错误内容（用于 tool 消息）
 	 */
-	private formatToolError(toolName: string, error: string): string {
-		return `工具 "${toolName}" 执行异常:\n错误: ${error}`;
+	private formatToolErrorContent(toolName: string, error: string): string {
+		return `工具 "${toolName}" 执行异常: ${error}`;
 	}
 
 	/**

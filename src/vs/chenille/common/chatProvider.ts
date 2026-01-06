@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { AiToolCall, TokenUsage } from './types.js';
 
 /**
  * Chenille Chat 响应块
@@ -25,14 +26,20 @@ export interface IChenilleChatResponseChunk {
 	done: boolean;
 	/** 错误信息 */
 	error?: string;
+	/** Token 使用量（仅在 done=true 时有值） */
+	usage?: TokenUsage;
 }
 
 /**
  * Chenille Chat 历史消息
  */
 export interface IChenilleChatMessage {
-	role: 'user' | 'assistant';
+	role: 'user' | 'assistant' | 'tool';
 	content: string;
+	/** assistant 消息的工具调用列表 */
+	tool_calls?: AiToolCall[];
+	/** tool 消息的工具调用 ID */
+	tool_call_id?: string;
 }
 
 /**
@@ -59,6 +66,8 @@ export interface IChenilleChatResult {
 	error?: string;
 	/** 耗时（毫秒） */
 	elapsed?: number;
+	/** Token 使用量 */
+	usage?: TokenUsage;
 }
 
 /**
@@ -89,6 +98,11 @@ export interface IChenilleChatProvider {
 	 * 提示用户配置
 	 */
 	promptConfiguration(): void;
+
+	/**
+	 * 获取当前模型的上下文大小
+	 */
+	getContextSize(): Promise<number>;
 
 	/**
 	 * 发送 Chat 请求

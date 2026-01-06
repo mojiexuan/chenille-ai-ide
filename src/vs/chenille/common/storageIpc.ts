@@ -14,6 +14,7 @@ export const IAiModelStorageService = createDecorator<IAiModelStorageService>('a
 
 export interface IAiModelStorageService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeModels: Event<void>;
 	getAll(): Promise<AiModel[]>;
 	get(name: string): Promise<AiModel | undefined>;
 	save(model: AiModel): Promise<void>;
@@ -25,8 +26,11 @@ export const ModelStorageChannelName = 'chenille.modelStorage';
 export class ModelStorageChannel implements IServerChannel {
 	constructor(private readonly service: IAiModelStorageService) { }
 
-	listen<T>(_context: unknown, _event: string): Event<T> {
-		throw new Error('No events');
+	listen<T>(_context: unknown, event: string): Event<T> {
+		switch (event) {
+			case 'onDidChangeModels': return this.service.onDidChangeModels as Event<T>;
+		}
+		throw new Error(`No event: ${event}`);
 	}
 
 	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
@@ -43,7 +47,11 @@ export class ModelStorageChannel implements IServerChannel {
 export class ModelStorageChannelClient implements IAiModelStorageService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly channel: IChannel) { }
+	readonly onDidChangeModels: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		this.onDidChangeModels = this.channel.listen<void>('onDidChangeModels');
+	}
 
 	getAll(): Promise<AiModel[]> {
 		return this.channel.call('getAll');

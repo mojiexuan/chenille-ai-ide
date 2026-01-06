@@ -83,14 +83,32 @@ export function getFullEndpointUrl(baseUrl: string, provider: AiProvider): strin
 /**
  * AI模型消息角色
  */
-export type AiMessageRole = 'system' | 'user' | 'assistant';
+export type AiMessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
 /**
- * AI模型消息格式
+ * 工具调用（带 ID，用于消息历史）
+ */
+export interface AiToolCall {
+	id: string;
+	type: 'function';
+	function: {
+		name: string;
+		arguments: string;
+	};
+}
+
+/**
+ * AI模型消息格式（扩展版，支持工具调用）
  */
 export interface AiModelMessage {
 	role: AiMessageRole;
 	content: string;
+	/** assistant 消息的工具调用列表 */
+	tool_calls?: AiToolCall[];
+	/** tool 消息的工具调用 ID */
+	tool_call_id?: string;
+	/** DeepSeek 等模型的推理内容 */
+	reasoning_content?: string;
 }
 
 /**
@@ -99,13 +117,28 @@ export interface AiModelMessage {
 export interface ChatCompletionResult {
 	content: string;
 	reasoning?: string;
-	function_call?: ToolCall[];
+	/** 工具调用列表（带 ID） */
+	tool_calls?: AiToolCall[];
 	done: boolean;
 	error?: string;
+	/** Token 使用量 */
+	usage?: TokenUsage;
 }
 
 /**
- * 工具回调
+ * Token 使用量
+ */
+export interface TokenUsage {
+	/** 输入 token 数 */
+	promptTokens: number;
+	/** 输出 token 数 */
+	completionTokens: number;
+	/** 总 token 数 */
+	totalTokens: number;
+}
+
+/**
+ * 工具回调（旧格式，保留兼容）
  */
 export interface ToolCall {
 	type: 'function';
@@ -115,6 +148,13 @@ export interface ToolCall {
 export interface ToolCallFunction {
 	arguments?: string;
 	name?: string;
+}
+
+/**
+ * 生成工具调用 ID
+ */
+export function generateToolCallId(): string {
+	return 'call_' + Math.random().toString(36).substring(2, 15);
 }
 
 /**

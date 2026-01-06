@@ -180,10 +180,10 @@ export class ModelManagementPanel extends Disposable {
 		const modelInput = this.createInputGroup(this.formContainer, localize('model', "模型"), 'text', model?.model ?? '');
 
 		// 上下文大小
-		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(model?.contextSize ?? 4096));
+		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(model?.contextSize ?? 128000));
 
 		// 最大输出Token
-		const maxTokensInput = this.createInputGroup(this.formContainer, localize('maxTokens', "最大输出Token"), 'number', String(model?.maxTokens ?? 2048));
+		const maxTokensInput = this.createInputGroup(this.formContainer, localize('maxTokens', "最大输出Token"), 'number', String(model?.maxTokens ?? 8192));
 
 		// 温度
 		const temperatureInput = this.createInputGroup(this.formContainer, localize('temperature', "温度 (0-2)"), 'number', String(model?.temperature ?? 0.7));
@@ -247,8 +247,8 @@ export class ModelManagementPanel extends Disposable {
 			baseUrl: this.formInputs.baseUrl.value,
 			apiKey: this.formInputs.apiKey.value,
 			model: this.formInputs.model.value,
-			contextSize: parseInt(this.formInputs.contextSize.value) || 4096,
-			maxTokens: parseInt(this.formInputs.maxTokens.value) || 2048,
+			contextSize: parseInt(this.formInputs.contextSize.value) || 128000,
+			maxTokens: parseInt(this.formInputs.maxTokens.value) || 8192,
 			temperature: parseFloat(this.formInputs.temperature.value) || 0.7,
 		};
 

@@ -55,6 +55,11 @@ export interface IChenilleAiService {
 	 * 获取配置错误信息（如果有）
 	 */
 	getConfigurationError(): Promise<string | undefined>;
+
+	/**
+	 * 获取当前模型的上下文大小
+	 */
+	getContextSize(): Promise<number>;
 }
 
 export const ChenilleAiChannelName = 'chenilleAi';
@@ -81,6 +86,8 @@ export class ChenilleAiChannel implements IServerChannel {
 				return this.service.isAgentConfigured() as Promise<T>;
 			case 'getConfigurationError':
 				return this.service.getConfigurationError() as Promise<T>;
+			case 'getContextSize':
+				return this.service.getContextSize() as Promise<T>;
 		}
 		throw new Error(`无效的调用命令: ${command}`);
 	}
@@ -108,5 +115,9 @@ export class ChenilleAiChannelClient implements IChenilleAiService {
 
 	getConfigurationError(): Promise<string | undefined> {
 		return this.channel.call<string | undefined>('getConfigurationError');
+	}
+
+	getContextSize(): Promise<number> {
+		return this.channel.call<number>('getContextSize');
 	}
 }

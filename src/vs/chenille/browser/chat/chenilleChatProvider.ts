@@ -14,6 +14,7 @@ import {
 	IChenilleChatResponseChunk
 } from '../../common/chatProvider.js';
 import { IChenilleChatController, IChenilleChatChunk } from './chenilleChatController.js';
+import { TokenUsage } from '../../common/types.js';
 
 /**
  * Chenille Chat Provider 实现
@@ -45,6 +46,10 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 		this.chatController.promptConfiguration();
 	}
 
+	async getContextSize(): Promise<number> {
+		return this.chatController.getContextSize();
+	}
+
 	cancel(): void {
 		this._currentCts?.cancel();
 		this._currentCts = undefined;
@@ -61,6 +66,7 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 		let fullContent = '';
 		let hasError = false;
 		let errorMessage: string | undefined;
+		let finalUsage: TokenUsage | undefined;
 
 		try {
 			// 监听 controller 的响应块并转换格式
@@ -124,18 +130,26 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 					});
 				}
 
+				// Token 使用量
+				if (chunk.usage) {
+					finalUsage = chunk.usage;
+				}
+
 				// 完成信号（只在没有错误时单独发送）
 				if (chunk.done && !chunk.error) {
 					this._onResponseChunk.fire({
 						done: true,
+						usage: finalUsage,
 					});
 				}
 			}));
 
-			// 转换历史消息格式
+			// 转换历史消息格式（保留 tool_calls 和 tool_call_id）
 			const aiHistory = request.history.map(msg => ({
-				role: msg.role as 'user' | 'assistant',
+				role: msg.role as 'user' | 'assistant' | 'tool',
 				content: msg.content,
+				tool_calls: msg.tool_calls,
+				tool_call_id: msg.tool_call_id,
 			}));
 
 			// 发起请求
@@ -150,6 +164,7 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 				content: response,
 				error: errorMessage,
 				elapsed: stopWatch.elapsed(),
+				usage: finalUsage,
 			};
 
 		} catch (error) {

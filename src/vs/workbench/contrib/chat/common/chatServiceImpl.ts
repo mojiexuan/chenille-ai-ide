@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from './chat.js';
@@ -45,12 +46,26 @@ import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration } from './constants.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 import { IChenilleChatProvider, IChenilleChatMessage } from '../../../../chenille/common/chatProvider.js';
+import { TokenUsage } from '../../../../chenille/common/types.js';
 
 const serializedChatKey = 'interactive.sessions';
 
 const TransferredGlobalChatKey = 'chat.workspaceTransfer';
 
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
+
+/** 上下文收拢阈值（80%） */
+const CONTEXT_COLLAPSE_THRESHOLD = 0.8;
+
+/**
+ * 会话 token 统计
+ */
+interface ISessionTokenStats {
+	/** 累计总 token */
+	totalTokens: number;
+	/** 上下文大小限制 */
+	contextSize: number;
+}
 
 class CancellableRequest implements IDisposable {
 	constructor(
@@ -79,6 +94,13 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
 	private _saveModelsEnabled = true;
+
+	/** 会话 token 统计 */
+	private readonly _sessionTokenStats = new Map<string, ISessionTokenStats>();
+
+	/** 上下文收拢警告事件 */
+	private readonly _onContextCollapseWarning = this._register(new Emitter<{ sessionId: string; usagePercent: number }>());
+	readonly onContextCollapseWarning = this._onContextCollapseWarning.event;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -137,6 +159,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService _mcpService: IMcpService,
 		@IChenilleChatProvider private readonly chenilleChatProvider: IChenilleChatProvider,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -158,6 +181,8 @@ export class ChatService extends Disposable implements IChatService {
 		}));
 		this._register(this._sessionModels.onDidDisposeModel(model => {
 			this._onDidDisposeSession.fire({ sessionResource: model.sessionResource, reason: 'cleared' });
+			// 清理 token 统计
+			this.clearSessionTokenStats(model.sessionId);
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -944,6 +969,9 @@ export class ChatService extends Disposable implements IChatService {
 					throw new Error(configError ?? localize('chenille.notConfigured', "Chenille 智能体未配置"));
 				}
 
+				// 初始化会话 token 统计
+				await this.initSessionTokenStats(model.sessionId);
+
 				// 创建请求
 				const agent = agentPart?.agent ?? defaultAgent;
 				const command = agentSlashCommandPart?.command;
@@ -978,6 +1006,21 @@ export class ChatService extends Disposable implements IChatService {
 						role: 'assistant',
 						content: modelRequest.response.response.toString()
 					});
+				}
+
+				// 构建当前消息（包含附件内容）
+				let currentMessage = message;
+				if (request.attachedContext && request.attachedContext.length > 0) {
+					const attachmentContents: string[] = [];
+					for (const attachment of request.attachedContext) {
+						const attachmentContent = await this.formatAttachmentForAI(attachment);
+						if (attachmentContent) {
+							attachmentContents.push(attachmentContent);
+						}
+					}
+					if (attachmentContents.length > 0) {
+						currentMessage = `${attachmentContents.join('\n\n')}\n\n用户问题：${message}`;
+					}
 				}
 
 				// 监听 Chenille 响应流
@@ -1047,10 +1090,15 @@ export class ChatService extends Disposable implements IChatService {
 
 				// 调用 Chenille AI
 				const result = await this.chenilleChatProvider.chat({
-					input: message,
+					input: currentMessage,
 					history,
 					enableTools: true,
 				}, token);
+
+				// 更新 token 统计
+				if (result.usage) {
+					this.updateSessionTokenStats(model.sessionId, result.usage);
+				}
 
 				// 处理结果
 				const rawResult: IChatAgentResult = result.success
@@ -1148,6 +1196,154 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		return attachedContextVariables;
+	}
+
+	/**
+	 * 将附件格式化为 AI 可理解的文本（异步读取文件内容）
+	 */
+	private async formatAttachmentForAI(attachment: IChatRequestVariableEntry): Promise<string | undefined> {
+		const { kind, name, value } = attachment;
+
+		switch (kind) {
+			case 'file': {
+				// 文件附件 - 尝试读取文件内容
+				if (typeof value === 'string') {
+					return `<file name="${name}">\n${value}\n</file>`;
+				} else if (URI.isUri(value)) {
+					try {
+						const content = await this.fileService.readFile(value);
+						const text = content.value.toString();
+						// 限制文件大小，避免发送过大的内容
+						const maxLength = 50000;
+						const truncated = text.length > maxLength ? text.substring(0, maxLength) + '\n... (内容已截断)' : text;
+						return `<file name="${name}" path="${value.fsPath}">\n${truncated}\n</file>`;
+					} catch {
+						return `<file name="${name}" path="${value.fsPath}">\n（无法读取文件内容，请使用 readFile 工具读取）\n</file>`;
+					}
+				} else if (value && typeof value === 'object' && 'uri' in value) {
+					// Location 类型
+					const loc = value as { uri: URI; range?: { startLineNumber: number; endLineNumber: number } };
+					try {
+						const content = await this.fileService.readFile(loc.uri);
+						const text = content.value.toString();
+						const lines = text.split('\n');
+						// 如果有范围，只取指定行
+						if (loc.range) {
+							const start = Math.max(0, loc.range.startLineNumber - 1);
+							const end = Math.min(lines.length, loc.range.endLineNumber);
+							const selectedLines = lines.slice(start, end).join('\n');
+							return `<file name="${name}" path="${loc.uri.fsPath}" lines="${loc.range.startLineNumber}-${loc.range.endLineNumber}">\n${selectedLines}\n</file>`;
+						}
+						const maxLength = 50000;
+						const truncated = text.length > maxLength ? text.substring(0, maxLength) + '\n... (内容已截断)' : text;
+						return `<file name="${name}" path="${loc.uri.fsPath}">\n${truncated}\n</file>`;
+					} catch {
+						const rangeInfo = loc.range ? `，行 ${loc.range.startLineNumber}-${loc.range.endLineNumber}` : '';
+						return `<file name="${name}" path="${loc.uri.fsPath}">\n（无法读取文件内容${rangeInfo}，请使用 readFile 工具读取）\n</file>`;
+					}
+				}
+				return undefined;
+			}
+
+			case 'directory': {
+				// 文件夹附件 - 提供路径，AI 可以使用 listDirectory 工具查看内容
+				if (URI.isUri(value)) {
+					return `<directory name="${name}" path="${value.fsPath}">\n（用户选择了此文件夹，请使用 listDirectory 工具查看内容）\n</directory>`;
+				}
+				return `<directory name="${name}">\n（用户选择了此文件夹）\n</directory>`;
+			}
+
+			case 'symbol': {
+				// 符号附件（函数、类等）- 尝试读取符号所在的代码
+				if (value && typeof value === 'object' && 'uri' in value) {
+					const loc = value as { uri: URI; range?: { startLineNumber: number; endLineNumber: number } };
+					try {
+						const content = await this.fileService.readFile(loc.uri);
+						const text = content.value.toString();
+						const lines = text.split('\n');
+						if (loc.range) {
+							const start = Math.max(0, loc.range.startLineNumber - 1);
+							const end = Math.min(lines.length, loc.range.endLineNumber);
+							const selectedLines = lines.slice(start, end).join('\n');
+							return `<symbol name="${name}" path="${loc.uri.fsPath}" lines="${loc.range.startLineNumber}-${loc.range.endLineNumber}">\n${selectedLines}\n</symbol>`;
+						}
+					} catch {
+						const rangeInfo = loc.range ? `，行 ${loc.range.startLineNumber}-${loc.range.endLineNumber}` : '';
+						return `<symbol name="${name}" path="${loc.uri.fsPath}">\n（无法读取符号内容${rangeInfo}，请使用 readFile 工具读取）\n</symbol>`;
+					}
+				}
+				return `<symbol name="${name}" />`;
+			}
+
+			case 'paste': {
+				// 粘贴的代码
+				const pasteEntry = attachment as { code: string; language: string };
+				if (pasteEntry.code) {
+					return `<code language="${pasteEntry.language || 'text'}">\n${pasteEntry.code}\n</code>`;
+				}
+				return undefined;
+			}
+
+			case 'image': {
+				// 图片附件 - 目前只返回描述，实际图片数据需要特殊处理
+				return `<image name="${name}">\n（用户附加了一张图片）\n</image>`;
+			}
+
+			case 'implicit': {
+				// 隐式上下文（如当前选中的文本）
+				if (typeof value === 'string') {
+					return `<context name="${name}">\n${value}\n</context>`;
+				} else if (value && typeof value === 'object' && 'value' in value) {
+					const strValue = value as { value?: string };
+					if (strValue.value) {
+						return `<context name="${name}">\n${strValue.value}\n</context>`;
+					}
+				}
+				return undefined;
+			}
+
+			case 'diagnostic': {
+				// 诊断信息（错误、警告等）
+				if (typeof value === 'string') {
+					return `<diagnostic name="${name}">\n${value}\n</diagnostic>`;
+				}
+				return `<diagnostic name="${name}" />`;
+			}
+
+			case 'terminalCommand': {
+				// 终端命令
+				const termEntry = attachment as { command: string; output?: string };
+				let content = `命令: ${termEntry.command}`;
+				if (termEntry.output) {
+					content += `\n输出:\n${termEntry.output}`;
+				}
+				return `<terminal name="${name}">\n${content}\n</terminal>`;
+			}
+
+			case 'string': {
+				// 字符串值
+				if (typeof value === 'string') {
+					return `<context name="${name}">\n${value}\n</context>`;
+				}
+				return undefined;
+			}
+
+			case 'workspace': {
+				// 工作区信息
+				if (typeof value === 'string') {
+					return `<workspace>\n${value}\n</workspace>`;
+				}
+				return undefined;
+			}
+
+			default: {
+				// 其他类型，尝试转换为字符串
+				if (typeof value === 'string') {
+					return `<attachment name="${name}" kind="${kind}">\n${value}\n</attachment>`;
+				}
+				return undefined;
+			}
+		}
 	}
 
 	async removeRequest(sessionResource: URI, requestId: string): Promise<void> {
@@ -1270,5 +1466,72 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
 		return localSessionId;
+	}
+
+	/**
+	 * 初始化会话的 token 统计
+	 */
+	private async initSessionTokenStats(sessionId: string): Promise<void> {
+		if (this._sessionTokenStats.has(sessionId)) {
+			return;
+		}
+
+		try {
+			const contextSize = await this.chenilleChatProvider.getContextSize();
+			this._sessionTokenStats.set(sessionId, {
+				totalTokens: 0,
+				contextSize,
+			});
+		} catch {
+			// 使用默认值
+			this._sessionTokenStats.set(sessionId, {
+				totalTokens: 0,
+				contextSize: 128000,
+			});
+		}
+	}
+
+	/**
+	 * 更新会话的 token 统计
+	 */
+	private updateSessionTokenStats(sessionId: string, usage: TokenUsage): void {
+		let stats = this._sessionTokenStats.get(sessionId);
+		if (!stats) {
+			// 如果没有初始化，使用默认值
+			stats = { totalTokens: 0, contextSize: 128000 };
+			this._sessionTokenStats.set(sessionId, stats);
+		}
+
+		// 累加 token 使用量
+		stats.totalTokens += usage.totalTokens;
+
+		// 检查是否需要发出警告
+		const usagePercent = stats.totalTokens / stats.contextSize;
+		if (usagePercent >= CONTEXT_COLLAPSE_THRESHOLD) {
+			this.logService.warn(`Session ${sessionId} context usage: ${(usagePercent * 100).toFixed(1)}% (${stats.totalTokens}/${stats.contextSize})`);
+			this._onContextCollapseWarning.fire({ sessionId, usagePercent });
+		}
+	}
+
+	/**
+	 * 获取会话的 token 统计
+	 */
+	getSessionTokenStats(sessionId: string): { totalTokens: number; contextSize: number; usagePercent: number } | undefined {
+		const stats = this._sessionTokenStats.get(sessionId);
+		if (!stats) {
+			return undefined;
+		}
+		return {
+			totalTokens: stats.totalTokens,
+			contextSize: stats.contextSize,
+			usagePercent: stats.totalTokens / stats.contextSize,
+		};
+	}
+
+	/**
+	 * 清理会话的 token 统计
+	 */
+	private clearSessionTokenStats(sessionId: string): void {
+		this._sessionTokenStats.delete(sessionId);
 	}
 }

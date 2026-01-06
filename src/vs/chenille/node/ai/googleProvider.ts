@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GoogleGenAI, Content, Tool, FunctionDeclaration, Type } from '@google/genai';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage } from '../../common/types.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
 
 /**
@@ -132,9 +132,10 @@ export class GoogleProvider implements IAIProvider {
 
 		const functionCalls = parts.filter((p): p is { functionCall: { name?: string; args?: Record<string, unknown> } } =>
 			typeof (p as { functionCall?: unknown }).functionCall === 'object');
-		const functionCall = functionCalls.length > 0 ? functionCalls
+		const toolCalls: AiToolCall[] | undefined = functionCalls.length > 0 ? functionCalls
 			.filter(p => p.functionCall?.name) // 过滤掉没有 name 的
 			.map(p => ({
+				id: generateToolCallId(),
 				type: 'function' as const,
 				function: {
 					name: p.functionCall.name!,
@@ -144,8 +145,13 @@ export class GoogleProvider implements IAIProvider {
 
 		const result: ChatCompletionResult = {
 			content,
-			function_call: functionCall,
+			tool_calls: toolCalls,
 			done: true,
+			usage: response.usageMetadata ? {
+				promptTokens: response.usageMetadata.promptTokenCount ?? 0,
+				completionTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+				totalTokens: response.usageMetadata.totalTokenCount ?? 0,
+			} : undefined,
 		};
 
 		options.call?.(result);
@@ -170,11 +176,22 @@ export class GoogleProvider implements IAIProvider {
 
 		// 累积工具调用
 		const accumulatedToolCalls: { name: string; arguments: string }[] = [];
+		// 累积 usage
+		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
 		for await (const chunk of response) {
 			// 检查取消
 			if (options.token?.isCancellationRequested) {
 				break;
+			}
+
+			// 捕获 usage
+			if (chunk.usageMetadata) {
+				finalUsage = {
+					promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+					completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+					totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+				};
 			}
 
 			const parts = chunk.candidates?.[0]?.content?.parts ?? [];
@@ -206,9 +223,10 @@ export class GoogleProvider implements IAIProvider {
 
 		// 流结束后，发送累积的工具调用
 		if (accumulatedToolCalls.length > 0) {
-			const toolCalls = accumulatedToolCalls
+			const toolCalls: AiToolCall[] = accumulatedToolCalls
 				.filter(tc => tc.name)
 				.map(tc => ({
+					id: generateToolCallId(),
 					type: 'function' as const,
 					function: {
 						name: tc.name,
@@ -219,13 +237,13 @@ export class GoogleProvider implements IAIProvider {
 			if (toolCalls.length > 0) {
 				options.call?.({
 					content: '',
-					function_call: toolCalls,
+					tool_calls: toolCalls,
 					done: false,
 				});
 			}
 		}
 
-		options.call?.({ content: '', done: true });
+		options.call?.({ content: '', done: true, usage: finalUsage });
 	}
 }
 

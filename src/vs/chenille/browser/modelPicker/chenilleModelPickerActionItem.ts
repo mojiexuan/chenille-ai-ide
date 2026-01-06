@@ -57,6 +57,12 @@ export class ChenilleModelPickerDelegate extends Disposable implements IChenille
 		@IAiAgentStorageService private readonly agentStorage: IAiAgentStorageService,
 	) {
 		super();
+
+		// 监听存储服务的模型变更事件
+		this._register(this.modelStorage.onDidChangeModels(() => {
+			this.refresh();
+		}));
+
 		this.refresh();
 	}
 

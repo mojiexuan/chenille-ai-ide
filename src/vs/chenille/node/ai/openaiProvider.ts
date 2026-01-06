@@ -6,17 +6,56 @@
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index';
 import type { Stream } from 'openai/streaming';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, ToolCall } from '../../common/types.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiToolCall, generateToolCallId } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
 
 /**
  * 将统一消息格式转换为 OpenAI 格式
  */
 function toOpenAIMessages(options: ChatCompletionOptions): ChatCompletionMessageParam[] {
-	return options.messages.map(msg => ({
-		role: msg.role,
-		content: msg.content,
-	}));
+	return options.messages.map(msg => {
+		// 工具结果消息
+		if (msg.role === 'tool' && msg.tool_call_id) {
+			return {
+				role: 'tool' as const,
+				content: msg.content,
+				tool_call_id: msg.tool_call_id,
+			};
+		}
+
+		// assistant 消息（可能包含工具调用）
+		if (msg.role === 'assistant') {
+			// 构建基础消息
+			const assistantMsg: ChatCompletionMessageParam & { reasoning_content?: string } = {
+				role: 'assistant' as const,
+				content: msg.content || null,
+			};
+
+			// DeepSeek 等模型需要 reasoning_content
+			if (msg.reasoning_content) {
+				assistantMsg.reasoning_content = msg.reasoning_content;
+			}
+
+			if (msg.tool_calls?.length) {
+				(assistantMsg as ChatCompletionMessageParam & { tool_calls?: unknown[] }).tool_calls = msg.tool_calls.map(tc => ({
+					id: tc.id,
+					type: 'function' as const,
+					function: {
+						name: tc.function.name,
+						arguments: tc.function.arguments,
+					},
+				}));
+			}
+
+			return assistantMsg;
+		}
+
+		// system 和 user 消息
+		return {
+			role: msg.role as 'system' | 'user',
+			content: msg.content,
+		};
+	});
 }
 
 /**
@@ -45,9 +84,9 @@ interface DeltaWithReasoning extends OpenAI.Chat.Completions.ChatCompletionChunk
 }
 
 /**
- * 解析 tool_calls 为统一格式
+ * 解析 tool_calls 为统一格式（带 ID）
  */
-function parseToolCalls(message: MessageWithReasoning): ToolCall[] | undefined {
+function parseToolCalls(message: MessageWithReasoning): AiToolCall[] | undefined {
 	const toolCalls = message.tool_calls;
 	if (!toolCalls?.length) {
 		return undefined;
@@ -55,6 +94,7 @@ function parseToolCalls(message: MessageWithReasoning): ToolCall[] | undefined {
 	return toolCalls
 		.filter((tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageToolCall & { type: 'function' } => tc.type === 'function')
 		.map(tc => ({
+			id: tc.id,
 			type: 'function' as const,
 			function: {
 				name: tc.function.name,
@@ -101,8 +141,13 @@ export class OpenAIProvider implements IAIProvider {
 		const result: ChatCompletionResult = {
 			content: message.content ?? '',
 			reasoning: message.reasoning_content ?? undefined,
-			function_call: parseToolCalls(message),
+			tool_calls: parseToolCalls(message),
 			done: true,
+			usage: response.usage ? {
+				promptTokens: response.usage.prompt_tokens,
+				completionTokens: response.usage.completion_tokens,
+				totalTokens: response.usage.total_tokens,
+			} : undefined,
 		};
 
 		options.call?.(result);
@@ -122,16 +167,30 @@ export class OpenAIProvider implements IAIProvider {
 			tools: toOpenAITools(options),
 			tool_choice: options.tool_choice,
 			stream: true,
+			stream_options: { include_usage: true },
 		});
 
 		// 累积工具调用（流式 API 中工具调用是增量发送的）
-		const accumulatedToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+		// 累积推理内容（DeepSeek 等模型需要）
+		let accumulatedReasoning = '';
+		// 累积 usage（流式 API 在最后一个 chunk 返回）
+		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
 		for await (const chunk of stream) {
 			// 检查取消
 			if (options.token?.isCancellationRequested) {
 				stream.controller.abort();
 				break;
+			}
+
+			// 捕获 usage（在最后一个 chunk 中）
+			if (chunk.usage) {
+				finalUsage = {
+					promptTokens: chunk.usage.prompt_tokens,
+					completionTokens: chunk.usage.completion_tokens,
+					totalTokens: chunk.usage.total_tokens,
+				};
 			}
 
 			if (chunk.choices.length === 0) {
@@ -144,8 +203,11 @@ export class OpenAIProvider implements IAIProvider {
 			if (delta.tool_calls?.length) {
 				for (const tc of delta.tool_calls) {
 					const index = tc.index;
-					const existing = accumulatedToolCalls.get(index) ?? { name: '', arguments: '' };
+					const existing = accumulatedToolCalls.get(index) ?? { id: '', name: '', arguments: '' };
 
+					if (tc.id) {
+						existing.id = tc.id;
+					}
 					if (tc.function?.name) {
 						existing.name = tc.function.name;
 					}
@@ -155,6 +217,11 @@ export class OpenAIProvider implements IAIProvider {
 
 					accumulatedToolCalls.set(index, existing);
 				}
+			}
+
+			// 累积推理内容
+			if (delta.reasoning_content) {
+				accumulatedReasoning += delta.reasoning_content;
 			}
 
 			const result: ChatCompletionResult = {
@@ -173,12 +240,13 @@ export class OpenAIProvider implements IAIProvider {
 			return;
 		}
 
-		// 流结束后，发送累积的工具调用
+		// 流结束后，发送累积的工具调用（包含累积的推理内容）
 		if (accumulatedToolCalls.size > 0) {
-			const toolCalls: ToolCall[] = [];
+			const toolCalls: AiToolCall[] = [];
 			for (const [, tc] of accumulatedToolCalls) {
 				if (tc.name) {
 					toolCalls.push({
+						id: tc.id || generateToolCallId(),
 						type: 'function' as const,
 						function: {
 							name: tc.name,
@@ -191,13 +259,14 @@ export class OpenAIProvider implements IAIProvider {
 			if (toolCalls.length > 0) {
 				options.call?.({
 					content: '',
-					function_call: toolCalls,
+					reasoning: accumulatedReasoning || undefined,
+					tool_calls: toolCalls,
 					done: false,
 				});
 			}
 		}
 
-		options.call?.({ content: '', done: true });
+		options.call?.({ content: '', done: true, usage: finalUsage });
 	}
 }
 

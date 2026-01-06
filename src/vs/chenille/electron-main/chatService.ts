@@ -48,6 +48,16 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		return this._lastConfigError;
 	}
 
+	async getContextSize(): Promise<number> {
+		try {
+			const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
+			return agent.model.contextSize;
+		} catch {
+			// 默认返回 128000
+			return 128000;
+		}
+	}
+
 	async streamChat(request: IAiCallRequest, token?: CancellationToken): Promise<void> {
 		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
 		const requestId = request.requestId;

@@ -32,6 +32,7 @@ class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionData = undefined;
 	readonly onDidSubmitRequest = Event.None;
+	readonly onContextCollapseWarning = Event.None;
 
 	private sessions = new Map<string, IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
@@ -184,6 +185,10 @@ class MockChatService implements IChatService {
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
+	}
+
+	getSessionTokenStats(_sessionId: string): { totalTokens: number; contextSize: number; usagePercent: number } | undefined {
+		return undefined;
 	}
 }
 

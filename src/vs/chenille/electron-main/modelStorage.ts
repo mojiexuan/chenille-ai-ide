@@ -5,6 +5,7 @@
 
 import { IStateService } from '../../platform/state/node/state.js';
 import { Disposable } from '../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { AiModel } from '../common/types.js';
 import { IAiModelStorageService } from '../common/storageIpc.js';
 
@@ -15,6 +16,9 @@ export type IAiModelStorageMainService = IAiModelStorageService;
 
 export class AiModelStorageMainService extends Disposable implements IAiModelStorageService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeModels = this._register(new Emitter<void>());
+	readonly onDidChangeModels: Event<void> = this._onDidChangeModels.event;
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
@@ -48,10 +52,12 @@ export class AiModelStorageMainService extends Disposable implements IAiModelSto
 			models.push(model);
 		}
 		this.stateService.setItem(STORAGE_KEY, JSON.stringify(models));
+		this._onDidChangeModels.fire();
 	}
 
 	async delete(name: string): Promise<void> {
 		const models = (await this.getAll()).filter(m => m.name !== name);
 		this.stateService.setItem(STORAGE_KEY, JSON.stringify(models));
+		this._onDidChangeModels.fire();
 	}
 }
