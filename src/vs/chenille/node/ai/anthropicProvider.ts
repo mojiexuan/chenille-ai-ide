@@ -199,127 +199,65 @@ export class AnthropicProvider implements IAIProvider {
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		return new Promise<void>((resolve) => {
-			const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-			let currentToolIndex = -1;
-			let hasReceivedContent = false;
-			let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+		try {
+			const stream = client.messages.stream({
+				model: model.model,
+				messages: toAnthropicMessages(options.messages),
+				system: extractSystemPrompt(options.messages),
+				temperature,
+				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
+				tools: toAnthropicTools(options),
+			});
 
-			let stream: ReturnType<typeof client.messages.stream>;
-			try {
-				stream = client.messages.stream({
-					model: model.model,
-					messages: toAnthropicMessages(options.messages),
-					system: extractSystemPrompt(options.messages),
-					temperature,
-					max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-					tools: toAnthropicTools(options),
-				});
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: errorMessage });
-				resolve();
-				return;
-			}
-
-			// 使用事件监听替代 for-await-of，避免压缩后 async iterator 失效
+			// 监听文本流
 			stream.on('text', (text) => {
 				if (options.token?.isCancellationRequested) {
 					return;
 				}
-				hasReceivedContent = true;
 				options.call?.({ content: text, done: false });
 			});
 
-			stream.on('contentBlock', (block) => {
-				if (options.token?.isCancellationRequested) {
-					return;
-				}
-				hasReceivedContent = true;
-				if (block.type === 'tool_use') {
-					currentToolIndex++;
-					accumulatedToolCalls.set(currentToolIndex, {
-						id: block.id || generateToolCallId(),
+			// 等待最终消息 - 这会等待流完成并返回完整的消息
+			// 工具调用的完整参数只有在流结束后才能从 finalMessage 获取
+			const finalMessage = await stream.finalMessage();
+
+			if (options.token?.isCancellationRequested) {
+				return;
+			}
+
+			// 从最终消息中提取工具调用
+			const toolUseBlocks = finalMessage.content.filter(
+				(block): block is ToolUseBlock => block.type === 'tool_use'
+			);
+
+			if (toolUseBlocks.length > 0) {
+				const toolCalls: AiToolCall[] = toolUseBlocks.map(block => ({
+					id: block.id || generateToolCallId(),
+					type: 'function' as const,
+					function: {
 						name: block.name,
 						arguments: JSON.stringify(block.input),
-					});
-				}
-			});
+					},
+				}));
 
-			stream.on('message', (message) => {
-				hasReceivedContent = true;
-				if (message.usage) {
-					finalUsage = {
-						promptTokens: message.usage.input_tokens,
-						completionTokens: message.usage.output_tokens,
-						totalTokens: message.usage.input_tokens + message.usage.output_tokens,
-					};
-				}
-			});
+				options.call?.({
+					content: '',
+					tool_calls: toolCalls,
+					done: false,
+				});
+			}
 
-			stream.on('error', (error) => {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: errorMessage });
-				resolve();
-			});
+			const finalUsage = finalMessage.usage ? {
+				promptTokens: finalMessage.usage.input_tokens,
+				completionTokens: finalMessage.usage.output_tokens,
+				totalTokens: finalMessage.usage.input_tokens + finalMessage.usage.output_tokens,
+			} : undefined;
 
-			stream.on('end', () => {
-				if (options.token?.isCancellationRequested) {
-					resolve();
-					return;
-				}
-
-				if (!hasReceivedContent) {
-					options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
-					resolve();
-					return;
-				}
-
-				// 流结束后，发送累积的工具调用
-				if (accumulatedToolCalls.size > 0) {
-					const toolCalls: AiToolCall[] = [];
-					for (const [, tc] of accumulatedToolCalls) {
-						if (tc.name) {
-							toolCalls.push({
-								id: tc.id || generateToolCallId(),
-								type: 'function' as const,
-								function: {
-									name: tc.name,
-									arguments: tc.arguments,
-								},
-							});
-						}
-					}
-
-					if (toolCalls.length > 0) {
-						options.call?.({
-							content: '',
-							tool_calls: toolCalls,
-							done: false,
-						});
-					}
-				}
-
-				options.call?.({ content: '', done: true, usage: finalUsage });
-				resolve();
-			});
-
-			// 处理取消 - 定期检查取消状态
-			const checkCancellation = setInterval(() => {
-				if (options.token?.isCancellationRequested) {
-					clearInterval(checkCancellation);
-					stream.controller.abort();
-				}
-			}, 100);
-
-			// 在流结束时清理定时器
-			stream.on('end', () => {
-				clearInterval(checkCancellation);
-			});
-			stream.on('error', () => {
-				clearInterval(checkCancellation);
-			});
-		});
+			options.call?.({ content: '', done: true, usage: finalUsage });
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.call?.({ content: '', done: true, error: errorMessage });
+		}
 	}
 }
 
