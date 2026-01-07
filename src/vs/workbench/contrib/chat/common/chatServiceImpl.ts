@@ -42,11 +42,11 @@ import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './c
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, IImageVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration } from './constants.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
 import { IChenilleChatProvider, IChenilleChatMessage } from '../../../../chenille/common/chatProvider.js';
-import { TokenUsage } from '../../../../chenille/common/types.js';
+import { TokenUsage, AiMessageContent } from '../../../../chenille/common/types.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -1010,15 +1010,39 @@ export class ChatService extends Disposable implements IChatService {
 
 				// 构建当前消息（包含附件内容）
 				let currentMessage = message;
+				let multiContent: AiMessageContent[] | undefined;
+
 				if (request.attachedContext && request.attachedContext.length > 0) {
 					const attachmentContents: string[] = [];
+					const imageContents: AiMessageContent[] = [];
+
 					for (const attachment of request.attachedContext) {
-						const attachmentContent = await this.formatAttachmentForAI(attachment);
-						if (attachmentContent) {
-							attachmentContents.push(attachmentContent);
+						// 检查是否为图片附件
+						if (isImageVariableEntry(attachment)) {
+							const imageData = this.extractImageData(attachment);
+							if (imageData) {
+								imageContents.push(imageData);
+							}
+						} else {
+							const attachmentContent = await this.formatAttachmentForAI(attachment);
+							if (attachmentContent) {
+								attachmentContents.push(attachmentContent);
+							}
 						}
 					}
-					if (attachmentContents.length > 0) {
+
+					// 如果有图片，构建 multiContent
+					if (imageContents.length > 0) {
+						// 先添加文本内容
+						let textContent = message;
+						if (attachmentContents.length > 0) {
+							textContent = `${attachmentContents.join('\n\n')}\n\n用户问题：${message}`;
+						}
+						multiContent = [
+							{ type: 'text', text: textContent },
+							...imageContents
+						];
+					} else if (attachmentContents.length > 0) {
 						currentMessage = `${attachmentContents.join('\n\n')}\n\n用户问题：${message}`;
 					}
 				}
@@ -1091,6 +1115,7 @@ export class ChatService extends Disposable implements IChatService {
 				// 调用 Chenille AI
 				const result = await this.chenilleChatProvider.chat({
 					input: currentMessage,
+					multiContent,
 					history,
 					enableTools: true,
 				}, token);
@@ -1199,6 +1224,60 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
+	 * 从图片附件中提取 base64 数据
+	 */
+	private extractImageData(attachment: IImageVariableEntry): AiMessageContent | undefined {
+		const { value, mimeType } = attachment;
+
+		// value 是 Uint8Array
+		if (value instanceof Uint8Array) {
+			// 将 Uint8Array 转换为 base64
+			let binary = '';
+			const bytes = value;
+			const len = bytes.byteLength;
+			for (let i = 0; i < len; i++) {
+				binary += String.fromCharCode(bytes[i]);
+			}
+			const base64Data = btoa(binary);
+
+			// 确定 MIME 类型
+			const detectedMimeType = mimeType || this.detectImageMimeType(bytes) || 'image/png';
+
+			return {
+				type: 'image',
+				data: base64Data,
+				mimeType: detectedMimeType
+			};
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * 检测图片的 MIME 类型
+	 */
+	private detectImageMimeType(bytes: Uint8Array): string | undefined {
+		// PNG: 89 50 4E 47
+		if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+			return 'image/png';
+		}
+		// JPEG: FF D8 FF
+		if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+			return 'image/jpeg';
+		}
+		// GIF: 47 49 46 38
+		if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+			return 'image/gif';
+		}
+		// WebP: 52 49 46 46 ... 57 45 42 50
+		if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+			bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+			return 'image/webp';
+		}
+		return undefined;
+	}
+
+	/**
 	 * 将附件格式化为 AI 可理解的文本（异步读取文件内容）
 	 */
 	private async formatAttachmentForAI(attachment: IChatRequestVariableEntry): Promise<string | undefined> {
@@ -1285,8 +1364,9 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			case 'image': {
-				// 图片附件 - 目前只返回描述，实际图片数据需要特殊处理
-				return `<image name="${name}">\n（用户附加了一张图片）\n</image>`;
+				// 图片附件通过 multiContent 处理，这里不需要返回文本
+				// 如果走到这里说明是不支持的图片格式
+				return undefined;
 			}
 
 			case 'implicit': {

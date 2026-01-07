@@ -206,9 +206,9 @@ npm run gulp vscode-linux-armhf-min    # ARM 32位
 npm run gulp vscode-win32-x64    # Windows 开发版
 ```
 
-### 生成安装包（Windows）
+### 生成安装包
 
-构建完成后，可以生成 `.exe` 安装程序：
+#### Windows (.exe)
 
 ```bash
 # 1. 先生成 inno_updater（自动更新组件）
@@ -219,12 +219,38 @@ npm run gulp vscode-win32-x64-user-setup    # 用户版（安装到用户目录�
 npm run gulp vscode-win32-x64-system-setup  # 系统版（安装到 Program Files，需管理员权限）
 ```
 
-安装包输出位置：
-
-- 用户版：`.build/win32-x64/user-setup/`
-- 系统版：`.build/win32-x64/system-setup/`
+输出位置：`.build/win32-x64/user-setup/` 或 `system-setup/`
 
 > ARM64 架构将 `x64` 替换为 `arm64` 即可
+
+#### macOS (.app)
+
+macOS 构建完成后直接生成 `.app` 应用包，无需额外打包步骤：
+
+```bash
+npm run gulp vscode-darwin-arm64-min    # Apple Silicon
+npm run gulp vscode-darwin-x64-min      # Intel Mac
+```
+
+输出位置：`../VSCode-darwin-arm64/Chenille AI IDE.app` 或 `../VSCode-darwin-x64/`
+
+用户可直接将 `.app` 拖入 Applications 文件夹使用，或手动压缩为 `.zip` / 制作 `.dmg` 分发。
+
+> 注意：macOS 版本建议在 macOS 系统上构建，Windows 上构建需要管理员权限（符号链接）
+
+#### Linux (.deb / .rpm)
+
+```bash
+# Debian/Ubuntu (.deb)
+npm run gulp vscode-linux-x64-build-deb
+npm run gulp vscode-linux-arm64-build-deb
+
+# Red Hat/Fedora (.rpm)
+npm run gulp vscode-linux-x64-build-rpm
+npm run gulp vscode-linux-arm64-build-rpm
+```
+
+输出位置：`.build/linux-deb-*/` 或 `.build/linux-rpm-*/`
 
 ## License
 

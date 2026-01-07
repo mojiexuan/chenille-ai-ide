@@ -32,6 +32,7 @@ import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAc
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IChenilleChatProvider } from '../../../../../chenille/common/chatProvider.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -236,13 +237,17 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 
 	constructor(
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IChenilleChatProvider private readonly _chenilleChatProvider: IChenilleChatProvider,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
 		if (!widget.attachmentCapabilities.supportsImageAttachments) {
 			return false;
 		}
-		if (!widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
+		// 检查 VS Code 内置模型或 Chenille 模型是否支持视觉
+		const vscodeVision = widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		const chenilleVision = await this._chenilleChatProvider.supportsVision();
+		if (!vscodeVision && !chenilleVision) {
 			return false;
 		}
 		const imageData = await this._clipboardService.readImage();
@@ -338,10 +343,17 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	constructor(
 		@IHostService private readonly _hostService: IHostService,
+		@IChenilleChatProvider private readonly _chenilleChatProvider: IChenilleChatProvider,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		if (!widget.attachmentCapabilities.supportsImageAttachments) {
+			return false;
+		}
+		// 检查 VS Code 内置模型或 Chenille 模型是否支持视觉
+		const vscodeVision = widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		const chenilleVision = await this._chenilleChatProvider.supportsVision();
+		return vscodeVision || chenilleVision;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {

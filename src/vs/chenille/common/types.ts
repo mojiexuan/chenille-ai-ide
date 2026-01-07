@@ -98,11 +98,38 @@ export interface AiToolCall {
 }
 
 /**
- * AI模型消息格式（扩展版，支持工具调用）
+ * 图片内容
+ */
+export interface AiImageContent {
+	type: 'image';
+	/** base64 编码的图片数据 */
+	data: string;
+	/** MIME 类型，如 image/png, image/jpeg, image/gif, image/webp */
+	mimeType: string;
+}
+
+/**
+ * 文本内容
+ */
+export interface AiTextContent {
+	type: 'text';
+	text: string;
+}
+
+/**
+ * 多模态内容（文本或图片）
+ */
+export type AiMessageContent = AiTextContent | AiImageContent;
+
+/**
+ * AI模型消息格式（扩展版，支持工具调用和多模态）
  */
 export interface AiModelMessage {
 	role: AiMessageRole;
+	/** 文本内容（简单模式） */
 	content: string;
+	/** 多模态内容（包含图片时使用） */
+	multiContent?: AiMessageContent[];
 	/** assistant 消息的工具调用列表 */
 	tool_calls?: AiToolCall[];
 	/** tool 消息的工具调用 ID */
@@ -211,6 +238,8 @@ export interface AiModel {
 	contextSize: number;
 	maxTokens: number;
 	temperature: number;
+	/** 是否支持图像分析（视觉能力） */
+	supportsVision?: boolean;
 }
 
 /**

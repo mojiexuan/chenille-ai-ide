@@ -3611,3 +3611,94 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-family: var(--vscode-editor-font-family);
 	font-size: var(--vscode-editor-font-size);
 }
+
+/* Collapsed Context Content Part Styles */
+.chat-collapsed-context {
+	display: flex;
+	flex-direction: column;
+	margin: 8px 0;
+	border: 1px solid
+		var(--vscode-chat-requestBorder, var(--vscode-editorWidget-border));
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.chat-collapsed-context-label {
+	display: flex;
+	align-items: center;
+}
+
+.chat-collapsed-context-label .monaco-button {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 8px 12px;
+	border: none;
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-chat-font-size-body-m);
+	cursor: pointer;
+}
+
+.chat-collapsed-context-label .monaco-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-collapsed-context-label .monaco-button .codicon {
+	margin-right: 8px;
+	font-size: 14px;
+}
+
+.chat-collapsed-context-content {
+	padding: 12px;
+	background-color: var(--vscode-editor-background);
+	border-top: 1px solid
+		var(--vscode-chat-requestBorder, var(--vscode-editorWidget-border));
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.chat-collapsed-context-content .rendered-markdown {
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-collapsed-context-content .rendered-markdown h2 {
+	font-size: var(--vscode-chat-font-size-body-m);
+	margin-top: 12px;
+	margin-bottom: 8px;
+	color: var(--vscode-foreground);
+}
+
+.chat-collapsed-context-content .rendered-markdown ul {
+	margin: 4px 0;
+	padding-left: 20px;
+}
+
+.chat-collapsed-context-content .rendered-markdown li {
+	margin: 2px 0;
+}
+
+.chat-collapsed-context-content .rendered-markdown code {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 2px 4px;
+	border-radius: 3px;
+	font-size: 0.9em;
+}
+
+.chat-collapsed-context-content .rendered-markdown pre {
+	background-color: var(--vscode-textCodeBlock-background);
+	padding: 8px;
+	border-radius: 4px;
+	overflow-x: auto;
+}
+
+.chat-collapsed-context-collapsed .chat-collapsed-context-content {
+	display: none;
+}
+
+.chat-collapsed-context-expanded .chat-collapsed-context-label .monaco-button {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}

@@ -27,6 +27,7 @@ interface FormInputs {
 	contextSize: HTMLInputElement;
 	maxTokens: HTMLInputElement;
 	temperature: HTMLInputElement;
+	supportsVision: HTMLInputElement;
 }
 
 export class ModelManagementPanel extends Disposable {
@@ -149,14 +150,18 @@ export class ModelManagementPanel extends Disposable {
 		const updateUrlPreview = () => {
 			const provider = providerSelect.value as AiProvider;
 
-			// Google 不支持自定义 baseURL
+			// 所有供应商都支持自定义 baseURL
+			baseUrlInput.disabled = false;
+
 			if (provider === AiProvider.GOOGLE) {
-				baseUrlInput.value = '';
-				baseUrlInput.disabled = true;
-				baseUrlInput.placeholder = localize('googleNoCustomUrl', "Google 仅支持官方 API");
-				baseUrlPreview.textContent = `→ https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`;
+				baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com';
+				const baseUrl = baseUrlInput.value.trim();
+				if (baseUrl) {
+					baseUrlPreview.textContent = `→ ${baseUrl}/v1beta/models/{model}:generateContent`;
+				} else {
+					baseUrlPreview.textContent = localize('googleBaseUrlHint', "留空使用官方 API，或输入自定义地址");
+				}
 			} else {
-				baseUrlInput.disabled = false;
 				baseUrlInput.placeholder = 'https://api.openai.com';
 				const baseUrl = baseUrlInput.value.trim();
 				if (baseUrl) {
@@ -191,6 +196,16 @@ export class ModelManagementPanel extends Disposable {
 		temperatureInput.min = '0';
 		temperatureInput.max = '2';
 
+		// 支持图像分析
+		const visionGroup = append(this.formContainer, $('.chenille-form-group.chenille-form-group-checkbox'));
+		const visionLabel = append(visionGroup, $('label.chenille-form-checkbox-label'));
+		const visionInput = append(visionLabel, $('input.chenille-form-checkbox')) as HTMLInputElement;
+		visionInput.type = 'checkbox';
+		visionInput.checked = model?.supportsVision ?? false;
+		append(visionLabel, document.createTextNode(localize('supportsVision', "支持图像分析")));
+		const visionHint = append(visionGroup, $('.chenille-form-hint'));
+		visionHint.textContent = localize('supportsVisionHint', "启用后可在聊天中粘贴或附加图片");
+
 		this.formInputs = {
 			name: nameInput,
 			provider: providerSelect,
@@ -201,6 +216,7 @@ export class ModelManagementPanel extends Disposable {
 			contextSize: contextSizeInput,
 			maxTokens: maxTokensInput,
 			temperature: temperatureInput,
+			supportsVision: visionInput,
 		};
 
 		// 操作
@@ -250,6 +266,7 @@ export class ModelManagementPanel extends Disposable {
 			contextSize: parseInt(this.formInputs.contextSize.value) || 128000,
 			maxTokens: parseInt(this.formInputs.maxTokens.value) || 8192,
 			temperature: parseFloat(this.formInputs.temperature.value) || 0.7,
+			supportsVision: this.formInputs.supportsVision.checked,
 		};
 
 		if (!model.name) {

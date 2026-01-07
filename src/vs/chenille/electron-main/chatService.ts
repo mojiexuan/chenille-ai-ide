@@ -58,6 +58,15 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		}
 	}
 
+	async supportsVision(): Promise<boolean> {
+		try {
+			const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
+			return agent.model.supportsVision ?? false;
+		} catch {
+			return false;
+		}
+	}
+
 	async streamChat(request: IAiCallRequest, token?: CancellationToken): Promise<void> {
 		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
 		const requestId = request.requestId;

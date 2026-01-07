@@ -4,10 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import OpenAI from 'openai';
-import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index';
+import type { ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionContentPart } from 'openai/resources/index';
 import type { Stream } from 'openai/streaming';
-import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiToolCall, generateToolCallId } from '../../common/types.js';
+import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiToolCall, generateToolCallId, AiModelMessage } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
+
+/**
+ * 将多模态内容转换为 OpenAI 格式
+ */
+function toOpenAIContent(msg: AiModelMessage): string | ChatCompletionContentPart[] {
+	// 如果有多模态内容，转换为 OpenAI 格式
+	if (msg.multiContent?.length) {
+		return msg.multiContent.map(part => {
+			if (part.type === 'text') {
+				return { type: 'text' as const, text: part.text };
+			} else {
+				// 图片内容
+				return {
+					type: 'image_url' as const,
+					image_url: {
+						url: `data:${part.mimeType};base64,${part.data}`,
+					},
+				};
+			}
+		});
+	}
+	// 否则返回纯文本
+	return msg.content;
+}
 
 /**
  * 将统一消息格式转换为 OpenAI 格式
@@ -50,10 +74,18 @@ function toOpenAIMessages(options: ChatCompletionOptions): ChatCompletionMessage
 			return assistantMsg;
 		}
 
-		// system 和 user 消息
+		// system 消息（不支持图片）
+		if (msg.role === 'system') {
+			return {
+				role: 'system' as const,
+				content: msg.content,
+			};
+		}
+
+		// user 消息（支持图片）
 		return {
-			role: msg.role as 'system' | 'user',
-			content: msg.content,
+			role: 'user' as const,
+			content: toOpenAIContent(msg),
 		};
 	});
 }

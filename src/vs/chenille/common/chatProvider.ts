@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
-import { AiToolCall, TokenUsage } from './types.js';
+import { AiToolCall, TokenUsage, AiMessageContent } from './types.js';
 
 /**
  * Chenille Chat 响应块
@@ -36,6 +36,8 @@ export interface IChenilleChatResponseChunk {
 export interface IChenilleChatMessage {
 	role: 'user' | 'assistant' | 'tool';
 	content: string;
+	/** 多模态内容（包含图片时使用） */
+	multiContent?: AiMessageContent[];
 	/** assistant 消息的工具调用列表 */
 	tool_calls?: AiToolCall[];
 	/** tool 消息的工具调用 ID */
@@ -48,6 +50,8 @@ export interface IChenilleChatMessage {
 export interface IChenilleChatRequest {
 	/** 用户输入 */
 	input: string;
+	/** 多模态内容（包含图片时使用，优先于 input） */
+	multiContent?: AiMessageContent[];
 	/** 历史消息 */
 	history: IChenilleChatMessage[];
 	/** 是否启用工具 */
@@ -103,6 +107,11 @@ export interface IChenilleChatProvider {
 	 * 获取当前模型的上下文大小
 	 */
 	getContextSize(): Promise<number>;
+
+	/**
+	 * 获取当前模型是否支持图像分析
+	 */
+	supportsVision(): Promise<boolean>;
 
 	/**
 	 * 发送 Chat 请求

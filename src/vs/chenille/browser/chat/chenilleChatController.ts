@@ -11,7 +11,7 @@ import { INotificationService, Severity } from '../../../platform/notification/c
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CHENILLE_SETTINGS_ACTION_ID } from '../settingsPanel/chenilleSettingsAction.js';
 import { localize } from '../../../nls.js';
-import { AiModelMessage, AiToolCall, TokenUsage } from '../../common/types.js';
+import { AiModelMessage, AiToolCall, TokenUsage, AiMessageContent } from '../../common/types.js';
 import { CHENILLE_TOOLS } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -54,6 +54,8 @@ export interface IChenilleChatChunk {
 export interface IChenilleChatRequest {
 	/** 用户输入 */
 	input: string;
+	/** 多模态内容（包含图片时使用，优先于 input） */
+	multiContent?: AiMessageContent[];
 	/** 历史消息（可选） */
 	history?: AiModelMessage[];
 	/** 系统提示词覆盖（可选） */
@@ -92,6 +94,11 @@ export interface IChenilleChatController {
 	 * 获取当前模型的上下文大小
 	 */
 	getContextSize(): Promise<number>;
+
+	/**
+	 * 获取当前模型是否支持图像分析
+	 */
+	supportsVision(): Promise<boolean>;
 
 	/**
 	 * 发送 Chat 请求
@@ -159,6 +166,10 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		return this.aiService.getContextSize();
 	}
 
+	async supportsVision(): Promise<boolean> {
+		return this.aiService.supportsVision();
+	}
+
 	cancel(): void {
 		this._currentCts?.cancel();
 		this._currentCts = undefined;
@@ -196,8 +207,16 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			messages.push(...request.history);
 		}
 
-		// 添加用户输入
-		messages.push({ role: 'user', content: request.input });
+		// 添加用户输入（支持多模态内容）
+		if (request.multiContent && request.multiContent.length > 0) {
+			messages.push({
+				role: 'user',
+				content: request.input,
+				multiContent: request.multiContent
+			});
+		} else {
+			messages.push({ role: 'user', content: request.input });
+		}
 
 		// 只有智能体模式才启用工具
 		const tools = (isAgentMode && request.enableTools !== false) ? CHENILLE_TOOLS : undefined;

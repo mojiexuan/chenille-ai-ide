@@ -4,8 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam, Tool, TextBlock, ToolUseBlock, ContentBlockDeltaEvent, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
+import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
+
+/**
+ * 将多模态内容转换为 Anthropic 格式
+ */
+function toAnthropicContent(msg: AiModelMessage): string | ContentBlockParam[] {
+	// 如果有多模态内容，转换为 Anthropic 格式
+	if (msg.multiContent?.length) {
+		return msg.multiContent.map(part => {
+			if (part.type === 'text') {
+				return { type: 'text' as const, text: part.text };
+			} else {
+				// 图片内容
+				const imageBlock: ImageBlockParam = {
+					type: 'image',
+					source: {
+						type: 'base64',
+						media_type: part.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+						data: part.data,
+					},
+				};
+				return imageBlock;
+			}
+		});
+	}
+	// 否则返回纯文本
+	return msg.content;
+}
 
 /**
  * 将统一消息格式转换为 Anthropic 格式
@@ -74,10 +101,10 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 			continue;
 		}
 
-		// user 消息
+		// user 消息（支持图片）
 		result.push({
 			role: 'user',
-			content: msg.content,
+			content: toAnthropicContent(msg),
 		});
 	}
 
@@ -172,130 +199,127 @@ export class AnthropicProvider implements IAIProvider {
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		let stream;
-		try {
-			stream = client.messages.stream({
-				model: model.model,
-				messages: toAnthropicMessages(options.messages),
-				system: extractSystemPrompt(options.messages),
-				temperature,
-				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-				tools: toAnthropicTools(options),
-			});
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			options.call?.({ content: '', done: true, error: errorMessage });
-			return;
-		}
+		return new Promise<void>((resolve) => {
+			const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+			let currentToolIndex = -1;
+			let hasReceivedContent = false;
+			let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
-		// 累积工具调用（流式 API 中工具调用是增量发送的）
-		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-		let currentToolIndex = -1;
-		let hasReceivedContent = false; // 追踪是否收到过任何内容
-		// 累积 usage
-		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
-
-		try {
-			for await (const event of stream) {
-				// 检查取消
-				if (options.token?.isCancellationRequested) {
-					stream.controller.abort();
-					break;
-				}
-
-				if (event.type === 'content_block_start') {
-					hasReceivedContent = true;
-					// 新的内容块开始
-					if (event.content_block.type === 'tool_use') {
-						currentToolIndex++;
-						accumulatedToolCalls.set(currentToolIndex, {
-							id: event.content_block.id || generateToolCallId(),
-							name: event.content_block.name,
-							arguments: '',
-						});
-					}
-				} else if (event.type === 'content_block_delta') {
-					hasReceivedContent = true;
-					const deltaEvent = event as ContentBlockDeltaEvent;
-					const delta = deltaEvent.delta;
-					if (delta.type === 'text_delta') {
-						const result: ChatCompletionResult = {
-							content: delta.text,
-							done: false,
-						};
-						options.call?.(result);
-					} else if (delta.type === 'input_json_delta') {
-						// 累积工具调用参数
-						const existing = accumulatedToolCalls.get(currentToolIndex);
-						if (existing) {
-							existing.arguments += delta.partial_json;
-						}
-					}
-				} else if (event.type === 'message_start') {
-					hasReceivedContent = true;
-					// message_start 包含初始 usage
-					if (event.message?.usage) {
-						finalUsage = {
-							promptTokens: event.message.usage.input_tokens,
-							completionTokens: event.message.usage.output_tokens,
-							totalTokens: event.message.usage.input_tokens + event.message.usage.output_tokens,
-						};
-					}
-				} else if (event.type === 'message_delta') {
-					hasReceivedContent = true;
-					// message_delta 包含最终 usage
-					if (event.usage) {
-						finalUsage = {
-							promptTokens: finalUsage?.promptTokens ?? 0,
-							completionTokens: event.usage.output_tokens,
-							totalTokens: (finalUsage?.promptTokens ?? 0) + event.usage.output_tokens,
-						};
-					}
-				}
+			let stream: ReturnType<typeof client.messages.stream>;
+			try {
+				stream = client.messages.stream({
+					model: model.model,
+					messages: toAnthropicMessages(options.messages),
+					system: extractSystemPrompt(options.messages),
+					temperature,
+					max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
+					tools: toAnthropicTools(options),
+				});
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				options.call?.({ content: '', done: true, error: errorMessage });
+				resolve();
+				return;
 			}
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : String(error);
-			options.call?.({ content: '', done: true, error: errorMessage });
-			return;
-		}
 
-		// 如果被取消，不发送工具调用和完成信号
-		if (options.token?.isCancellationRequested) {
-			return;
-		}
+			// 使用事件监听替代 for-await-of，避免压缩后 async iterator 失效
+			stream.on('text', (text) => {
+				if (options.token?.isCancellationRequested) {
+					return;
+				}
+				hasReceivedContent = true;
+				options.call?.({ content: text, done: false });
+			});
 
-		// 检查是否收到过任何内容
-		if (!hasReceivedContent) {
-			options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
-			return;
-		}
-
-		// 流结束后，发送累积的工具调用
-		if (accumulatedToolCalls.size > 0) {
-			const toolCalls: AiToolCall[] = [];
-			for (const [, tc] of accumulatedToolCalls) {
-				if (tc.name) {
-					toolCalls.push({
-						id: tc.id || generateToolCallId(),
-						type: 'function' as const,
-						function: {
-							name: tc.name,
-							arguments: tc.arguments,
-						},
+			stream.on('contentBlock', (block) => {
+				if (options.token?.isCancellationRequested) {
+					return;
+				}
+				hasReceivedContent = true;
+				if (block.type === 'tool_use') {
+					currentToolIndex++;
+					accumulatedToolCalls.set(currentToolIndex, {
+						id: block.id || generateToolCallId(),
+						name: block.name,
+						arguments: JSON.stringify(block.input),
 					});
 				}
-			}
+			});
 
-			if (toolCalls.length > 0) {
-				options.call?.({
-					content: '',
-					tool_calls: toolCalls,
-					done: false,
-				});
-			}
-		}
+			stream.on('message', (message) => {
+				hasReceivedContent = true;
+				if (message.usage) {
+					finalUsage = {
+						promptTokens: message.usage.input_tokens,
+						completionTokens: message.usage.output_tokens,
+						totalTokens: message.usage.input_tokens + message.usage.output_tokens,
+					};
+				}
+			});
 
-		options.call?.({ content: '', done: true, usage: finalUsage });
+			stream.on('error', (error) => {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				options.call?.({ content: '', done: true, error: errorMessage });
+				resolve();
+			});
+
+			stream.on('end', () => {
+				if (options.token?.isCancellationRequested) {
+					resolve();
+					return;
+				}
+
+				if (!hasReceivedContent) {
+					options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
+					resolve();
+					return;
+				}
+
+				// 流结束后，发送累积的工具调用
+				if (accumulatedToolCalls.size > 0) {
+					const toolCalls: AiToolCall[] = [];
+					for (const [, tc] of accumulatedToolCalls) {
+						if (tc.name) {
+							toolCalls.push({
+								id: tc.id || generateToolCallId(),
+								type: 'function' as const,
+								function: {
+									name: tc.name,
+									arguments: tc.arguments,
+								},
+							});
+						}
+					}
+
+					if (toolCalls.length > 0) {
+						options.call?.({
+							content: '',
+							tool_calls: toolCalls,
+							done: false,
+						});
+					}
+				}
+
+				options.call?.({ content: '', done: true, usage: finalUsage });
+				resolve();
+			});
+
+			// 处理取消 - 定期检查取消状态
+			const checkCancellation = setInterval(() => {
+				if (options.token?.isCancellationRequested) {
+					clearInterval(checkCancellation);
+					stream.controller.abort();
+				}
+			}, 100);
+
+			// 在流结束时清理定时器
+			stream.on('end', () => {
+				clearInterval(checkCancellation);
+			});
+			stream.on('error', () => {
+				clearInterval(checkCancellation);
+			});
+		});
 	}
 }
 

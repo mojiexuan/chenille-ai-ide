@@ -50,6 +50,10 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 		return this.chatController.getContextSize();
 	}
 
+	async supportsVision(): Promise<boolean> {
+		return this.chatController.supportsVision();
+	}
+
 	cancel(): void {
 		this._currentCts?.cancel();
 		this._currentCts = undefined;
@@ -148,6 +152,7 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 			const aiHistory = request.history.map(msg => ({
 				role: msg.role as 'user' | 'assistant' | 'tool',
 				content: msg.content,
+				multiContent: msg.multiContent,
 				tool_calls: msg.tool_calls,
 				tool_call_id: msg.tool_call_id,
 			}));
@@ -155,6 +160,7 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 			// 发起请求
 			const response = await this.chatController.chat({
 				input: request.input,
+				multiContent: request.multiContent,
 				history: aiHistory,
 				enableTools: request.enableTools ?? true,
 			}, cts.token);

@@ -60,6 +60,11 @@ export interface IChenilleAiService {
 	 * 获取当前模型的上下文大小
 	 */
 	getContextSize(): Promise<number>;
+
+	/**
+	 * 获取当前模型是否支持图像分析
+	 */
+	supportsVision(): Promise<boolean>;
 }
 
 export const ChenilleAiChannelName = 'chenilleAi';
@@ -88,6 +93,8 @@ export class ChenilleAiChannel implements IServerChannel {
 				return this.service.getConfigurationError() as Promise<T>;
 			case 'getContextSize':
 				return this.service.getContextSize() as Promise<T>;
+			case 'supportsVision':
+				return this.service.supportsVision() as Promise<T>;
 		}
 		throw new Error(`无效的调用命令: ${command}`);
 	}
@@ -119,5 +126,9 @@ export class ChenilleAiChannelClient implements IChenilleAiService {
 
 	getContextSize(): Promise<number> {
 		return this.channel.call<number>('getContextSize');
+	}
+
+	supportsVision(): Promise<boolean> {
+		return this.channel.call<boolean>('supportsVision');
 	}
 }

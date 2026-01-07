@@ -3,9 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GoogleGenAI, Content, Tool, FunctionDeclaration, Type } from '@google/genai';
+import { GoogleGenAI, Content, Tool, FunctionDeclaration, Type, Part } from '@google/genai';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
+
+/**
+ * 将多模态内容转换为 Google 格式的 parts
+ */
+function toGoogleParts(msg: AiModelMessage): Part[] {
+	// 如果有多模态内容，转换为 Google 格式
+	if (msg.multiContent?.length) {
+		return msg.multiContent.map(part => {
+			if (part.type === 'text') {
+				return { text: part.text };
+			} else {
+				// 图片内容
+				return {
+					inlineData: {
+						mimeType: part.mimeType,
+						data: part.data,
+					},
+				};
+			}
+		});
+	}
+	// 否则返回纯文本
+	return [{ text: msg.content }];
+}
 
 /**
  * 将统一消息格式转换为 Google 格式
@@ -15,7 +39,7 @@ function toGoogleContents(messages: AiModelMessage[]): Content[] {
 		.filter(msg => msg.role !== 'system')
 		.map(msg => ({
 			role: msg.role === 'assistant' ? 'model' : 'user',
-			parts: [{ text: msg.content }],
+			parts: toGoogleParts(msg),
 		}));
 }
 
