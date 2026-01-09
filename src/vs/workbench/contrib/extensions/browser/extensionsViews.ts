@@ -1106,7 +1106,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 					this.bodyTemplate.messageBox.textContent = message.text;
 				} else if (this.count() === 0) {
 					this.bodyTemplate.messageSeverityIcon.className = '';
-					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
+					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "未找到扩展名。");
 				}
 				if (this.bodyTemplate.messageBox.textContent) {
 					alert(this.bodyTemplate.messageBox.textContent);
@@ -1119,9 +1119,9 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	private getMessage(error: any): Message {
 		if (this.isOfflineError(error)) {
-			return { text: localize('offline error', "Unable to search the Marketplace when offline, please check your network connection."), severity: Severity.Warning };
+			return { text: localize('offline error', "脱机时无法搜索 Marketplace ，请检查您的网络连接。"), severity: Severity.Warning };
 		} else {
-			return { text: localize('error', "Error while fetching extensions. {0}", getErrorMessage(error)), severity: Severity.Error };
+			return { text: localize('error', "获取扩展名时出错。 {0}", getErrorMessage(error)), severity: Severity.Error };
 		}
 	}
 

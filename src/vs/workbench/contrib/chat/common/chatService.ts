@@ -1020,9 +1020,19 @@ export interface IChatService {
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
 	/**
+	 * 上下文收拢警告事件
+	 */
+	readonly onContextCollapseWarning: Event<{ sessionId: string; usagePercent: number }>;
+
+	/**
 	 * An observable containing all live chat models.
 	 */
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
+	/**
+	 * 获取会话的 token 统计
+	 */
+	getSessionTokenStats(sessionId: string): { totalTokens: number; contextSize: number; usagePercent: number } | undefined;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;

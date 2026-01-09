@@ -185,6 +185,10 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Chenille
+import '../chenille/browser/chenille.contribution.js';
+import '../chenille/electron-browser/chenille.contribution.js';
+
 //#endregion
 
 

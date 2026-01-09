@@ -66,7 +66,7 @@ export class ModelsManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return nls.localize('modelsManagementEditorInputName', "Language Models");
+		return nls.localize('modelsManagementEditorInputName', "大语言模型");
 	}
 
 	override getIcon(): ThemeIcon {

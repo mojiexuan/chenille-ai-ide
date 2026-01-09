@@ -559,7 +559,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 
 		return {
 			id: 'extensions',
-			label: localize('extensions', "Extensions"),
+			label: localize('extensions', "扩展"),
 			children: extGroups
 		};
 	});
@@ -910,7 +910,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		toDispose.add(this._hoverService.setupDelayedHover(modifiedIndicatorElement, {
-			content: localize('modified', "The setting has been configured in the current scope.")
+			content: localize('modified', "该设置已在当前作用域中配置。")
 		}));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
@@ -964,7 +964,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
 		const toggleMenuKeybinding = this._keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let toggleMenuTitle = localize('settingsContextMenuTitle', "More Actions... ");
+		let toggleMenuTitle = localize('settingsContextMenuTitle', "更多操作... ");
 		if (toggleMenuKeybinding) {
 			toggleMenuTitle += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
 		}
@@ -1149,7 +1149,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 				this._commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', template.context.extensionIds);
 			}
 		}));
-		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
+		button.label = localize('newExtensionsButtonLabel', "显示匹配的扩展");
 		button.element.classList.add('settings-new-extensions-button');
 
 		const template: ISettingNewExtensionsTemplate = {
@@ -1170,7 +1170,7 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 }
 
 export class SettingComplexRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingComplexItemTemplate> {
-	private static readonly EDIT_IN_JSON_LABEL = localize('editInSettingsJson', "Edit in settings.json");
+	private static readonly EDIT_IN_JSON_LABEL = localize('editInSettingsJson', "在 settings.json 中编辑");
 
 	templateId = SETTINGS_COMPLEX_TEMPLATE_ID;
 
@@ -1201,7 +1201,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
 		const plainKey = getLanguageTagSettingPlainKey(dataElement.setting.key);
-		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "Edit settings for {0}", plainKey);
+		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "编辑 {0} 的设置", plainKey);
 		const isLanguageTagSetting = dataElement.setting.isLanguageTagSetting;
 		template.button.textContent = isLanguageTagSetting
 			? editLanguageSettingLabel
@@ -1919,7 +1919,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 					descriptionMarkdownActionHandler: (content) => {
 						this._openerService.open(content).catch(onUnexpectedError);
 					},
-					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
+					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "默认") : '')
 				} satisfies ISelectOptionItem;
 			});
 
@@ -2030,7 +2030,7 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
 		toDispose.add(this._hoverService.setupDelayedHover(modifiedIndicatorElement, {
-			content: localize('modified', "The setting has been configured in the current scope.")
+			content: localize('modified', "该设置已在当前作用域中配置。")
 		}));
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
@@ -2124,7 +2124,7 @@ class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements
 			...defaultButtonStyles
 		});
 		actionButton.element.classList.add('setting-item-extension-toggle-button');
-		actionButton.label = localize('showExtension', "Show Extension");
+		actionButton.label = localize('showExtension', "显示扩展");
 
 		const dismissButton = new Button(common.containerElement, {
 			title: false,
@@ -2132,7 +2132,7 @@ class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements
 			...defaultButtonStyles
 		});
 		dismissButton.element.classList.add('setting-item-extension-dismiss-button');
-		dismissButton.label = localize('dismiss', "Dismiss");
+		dismissButton.label = localize('dismiss', "忽略");
 
 		const template: ISettingExtensionToggleItemTemplate = {
 			...common,
@@ -2195,7 +2195,7 @@ export class SettingTreeRenderers extends Disposable {
 	) {
 		super();
 		this.settingActions = [
-			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
+			new Action('settings.resetSetting', localize('resetSettingLabel', "重置设置"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
 					if (!context.isUntrusted) {
 						this._onDidChangeSetting.fire({
@@ -2330,7 +2330,7 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 		if (errMsg) {
 			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
-			const validationError = localize('validationError', "Validation Error.");
+			const validationError = localize('validationError', "验证错误。");
 			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
 			if (!calledOnStartup) { aria.status(validationError + ' ' + errMsg); }
 			return true;
@@ -2357,7 +2357,7 @@ function renderArrayValidations(
 		if (errMsg && errMsg !== '') {
 			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
-			const validationError = localize('validationError', "Validation Error.");
+			const validationError = localize('validationError', "验证错误。");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { aria.status(validationError + ' ' + errMsg); }
 			return true;
@@ -2565,7 +2565,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 			ariaLabelSections.push(`${element.displayCategory} ${element.displayLabel}.`);
 
 			if (element.isConfigured) {
-				const modifiedText = localize('settings.Modified', 'Modified.');
+				const modifiedText = localize('settings.Modified', '已修改。');
 				ariaLabelSections.push(modifiedText);
 			}
 
@@ -2587,7 +2587,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 	}
 
 	getWidgetAriaLabel() {
-		return localize('settings', "Settings");
+		return localize('settings', "设置");
 	}
 }
 
@@ -2668,7 +2668,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 class CopySettingIdAction extends Action {
 	static readonly ID = 'settings.copySettingId';
-	static readonly LABEL = localize('copySettingIdLabel', "Copy Setting ID");
+	static readonly LABEL = localize('copySettingIdLabel', "复制设置 ID");
 
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService
@@ -2687,7 +2687,7 @@ class CopySettingIdAction extends Action {
 
 class CopySettingAsJSONAction extends Action {
 	static readonly ID = 'settings.copySettingAsJSON';
-	static readonly LABEL = localize('copySettingAsJSONLabel', "Copy Setting as JSON");
+	static readonly LABEL = localize('copySettingAsJSONLabel', "复制设置为 JSON");
 
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService
@@ -2707,7 +2707,7 @@ class CopySettingAsJSONAction extends Action {
 
 class CopySettingAsURLAction extends Action {
 	static readonly ID = 'settings.copySettingAsURL';
-	static readonly LABEL = localize('copySettingAsURLLabel', "Copy Setting as URL");
+	static readonly LABEL = localize('copySettingAsURLLabel', "复制设置为 URL");
 
 	constructor(
 		@IClipboardService private readonly clipboardService: IClipboardService,
@@ -2730,7 +2730,7 @@ class CopySettingAsURLAction extends Action {
 
 class SyncSettingAction extends Action {
 	static readonly ID = 'settings.stopSyncingSetting';
-	static readonly LABEL = localize('stopSyncingSetting', "Sync This Setting");
+	static readonly LABEL = localize('stopSyncingSetting', "同步此设置");
 
 	constructor(
 		private readonly setting: ISetting,
@@ -2774,7 +2774,7 @@ class SyncSettingAction extends Action {
 
 class ApplySettingToAllProfilesAction extends Action {
 	static readonly ID = 'settings.applyToAllProfiles';
-	static readonly LABEL = localize('applyToAllProfiles', "Apply Setting to all Profiles");
+	static readonly LABEL = localize('applyToAllProfiles', "将设置应用到所有配置文件");
 
 	constructor(
 		private readonly setting: ISetting,

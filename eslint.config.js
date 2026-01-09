@@ -118,16 +118,16 @@ export default tseslint.config(
 					]
 				}
 			],
-			'header/header': [
-				2,
-				'block',
-				[
-					'---------------------------------------------------------------------------------------------',
-					' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-					' *  Licensed under the MIT License. See License.txt in the project root for license information.',
-					' *--------------------------------------------------------------------------------------------'
-				]
-			]
+			// 'header/header': [
+			// 	2,
+			// 	'block',
+			// 	[
+			// 		'---------------------------------------------------------------------------------------------',
+			// 		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
+			// 		' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+			// 		' *--------------------------------------------------------------------------------------------'
+			// 	]
+			// ]
 		},
 	},
 	// TS
@@ -1006,6 +1006,15 @@ export default tseslint.config(
 			'local/code-amd-node-module': 'warn'
 		}
 	},
+	// chenille common/ai layer - allow direct npm imports for AI SDKs
+	{
+		files: [
+			'src/vs/chenille/common/ai/**/*.ts'
+		],
+		rules: {
+			'local/code-amd-node-module': 'off'
+		}
+	},
 	// node/electron layer
 	{
 		files: [
@@ -1504,7 +1513,14 @@ export default tseslint.config(
 						'@xterm/xterm',
 						'yauzl',
 						'yazl',
-						'zlib'
+						'zlib',
+						'openai',
+						'openai/resources/index',
+						'openai/core/streaming',
+						'openai/streaming',
+						'@anthropic-ai/sdk',
+						'@anthropic-ai/sdk/resources/messages',
+						'@google/genai'
 					]
 				},
 				{
@@ -1553,6 +1569,37 @@ export default tseslint.config(
 				//
 				// It is possible to use /~ in the restrictions property even without using it in
 				// the target property by adding a layer property.
+				{
+					'target': 'src/vs/chenille/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/chenille/~',
+						'vs/chenille/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/common/**',
+						'vs/workbench/contrib/chat/~',
+						'vs/workbench/contrib/chat/**',
+						'openai',
+						'openai/resources/index',
+						'openai/streaming',
+						'@anthropic-ai/sdk',
+						'@anthropic-ai/sdk/resources/messages',
+						'@google/genai'
+					]
+				},
+				{
+					'target': 'src/vs/chenille/tools/**',
+					'restrictions': [
+						'vs/base/common/**',
+						'vs/platform/*/common/**',
+						'vs/chenille/**',
+						'vs/workbench/services/*/common/**',
+						'vs/workbench/common/**',
+						'vs/workbench/contrib/chat/common/**'
+					]
+				},
 				{
 					'target': 'src/vs/base/~',
 					'restrictions': [
@@ -1713,6 +1760,8 @@ export default tseslint.config(
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
+						'vs/chenille/~',
+						'vs/chenille/**',
 						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
 						{
@@ -1769,6 +1818,7 @@ export default tseslint.config(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/code/~',
+						'vs/chenille/~',
 						{
 							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/workbench.web.main.js'
@@ -1797,7 +1847,8 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/server/~'
+						'vs/server/~',
+						'vs/chenille/~'
 					]
 				},
 				{

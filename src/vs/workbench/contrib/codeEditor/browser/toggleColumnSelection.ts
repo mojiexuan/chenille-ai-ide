@@ -23,8 +23,8 @@ export class ToggleColumnSelectionAction extends Action2 {
 		super({
 			id: ToggleColumnSelectionAction.ID,
 			title: {
-				...localize2('toggleColumnSelection', "Toggle Column Selection Mode"),
-				mnemonicTitle: localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "Column &&Selection Mode"),
+				...localize2('toggleColumnSelection', "切换列选择模式"),
+				mnemonicTitle: localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "列选择模式"),
 			},
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.columnSelection', true),

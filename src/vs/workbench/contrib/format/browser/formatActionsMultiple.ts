@@ -119,8 +119,8 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		DefaultFormatter.extensionDescriptions.length = 0;
 
 		DefaultFormatter.extensionIds.push(null);
-		DefaultFormatter.extensionItemLabels.push(nls.localize('null', 'None'));
-		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
+		DefaultFormatter.extensionItemLabels.push(nls.localize('null', '无'));
+		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "无"));
 
 		for (const extension of extensions) {
 			if (extension.main || extension.browser) {
@@ -155,8 +155,8 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 				// formatter does not target this file
 				const langName = this._languageService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
 				const detail = kind === FormattingKind.File
-					? nls.localize('miss.1', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName)
-					: nls.localize('miss.2', "Extension '{0}' is configured as formatter but it can only format '{1}'-files as a whole, not selections or parts of it.", extension.displayName || extension.name, langName);
+					? nls.localize('miss.1', "扩展 '{0}' 已配置为格式化程序，但它无法格式化 '{1}' 文件", extension.displayName || extension.name, langName)
+					: nls.localize('miss.2', "扩展 '{0}' 已配置为格式化程序，但它只能格式化整个 '{1}' 文件，而不能格式化选定内容或部分内容。", extension.displayName || extension.name, langName);
 				return detail;
 			}
 
@@ -167,8 +167,8 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 
 		const langName = this._languageService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
 		const message = !defaultFormatterId
-			? nls.localize('config.needed', "There are multiple formatters for '{0}' files. One of them should be configured as default formatter.", DefaultFormatter._maybeQuotes(langName))
-			: nls.localize('config.bad', "Extension '{0}' is configured as formatter but not available. Select a different default formatter to continue.", defaultFormatterId);
+			? nls.localize('config.needed', "有多个 '{0}' 文件的格式化程序。应将其中一个配置为默认格式化程序。", DefaultFormatter._maybeQuotes(langName))
+			: nls.localize('config.bad', "扩展 '{0}' 已配置为格式化程序，但不可用。请选择其他默认格式化程序以继续。", defaultFormatterId);
 
 		return message;
 	}
@@ -183,9 +183,9 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 			// running from a user action -> show modal dialog so that users configure
 			// a default formatter
 			const { confirmed } = await this._dialogService.confirm({
-				message: nls.localize('miss', "Configure Default Formatter"),
+				message: nls.localize('miss', "配置默认格式化程序"),
 				detail: formatterOrMessage,
-				primaryButton: nls.localize({ key: 'do.config', comment: ['&& denotes a mnemonic'] }, "&&Configure...")
+				primaryButton: nls.localize({ key: 'do.config', comment: ['&& denotes a mnemonic'] }, "配置...")
 			});
 			if (confirmed) {
 				return this._pickAndPersistDefaultFormatter(formatter, document);
@@ -195,7 +195,7 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 			this._notificationService.prompt(
 				Severity.Info,
 				formatterOrMessage,
-				[{ label: nls.localize('do.config.notification', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
+				[{ label: nls.localize('do.config.notification', "配置..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
 				{ priority: NotificationPriority.SILENT }
 			);
 		}
@@ -211,7 +211,7 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 			};
 		});
 		const langName = this._languageService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
-		const pick = await this._quickInputService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
+		const pick = await this._quickInputService.pick(picks, { placeHolder: nls.localize('select', "为 '{0}' 文件选择默认格式化程序", DefaultFormatter._maybeQuotes(langName)) });
 		if (!pick || !formatter[pick.index].extensionId) {
 			return undefined;
 		}
@@ -250,14 +250,14 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 			if (typeof result !== 'string') {
 				return;
 			}
-			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config.command', "Configure...") };
+			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config.command', "配置...") };
 			this._languageStatusStore.add(CommandsRegistry.registerCommand(command.id, () => this._pickAndPersistDefaultFormatter(formatter, document)));
 			this._languageStatusStore.add(this._languageStatusService.addStatus({
 				id: 'formatter.conflict',
-				name: nls.localize('summary', "Formatter Conflicts"),
+				name: nls.localize('summary', "格式化程序冲突"),
 				selector: { language: document.getLanguageId(), pattern: document.uri.fsPath },
 				severity: Severity.Error,
-				label: nls.localize('formatter', "Formatting"),
+				label: nls.localize('formatter', "格式化"),
 				detail: result,
 				busy: false,
 				source: '',
@@ -277,7 +277,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	...editorConfigurationBaseNode,
 	properties: {
 		[DefaultFormatter.configName]: {
-			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+			description: nls.localize('formatter.default', "定义优先于所有其他格式化程序设置的默认格式化程序。必须是提供格式化程序的扩展的标识符。"),
 			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
@@ -307,7 +307,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 		const pick: IIndexedPick = {
 			index,
 			label: provider.displayName || '',
-			description: isDefault ? nls.localize('def', "(default)") : undefined,
+			description: isDefault ? nls.localize('def', "(默认)") : undefined,
 		};
 
 		if (isDefault) {
@@ -319,12 +319,12 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	});
 
 	const configurePick: IQuickPickItem = {
-		label: nls.localize('config', "Configure Default Formatter...")
+		label: nls.localize('config', "配置默认格式化程序...")
 	};
 
 	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick],
 		{
-			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
+			placeHolder: nls.localize('format.placeHolder', "选择格式化程序"),
 			activeItem: defaultFormatterPick
 		}
 	);
@@ -335,7 +335,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	} else if (pick === configurePick) {
 		// config default
 		const langName = languageService.getLanguageName(model.getLanguageId()) || model.getLanguageId();
-		const pick = await quickPickService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
+		const pick = await quickPickService.pick(picks, { placeHolder: nls.localize('select', "为 '{0}' 文件选择默认格式化程序", DefaultFormatter._maybeQuotes(langName)) });
 		if (pick && formatters[pick.index].extensionId) {
 			configService.updateValue(DefaultFormatter.configName, formatters[pick.index].extensionId!.value, overrides);
 		}
@@ -353,7 +353,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument.multiple',
-			label: nls.localize('formatDocument.label.multiple', "Format Document With..."),
+			label: nls.localize('formatDocument.label.multiple', "使用...格式化文档"),
 			alias: 'Format Document...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasMultipleDocumentFormattingProvider),
 			contextMenuOpts: {
@@ -383,7 +383,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatSelection.multiple',
-			label: nls.localize('formatSelection.label.multiple', "Format Selection With..."),
+			label: nls.localize('formatSelection.label.multiple', "使用...格式化选定内容"),
 			alias: 'Format Code...',
 			precondition: ContextKeyExpr.and(ContextKeyExpr.and(EditorContextKeys.writable), EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider),
 			contextMenuOpts: {

@@ -48,6 +48,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+
 import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({

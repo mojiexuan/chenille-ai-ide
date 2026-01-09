@@ -17,13 +17,13 @@ on:
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
+    runs-on: windows-latest
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -63,10 +63,10 @@ jobs:
             }
             catch {
               if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
+                Write-Error "npm ci 连续 5 次失败"
                 throw
               }
-              Write-Host "npm ci failed attempt $i, retrying..."
+              Write-Host "npm ci 第 $i 次失败，正在重试……"
               Start-Sleep -Seconds 2
             }
           }
@@ -124,10 +124,10 @@ jobs:
             }
             catch {
               if ($i -eq 3) {
-                Write-Error "Download failed after 3 attempts"
+                Write-Error "连续 3 次下载失败"
                 throw
               }
-              Write-Host "Download failed attempt $i, retrying..."
+              Write-Host "第 $i 次下载失败，正在重试……"
               Start-Sleep -Seconds 2
             }
           }
@@ -257,8 +257,6 @@ jobs:
           path: .build/crashes
           if-no-files-found: ignore
 
-      # In order to properly symbolify above crash reports
-      # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@v5
         if: failure()

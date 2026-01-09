@@ -23,36 +23,49 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from './chat.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatAgentData, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { chatEditingSessionIsReady } from './chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
-import { ChatMessageRole, IChatMessage } from './languageModels.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, IImageVariableEntry } from './chatVariableEntries.js';
+import { ChatAgentLocation, ChatConfiguration } from './constants.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
+import { IChenilleChatProvider, IChenilleChatMessage } from '../../../../chenille/common/chatProvider.js';
+import { TokenUsage, AiMessageContent } from '../../../../chenille/common/types.js';
 
 const serializedChatKey = 'interactive.sessions';
 
 const TransferredGlobalChatKey = 'chat.workspaceTransfer';
 
 const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
+
+/** 上下文收拢阈值（80%） */
+const CONTEXT_COLLAPSE_THRESHOLD = 0.8;
+
+/**
+ * 会话 token 统计
+ */
+interface ISessionTokenStats {
+	/** 累计总 token */
+	totalTokens: number;
+	/** 上下文大小限制 */
+	contextSize: number;
+}
 
 class CancellableRequest implements IDisposable {
 	constructor(
@@ -82,6 +95,13 @@ export class ChatService extends Disposable implements IChatService {
 	private _persistedSessions: ISerializableChatsData;
 	private _saveModelsEnabled = true;
 
+	/** 会话 token 统计 */
+	private readonly _sessionTokenStats = new Map<string, ISessionTokenStats>();
+
+	/** 上下文收拢警告事件 */
+	private readonly _onContextCollapseWarning = this._register(new Emitter<{ sessionId: string; usagePercent: number }>());
+	readonly onContextCollapseWarning = this._onContextCollapseWarning.event;
+
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
 		return this._transferredSessionData;
@@ -96,7 +116,6 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
@@ -133,12 +152,14 @@ export class ChatService extends Disposable implements IChatService {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
+		@IChatSlashCommandService _chatSlashCommandService: IChatSlashCommandService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
-		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpService _mcpService: IMcpService,
+		@IChenilleChatProvider private readonly chenilleChatProvider: IChenilleChatProvider,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -160,6 +181,8 @@ export class ChatService extends Disposable implements IChatService {
 		}));
 		this._register(this._sessionModels.onDidDisposeModel(model => {
 			this._onDidDisposeSession.fire({ sessionResource: model.sessionResource, reason: 'cleared' });
+			// 清理 token 统计
+			this.clearSessionTokenStats(model.sessionId);
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -394,7 +417,7 @@ export class ChatService extends Disposable implements IChatService {
 		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
 			.map(async (session): Promise<IChatDetail> => {
-				const title = session.title || localize('newChat', "New Chat");
+				const title = session.title || localize('newChat', "新聊天");
 				return {
 					sessionResource: session.sessionResource,
 					title,
@@ -737,7 +760,7 @@ export class ChatService extends Disposable implements IChatService {
 				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 
 				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
+				if (progressArray.length > lastProgressLength && lastRequest) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
 						model?.acceptResponseProgress(lastRequest, progress);
@@ -746,7 +769,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				// Handle completion
-				if (isComplete) {
+				if (isComplete && lastRequest) {
 					lastRequest.response?.completeResponseIfNeeded();
 					cancellationListener.clear();
 				}
@@ -862,16 +885,7 @@ export class ChatService extends Disposable implements IChatService {
 		return parsedRequest;
 	}
 
-	private refreshFollowupsCancellationToken(sessionResource: URI): CancellationToken {
-		this._sessionFollowupCancelTokens.get(sessionResource)?.cancel();
-		const newTokenSource = new CancellationTokenSource();
-		this._sessionFollowupCancelTokens.set(sessionResource, newTokenSource);
-
-		return newTokenSource.token;
-	}
-
 	private _sendRequestAsync(model: ChatModel, sessionResource: URI, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
-		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionResource);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
 		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
@@ -902,6 +916,7 @@ export class ChatService extends Disposable implements IChatService {
 		const store = new DisposableStore();
 		const source = store.add(new CancellationTokenSource());
 		const token = source.token;
+
 		const sendRequestInternal = async () => {
 			const progressCallback = (progress: IChatProgress[]) => {
 				if (token.isCancellationRequested) {
@@ -915,18 +930,15 @@ export class ChatService extends Disposable implements IChatService {
 					const progressItem = progress[i];
 
 					if (progressItem.kind === 'markdownContent') {
-						this.trace('sendRequest', `Provider returned progress for session ${model.sessionResource}, ${progressItem.content.value.length} chars`);
+						this.trace('sendRequest', `Chenille returned progress for session ${model.sessionResource}, ${progressItem.content.value.length} chars`);
 					} else {
-						this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progressItem)}`);
+						this.trace('sendRequest', `Chenille returned progress: ${JSON.stringify(progressItem)}`);
 					}
 
 					model.acceptResponseProgress(request, progressItem, !isLast);
 				}
 				completeResponseCreated();
 			};
-
-			let detectedAgent: IChatAgentData | undefined;
-			let detectedCommand: IChatAgentCommand | undefined;
 
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
@@ -938,223 +950,219 @@ export class ChatService extends Disposable implements IChatService {
 				requestTelemetry.complete({
 					timeToFirstProgress: undefined,
 					result: 'cancelled',
-					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					requestType,
-					detectedAgent,
+					detectedAgent: undefined,
 					request,
 				});
 
 				model.cancelRequest(request);
+				this.chenilleChatProvider.cancel();
 			}));
 
 			try {
-				let rawResult: IChatAgentResult | null | undefined;
-				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
-				let chatTitlePromise: Promise<string | undefined> | undefined;
-
-				if (agentPart || (defaultAgent && !commandPart)) {
-					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
-						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
-
-						let variableData: IChatRequestVariableData;
-						let message: string;
-						if (chatRequest) {
-							variableData = chatRequest.variableData;
-							message = getPromptText(request.message).message;
-						} else {
-							variableData = { variables: this.prepareContext(request.attachedContext) };
-							model.updateRequest(request, variableData);
-
-							const promptTextResult = getPromptText(request.message);
-							variableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
-							message = promptTextResult.message;
-						}
-
-						const agentRequest: IChatAgentRequest = {
-							sessionResource: model.sessionResource,
-							requestId: request.id,
-							agentId: agent.id,
-							message,
-							command: command?.name,
-							variables: variableData,
-							enableCommandDetection,
-							isParticipantDetected,
-							attempt,
-							location,
-							locationData: request.locationData,
-							acceptedConfirmationData: options?.acceptedConfirmationData,
-							rejectedConfirmationData: options?.rejectedConfirmationData,
-							userSelectedModelId: options?.userSelectedModelId,
-							userSelectedTools: options?.userSelectedTools?.get(),
-							modeInstructions: options?.modeInfo?.modeInstructions,
-							editedFileEvents: request.editedFileEvents,
-						};
-
-						let isInitialTools = true;
-
-						store.add(autorun(reader => {
-							const tools = options?.userSelectedTools?.read(reader);
-							if (isInitialTools) {
-								isInitialTools = false;
-								return;
-							}
-
-							if (tools) {
-								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
-								// in case the request has not been sent out yet:
-								agentRequest.userSelectedTools = tools;
-							}
-						}));
-
-						return agentRequest;
-					};
-
-					if (
-						this.configurationService.getValue('chat.detectParticipant.enabled') !== false &&
-						this.chatAgentService.hasChatParticipantDetectionProviders() &&
-						!agentPart &&
-						!commandPart &&
-						!agentSlashCommandPart &&
-						enableCommandDetection &&
-						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
-						options?.modeInfo?.kind !== ChatModeKind.Agent &&
-						options?.modeInfo?.kind !== ChatModeKind.Edit &&
-						!options?.agentIdSilent
-					) {
-						// We have no agent or command to scope history with, pass the full history to the participant detection provider
-						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, location, defaultAgent.id);
-
-						// Prepare the request object that we will send to the participant detection provider
-						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
-
-						const result = await this.chatAgentService.detectAgentOrCommand(chatAgentRequest, defaultAgentHistory, { location }, token);
-						if (result && this.chatAgentService.getAgent(result.agent.id)?.locations?.includes(location)) {
-							// Update the response in the ChatModel to reflect the detected agent and command
-							request.response?.setAgent(result.agent, result.command);
-							detectedAgent = result.agent;
-							detectedCommand = result.command;
-						}
-					}
-
-					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
-					const command = detectedCommand ?? agentSlashCommandPart?.command;
-
-					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
-
-					// Recompute history in case the agent or command changed
-					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
-					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
-					const pendingRequest = this._pendingRequests.get(sessionResource);
-					if (pendingRequest && !pendingRequest.requestId) {
-						pendingRequest.requestId = requestProps.requestId;
-					}
-					completeResponseCreated();
-
-					// MCP autostart: only run for native Chenille sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
-					if (model.canUseTools) {
-						const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
-						if (!autostartResult.isEmpty) {
-							progressCallback([autostartResult]);
-							await autostartResult.wait();
-						}
-					}
-
-					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
-					rawResult = agentResult;
-					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);
-
-					// Use LLM to generate the chat title
-					if (model.getRequests().length === 1 && !model.customTitle) {
-						const chatHistory = this.getHistoryEntriesFromModel(model.getRequests(), location, agent.id);
-						chatTitlePromise = this.chatAgentService.getChatTitle(agent.id, chatHistory, CancellationToken.None).then(
-							(title) => {
-								// Since not every chat agent implements title generation, we can fallback to the default agent
-								// which supports it
-								if (title === undefined) {
-									const defaultAgentForTitle = this.chatAgentService.getDefaultAgent(location);
-									if (defaultAgentForTitle) {
-										return this.chatAgentService.getChatTitle(defaultAgentForTitle.id, chatHistory, CancellationToken.None);
-									}
-								}
-								return title;
-							});
-					}
-				} else if (commandPart && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
-					if (commandPart.slashCommand.silent !== true) {
-						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
-						completeResponseCreated();
-					}
-					// contributed slash commands
-					// TODO: spell this out in the UI
-					const history: IChatMessage[] = [];
-					for (const modelRequest of model.getRequests()) {
-						if (!modelRequest.response) {
-							continue;
-						}
-						history.push({ role: ChatMessageRole.User, content: [{ type: 'text', value: modelRequest.message.text }] });
-						history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: modelRequest.response.response.toString() }] });
-					}
-					const message = parsedRequest.text;
-					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
-						progressCallback([p]);
-					}), history, location, model.sessionResource, token);
-					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
-					rawResult = {};
-
-				} else {
-					throw new Error(`Cannot handle request`);
+				// Chenille: 检查配置
+				const isConfigured = await this.chenilleChatProvider.isConfigured();
+				if (!isConfigured) {
+					this.chenilleChatProvider.promptConfiguration();
+					const configError = await this.chenilleChatProvider.getConfigurationError();
+					throw new Error(configError ?? localize('chenille.notConfigured', "Chenille 智能体未配置"));
 				}
 
-				if (token.isCancellationRequested && !rawResult) {
-					return;
-				} else {
-					if (!rawResult) {
-						this.trace('sendRequest', `Provider returned no response for session ${model.sessionResource}`);
-						rawResult = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+				// 初始化会话 token 统计
+				await this.initSessionTokenStats(model.sessionId);
+
+				// 创建请求
+				const agent = agentPart?.agent ?? defaultAgent;
+				const command = agentSlashCommandPart?.command;
+				const initVariableData: IChatRequestVariableData = { variables: [] };
+				request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
+
+				// 准备变量数据
+				const variableData: IChatRequestVariableData = { variables: this.prepareContext(request.attachedContext) };
+				model.updateRequest(request, variableData);
+
+				const promptTextResult = getPromptText(request.message);
+				const message = promptTextResult.message;
+
+				// 更新 pending request
+				const pendingRequest = this._pendingRequests.get(sessionResource);
+				if (pendingRequest && !pendingRequest.requestId) {
+					pendingRequest.requestId = request.id;
+				}
+				completeResponseCreated();
+
+				// 构建历史消息
+				const history: IChenilleChatMessage[] = [];
+				for (const modelRequest of requests) {
+					if (!modelRequest.response) {
+						continue;
+					}
+					history.push({
+						role: 'user',
+						content: modelRequest.message.text
+					});
+					history.push({
+						role: 'assistant',
+						content: modelRequest.response.response.toString()
+					});
+				}
+
+				// 构建当前消息（包含附件内容）
+				let currentMessage = message;
+				let multiContent: AiMessageContent[] | undefined;
+
+				if (request.attachedContext && request.attachedContext.length > 0) {
+					const attachmentContents: string[] = [];
+					const imageContents: AiMessageContent[] = [];
+
+					for (const attachment of request.attachedContext) {
+						// 检查是否为图片附件
+						if (isImageVariableEntry(attachment)) {
+							const imageData = this.extractImageData(attachment);
+							if (imageData) {
+								imageContents.push(imageData);
+							}
+						} else {
+							const attachmentContent = await this.formatAttachmentForAI(attachment);
+							if (attachmentContent) {
+								attachmentContents.push(attachmentContent);
+							}
+						}
 					}
 
-					const result = rawResult.errorDetails?.responseIsFiltered ? 'filtered' :
-						rawResult.errorDetails && gotProgress ? 'errorWithOutput' :
-							rawResult.errorDetails ? 'error' :
-								'success';
+					// 如果有图片，构建 multiContent
+					if (imageContents.length > 0) {
+						// 先添加文本内容
+						let textContent = message;
+						if (attachmentContents.length > 0) {
+							textContent = `${attachmentContents.join('\n\n')}\n\n用户问题：${message}`;
+						}
+						multiContent = [
+							{ type: 'text', text: textContent },
+							...imageContents
+						];
+					} else if (attachmentContents.length > 0) {
+						currentMessage = `${attachmentContents.join('\n\n')}\n\n用户问题：${message}`;
+					}
+				}
 
-					requestTelemetry.complete({
-						timeToFirstProgress: rawResult.timings?.firstProgress,
-						totalTime: rawResult.timings?.totalElapsed,
-						result,
-						requestType,
-						detectedAgent,
-						request,
-					});
+				// 监听 Chenille 响应流
+				// 使用统一的 MarkdownString 选项，确保 canMergeMarkdownStrings 返回 true
+				const markdownOptions = { isTrusted: false, supportThemeIcons: true, supportHtml: false };
 
-					model.setResponse(request, rawResult);
-					completeResponseCreated();
-					this.trace('sendRequest', `Provider returned response for session ${model.sessionResource}`);
+				// 用于累积推理内容，避免多次发送 thinking
+				let accumulatedReasoning = '';
 
-					request.response?.complete();
-					if (agentOrCommandFollowups) {
-						agentOrCommandFollowups.then(followups => {
-							model.setFollowups(request, followups);
-							const commandForTelemetry = agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command;
-							this._chatServiceTelemetry.retrievedFollowups(agentPart?.agent.id ?? '', commandForTelemetry, followups?.length ?? 0);
+				const chunkDisposable = this.chenilleChatProvider.onResponseChunk(chunk => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					// 收集所有要发送的进度项，然后一次性发送
+					const progressItems: IChatProgress[] = [];
+
+					// 文本内容
+					if (chunk.content) {
+						progressItems.push({
+							kind: 'markdownContent',
+							content: new MarkdownString(chunk.content, markdownOptions)
 						});
 					}
-					chatTitlePromise?.then(title => {
-						if (title) {
-							model.setCustomTitle(title);
+
+					// 推理内容 - 累积后发送，避免多次创建 thinking 块
+					if (chunk.reasoning) {
+						accumulatedReasoning += chunk.reasoning;
+						// 只在有内容时发送，thinking 类型会自动合并相邻的内容
+						progressItems.push({
+							kind: 'thinking',
+							value: chunk.reasoning
+						});
+					}
+
+					// 工具调用 - 使用 progressMessage 类型
+					if (chunk.toolCall) {
+						const { name, status } = chunk.toolCall;
+						if (status === 'calling') {
+							progressItems.push({
+								kind: 'progressMessage',
+								content: new MarkdownString(`正在调用工具: \`${name}\``, markdownOptions)
+							});
+						} else {
+							const statusText = status === 'success' ? '执行成功' : '执行失败';
+							progressItems.push({
+								kind: 'progressMessage',
+								content: new MarkdownString(`工具 \`${name}\` ${statusText}`, markdownOptions)
+							});
 						}
-					});
+					}
+
+					// 错误
+					if (chunk.error && !chunk.done) {
+						progressItems.push({
+							kind: 'warning',
+							content: new MarkdownString(chunk.error, markdownOptions)
+						});
+					}
+
+					// 一次性发送所有进度项
+					if (progressItems.length > 0) {
+						progressCallback(progressItems);
+					}
+				});
+				store.add(chunkDisposable);
+
+				// 调用 Chenille AI
+				const result = await this.chenilleChatProvider.chat({
+					input: currentMessage,
+					multiContent,
+					history,
+					enableTools: true,
+				}, token);
+
+				// 更新 token 统计
+				if (result.usage) {
+					this.updateSessionTokenStats(model.sessionId, result.usage);
 				}
+
+				// 处理结果
+				const rawResult: IChatAgentResult = result.success
+					? { timings: { totalElapsed: result.elapsed ?? 0 } }
+					: { errorDetails: { message: result.error ?? localize('chenille.unknownError', "未知错误") } };
+
+				const telemetryResult = result.success ? 'success' : (gotProgress ? 'errorWithOutput' : 'error');
+
+				requestTelemetry.complete({
+					timeToFirstProgress: undefined,
+					totalTime: result.elapsed,
+					result: telemetryResult,
+					requestType,
+					detectedAgent: undefined,
+					request,
+				});
+
+				model.setResponse(request, rawResult);
+				completeResponseCreated();
+				this.trace('sendRequest', `Chenille returned response for session ${model.sessionResource}`);
+
+				request.response?.complete();
+
+				// 生成标题（使用第一条消息）
+				if (model.getRequests().length === 1 && !model.customTitle && result.success) {
+					const title = this.generateChatTitle(message);
+					if (title) {
+						model.setCustomTitle(title);
+					}
+				}
+
 			} catch (err) {
-				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
+				this.logService.error(`Error while handling Chenille chat request: ${toErrorMessage(err, true)}`);
 				requestTelemetry.complete({
 					timeToFirstProgress: undefined,
 					totalTime: undefined,
 					result: 'error',
 					requestType,
-					detectedAgent,
+					detectedAgent: undefined,
 					request,
 				});
 				if (request) {
@@ -1167,8 +1175,8 @@ export class ChatService extends Disposable implements IChatService {
 				store.dispose();
 			}
 		};
+
 		const rawResponsePromise = sendRequestInternal();
-		// Note- requestId is not known at this point, assigned later
 		this._pendingRequests.set(model.sessionResource, this.instantiationService.createInstance(CancellableRequest, source, undefined));
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionResource);
@@ -1178,6 +1186,20 @@ export class ChatService extends Disposable implements IChatService {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,
 		};
+	}
+
+	/**
+	 * 生成聊天标题（取用户消息前 30 个字符）
+	 */
+	private generateChatTitle(message: string): string | undefined {
+		if (!message) {
+			return undefined;
+		}
+		const trimmed = message.trim();
+		if (trimmed.length <= 30) {
+			return trimmed;
+		}
+		return trimmed.substring(0, 30) + '...';
 	}
 
 	private prepareContext(attachedContextVariables: IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
@@ -1201,40 +1223,207 @@ export class ChatService extends Disposable implements IChatService {
 		return attachedContextVariables;
 	}
 
-	private getHistoryEntriesFromModel(requests: IChatRequestModel[], location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
-		const history: IChatAgentHistoryEntry[] = [];
-		const agent = this.chatAgentService.getAgent(forAgentId);
-		for (const request of requests) {
-			if (!request.response) {
-				continue;
-			}
+	/**
+	 * 从图片附件中提取 base64 数据
+	 */
+	private extractImageData(attachment: IImageVariableEntry): AiMessageContent | undefined {
+		const { value, mimeType } = attachment;
 
-			if (forAgentId !== request.response.agent?.id && !agent?.isDefault && !agent?.canAccessPreviousChatHistory) {
-				// An agent only gets to see requests that were sent to this agent.
-				// The default agent (the undefined case), or agents with 'canAccessPreviousChatHistory', get to see all of them.
-				continue;
+		// value 是 Uint8Array
+		if (value instanceof Uint8Array) {
+			// 将 Uint8Array 转换为 base64
+			let binary = '';
+			const bytes = value;
+			const len = bytes.byteLength;
+			for (let i = 0; i < len; i++) {
+				binary += String.fromCharCode(bytes[i]);
 			}
+			const base64Data = btoa(binary);
 
-			// Do not save to history inline completions
-			if (location === ChatAgentLocation.EditorInline) {
-				continue;
-			}
+			// 确定 MIME 类型
+			const detectedMimeType = mimeType || this.detectImageMimeType(bytes) || 'image/png';
 
-			const promptTextResult = getPromptText(request.message);
-			const historyRequest: IChatAgentRequest = {
-				sessionResource: request.session.sessionResource,
-				requestId: request.id,
-				agentId: request.response.agent?.id ?? '',
-				message: promptTextResult.message,
-				command: request.response.slashCommand?.name,
-				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Chat,
-				editedFileEvents: request.editedFileEvents,
+			return {
+				type: 'image',
+				data: base64Data,
+				mimeType: detectedMimeType
 			};
-			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
 
-		return history;
+		return undefined;
+	}
+
+	/**
+	 * 检测图片的 MIME 类型
+	 */
+	private detectImageMimeType(bytes: Uint8Array): string | undefined {
+		// PNG: 89 50 4E 47
+		if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+			return 'image/png';
+		}
+		// JPEG: FF D8 FF
+		if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+			return 'image/jpeg';
+		}
+		// GIF: 47 49 46 38
+		if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+			return 'image/gif';
+		}
+		// WebP: 52 49 46 46 ... 57 45 42 50
+		if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+			bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+			return 'image/webp';
+		}
+		return undefined;
+	}
+
+	/**
+	 * 将附件格式化为 AI 可理解的文本（异步读取文件内容）
+	 */
+	private async formatAttachmentForAI(attachment: IChatRequestVariableEntry): Promise<string | undefined> {
+		const { kind, name, value } = attachment;
+
+		switch (kind) {
+			case 'file': {
+				// 文件附件 - 尝试读取文件内容
+				if (typeof value === 'string') {
+					return `<file name="${name}">\n${value}\n</file>`;
+				} else if (URI.isUri(value)) {
+					try {
+						const content = await this.fileService.readFile(value);
+						const text = content.value.toString();
+						// 限制文件大小，避免发送过大的内容
+						const maxLength = 50000;
+						const truncated = text.length > maxLength ? text.substring(0, maxLength) + '\n... (内容已截断)' : text;
+						return `<file name="${name}" path="${value.fsPath}">\n${truncated}\n</file>`;
+					} catch {
+						return `<file name="${name}" path="${value.fsPath}">\n（无法读取文件内容，请使用 readFile 工具读取）\n</file>`;
+					}
+				} else if (value && typeof value === 'object' && 'uri' in value) {
+					// Location 类型
+					const loc = value as { uri: URI; range?: { startLineNumber: number; endLineNumber: number } };
+					try {
+						const content = await this.fileService.readFile(loc.uri);
+						const text = content.value.toString();
+						const lines = text.split('\n');
+						// 如果有范围，只取指定行
+						if (loc.range) {
+							const start = Math.max(0, loc.range.startLineNumber - 1);
+							const end = Math.min(lines.length, loc.range.endLineNumber);
+							const selectedLines = lines.slice(start, end).join('\n');
+							return `<file name="${name}" path="${loc.uri.fsPath}" lines="${loc.range.startLineNumber}-${loc.range.endLineNumber}">\n${selectedLines}\n</file>`;
+						}
+						const maxLength = 50000;
+						const truncated = text.length > maxLength ? text.substring(0, maxLength) + '\n... (内容已截断)' : text;
+						return `<file name="${name}" path="${loc.uri.fsPath}">\n${truncated}\n</file>`;
+					} catch {
+						const rangeInfo = loc.range ? `，行 ${loc.range.startLineNumber}-${loc.range.endLineNumber}` : '';
+						return `<file name="${name}" path="${loc.uri.fsPath}">\n（无法读取文件内容${rangeInfo}，请使用 readFile 工具读取）\n</file>`;
+					}
+				}
+				return undefined;
+			}
+
+			case 'directory': {
+				// 文件夹附件 - 提供路径，AI 可以使用 listDirectory 工具查看内容
+				if (URI.isUri(value)) {
+					return `<directory name="${name}" path="${value.fsPath}">\n（用户选择了此文件夹，请使用 listDirectory 工具查看内容）\n</directory>`;
+				}
+				return `<directory name="${name}">\n（用户选择了此文件夹）\n</directory>`;
+			}
+
+			case 'symbol': {
+				// 符号附件（函数、类等）- 尝试读取符号所在的代码
+				if (value && typeof value === 'object' && 'uri' in value) {
+					const loc = value as { uri: URI; range?: { startLineNumber: number; endLineNumber: number } };
+					try {
+						const content = await this.fileService.readFile(loc.uri);
+						const text = content.value.toString();
+						const lines = text.split('\n');
+						if (loc.range) {
+							const start = Math.max(0, loc.range.startLineNumber - 1);
+							const end = Math.min(lines.length, loc.range.endLineNumber);
+							const selectedLines = lines.slice(start, end).join('\n');
+							return `<symbol name="${name}" path="${loc.uri.fsPath}" lines="${loc.range.startLineNumber}-${loc.range.endLineNumber}">\n${selectedLines}\n</symbol>`;
+						}
+					} catch {
+						const rangeInfo = loc.range ? `，行 ${loc.range.startLineNumber}-${loc.range.endLineNumber}` : '';
+						return `<symbol name="${name}" path="${loc.uri.fsPath}">\n（无法读取符号内容${rangeInfo}，请使用 readFile 工具读取）\n</symbol>`;
+					}
+				}
+				return `<symbol name="${name}" />`;
+			}
+
+			case 'paste': {
+				// 粘贴的代码
+				const pasteEntry = attachment as { code: string; language: string };
+				if (pasteEntry.code) {
+					return `<code language="${pasteEntry.language || 'text'}">\n${pasteEntry.code}\n</code>`;
+				}
+				return undefined;
+			}
+
+			case 'image': {
+				// 图片附件通过 multiContent 处理，这里不需要返回文本
+				// 如果走到这里说明是不支持的图片格式
+				return undefined;
+			}
+
+			case 'implicit': {
+				// 隐式上下文（如当前选中的文本）
+				if (typeof value === 'string') {
+					return `<context name="${name}">\n${value}\n</context>`;
+				} else if (value && typeof value === 'object' && 'value' in value) {
+					const strValue = value as { value?: string };
+					if (strValue.value) {
+						return `<context name="${name}">\n${strValue.value}\n</context>`;
+					}
+				}
+				return undefined;
+			}
+
+			case 'diagnostic': {
+				// 诊断信息（错误、警告等）
+				if (typeof value === 'string') {
+					return `<diagnostic name="${name}">\n${value}\n</diagnostic>`;
+				}
+				return `<diagnostic name="${name}" />`;
+			}
+
+			case 'terminalCommand': {
+				// 终端命令
+				const termEntry = attachment as { command: string; output?: string };
+				let content = `命令: ${termEntry.command}`;
+				if (termEntry.output) {
+					content += `\n输出:\n${termEntry.output}`;
+				}
+				return `<terminal name="${name}">\n${content}\n</terminal>`;
+			}
+
+			case 'string': {
+				// 字符串值
+				if (typeof value === 'string') {
+					return `<context name="${name}">\n${value}\n</context>`;
+				}
+				return undefined;
+			}
+
+			case 'workspace': {
+				// 工作区信息
+				if (typeof value === 'string') {
+					return `<workspace>\n${value}\n</workspace>`;
+				}
+				return undefined;
+			}
+
+			default: {
+				// 其他类型，尝试转换为字符串
+				if (typeof value === 'string') {
+					return `<attachment name="${name}" kind="${kind}">\n${value}\n</attachment>`;
+				}
+				return undefined;
+			}
+		}
 	}
 
 	async removeRequest(sessionResource: URI, requestId: string): Promise<void> {
@@ -1357,5 +1546,72 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
 		return localSessionId;
+	}
+
+	/**
+	 * 初始化会话的 token 统计
+	 */
+	private async initSessionTokenStats(sessionId: string): Promise<void> {
+		if (this._sessionTokenStats.has(sessionId)) {
+			return;
+		}
+
+		try {
+			const contextSize = await this.chenilleChatProvider.getContextSize();
+			this._sessionTokenStats.set(sessionId, {
+				totalTokens: 0,
+				contextSize,
+			});
+		} catch {
+			// 使用默认值
+			this._sessionTokenStats.set(sessionId, {
+				totalTokens: 0,
+				contextSize: 128000,
+			});
+		}
+	}
+
+	/**
+	 * 更新会话的 token 统计
+	 */
+	private updateSessionTokenStats(sessionId: string, usage: TokenUsage): void {
+		let stats = this._sessionTokenStats.get(sessionId);
+		if (!stats) {
+			// 如果没有初始化，使用默认值
+			stats = { totalTokens: 0, contextSize: 128000 };
+			this._sessionTokenStats.set(sessionId, stats);
+		}
+
+		// 累加 token 使用量
+		stats.totalTokens += usage.totalTokens;
+
+		// 检查是否需要发出警告
+		const usagePercent = stats.totalTokens / stats.contextSize;
+		if (usagePercent >= CONTEXT_COLLAPSE_THRESHOLD) {
+			this.logService.warn(`Session ${sessionId} context usage: ${(usagePercent * 100).toFixed(1)}% (${stats.totalTokens}/${stats.contextSize})`);
+			this._onContextCollapseWarning.fire({ sessionId, usagePercent });
+		}
+	}
+
+	/**
+	 * 获取会话的 token 统计
+	 */
+	getSessionTokenStats(sessionId: string): { totalTokens: number; contextSize: number; usagePercent: number } | undefined {
+		const stats = this._sessionTokenStats.get(sessionId);
+		if (!stats) {
+			return undefined;
+		}
+		return {
+			totalTokens: stats.totalTokens,
+			contextSize: stats.contextSize,
+			usagePercent: stats.totalTokens / stats.contextSize,
+		};
+	}
+
+	/**
+	 * 清理会话的 token 统计
+	 */
+	private clearSessionTokenStats(sessionId: string): void {
+		this._sessionTokenStats.delete(sessionId);
 	}
 }

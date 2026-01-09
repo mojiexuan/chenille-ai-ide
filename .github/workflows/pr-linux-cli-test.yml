@@ -11,11 +11,11 @@ on:
 jobs:
   linux-cli-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-latest
     env:
       RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Install Rust

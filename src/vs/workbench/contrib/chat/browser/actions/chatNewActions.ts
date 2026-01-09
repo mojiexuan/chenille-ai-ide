@@ -49,7 +49,7 @@ export function registerNewChatActions() {
 	// Add "New Chat" submenu to Chat view menu
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: MenuId.ChatNewMenu,
-		title: localize2('chat.newEdits.label', "New Chat"),
+		title: localize2('chat.newEdits.label', "新聊天"),
 		icon: Codicon.plus,
 		when: ContextKeyExpr.equals('view', ChatViewId),
 		group: 'navigation',
@@ -61,7 +61,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chatEditor.newChat',
-				title: localize2('chat.newChat.label', "New Chat"),
+				title: localize2('chat.newChat.label', "新聊天"),
 				icon: Codicon.plus,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
@@ -80,7 +80,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_NEW_CHAT,
-				title: localize2('chat.newEdits.label', "New Chat"),
+				title: localize2('chat.newEdits.label', "新聊天"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -163,7 +163,7 @@ export function registerNewChatActions() {
 	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
-			title: localize2('chat.goBack', "Go Back"),
+			title: localize2('chat.goBack', "返回"),
 			icon: Codicon.arrowLeft,
 		},
 		group: 'navigation'
@@ -173,7 +173,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.undoEdit',
-				title: localize2('chat.undoEdit.label', "Undo Last Request"),
+				title: localize2('chat.undoEdit.label', "撤消上次请求"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled),
@@ -197,7 +197,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Last Request"),
+				title: localize2('chat.redoEdit.label', "重做上次请求"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
@@ -225,8 +225,8 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit2',
-				title: localize2('chat.redoEdit.label2', "Redo"),
-				tooltip: localize2('chat.redoEdit.tooltip', "Reapply discarded workspace changes and chat"),
+				title: localize2('chat.redoEdit.label2', "重做"),
+				tooltip: localize2('chat.redoEdit.tooltip', "重新应用已丢弃的工作区更改并聊天"),
 				category: CHAT_CATEGORY,
 				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
 				f1: true,

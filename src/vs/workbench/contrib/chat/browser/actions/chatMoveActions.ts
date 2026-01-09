@@ -57,7 +57,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openInNewWindow',
-				title: localize2('chat.openInNewWindow.label', "Move Chat into New Window"),
+				title: localize2('chat.openInNewWindow.label', "移动聊天到新窗口"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -80,7 +80,7 @@ export function registerMoveActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openInSidebar',
-				title: localize2('interactiveSession.openInSidebar.label', "Move Chat into Side Bar"),
+				title: localize2('interactiveSession.openInSidebar.label', "移动聊天到侧栏"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true

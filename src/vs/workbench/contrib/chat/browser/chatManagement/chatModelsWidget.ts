@@ -65,37 +65,37 @@ export function getModelHoverContent(model: IModelEntry): MarkdownString {
 	}
 
 	if (model.metadata.detail) {
-		markdown.appendMarkdown(`${localize('models.cost', 'Multiplier')}: `);
+		markdown.appendMarkdown(`${localize('models.cost', '倍率')}: `);
 		markdown.appendMarkdown(model.metadata.detail);
 		markdown.appendText(`\n`);
 	}
 
 	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
-		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
+		markdown.appendMarkdown(`${localize('models.contextSize', '上下文大小')}: `);
 		let addSeparator = false;
 		if (model.metadata.maxInputTokens) {
-			markdown.appendMarkdown(`$(arrow-down) ${formatTokenCount(model.metadata.maxInputTokens)} (${localize('models.input', 'Input')})`);
+			markdown.appendMarkdown(`$(arrow-down) ${formatTokenCount(model.metadata.maxInputTokens)} (${localize('models.input', '输入')})`);
 			addSeparator = true;
 		}
 		if (model.metadata.maxOutputTokens) {
 			if (addSeparator) {
 				markdown.appendText(`  |  `);
 			}
-			markdown.appendMarkdown(`$(arrow-up) ${formatTokenCount(model.metadata.maxOutputTokens)} (${localize('models.output', 'Output')})`);
+			markdown.appendMarkdown(`$(arrow-up) ${formatTokenCount(model.metadata.maxOutputTokens)} (${localize('models.output', '输出')})`);
 		}
 		markdown.appendText(`\n`);
 	}
 
 	if (model.metadata.capabilities) {
-		markdown.appendMarkdown(`${localize('models.capabilities', 'Capabilities')}: `);
+		markdown.appendMarkdown(`${localize('models.capabilities', '能力')}: `);
 		if (model.metadata.capabilities?.toolCalling) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.toolCalling', 'Tools')}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.toolCalling', '工具')}_&nbsp;</span>`);
 		}
 		if (model.metadata.capabilities?.vision) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.vision', 'Vision')}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.vision', '视觉')}_&nbsp;</span>`);
 		}
 		if (model.metadata.capabilities?.agentMode) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.agentMode', 'Agent Mode')}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.agentMode', '代理模式')}_&nbsp;</span>`);
 		}
 		for (const editTool of model.metadata.capabilities.editTools ?? []) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${editTool}_&nbsp;</span>`);
@@ -108,7 +108,7 @@ export function getModelHoverContent(model: IModelEntry): MarkdownString {
 
 class ModelsFilterAction extends Action {
 	constructor() {
-		super('workbench.models.filter', localize('filter', "Filter"), ThemeIcon.asClassName(Codicon.filter));
+		super('workbench.models.filter', localize('filter', "过滤器"), ThemeIcon.asClassName(Codicon.filter));
 	}
 	override async run(): Promise<void> {
 	}
@@ -157,7 +157,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			label,
 			class: undefined,
 			enabled: true,
-			tooltip: localize('groupByTooltip', "Group by {0}", label),
+			tooltip: localize('groupByTooltip', "按 {0} 分组", label),
 			checked: this.viewModel.groupBy === grouping,
 			run: () => {
 				this.viewModel.groupBy = grouping;
@@ -173,7 +173,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		return {
 			id: `provider-${vendor}`,
 			label: displayName,
-			tooltip: localize('filterByProvider', "Filter by {0}", displayName),
+			tooltip: localize('filterByProvider', "按 {0} 筛选", displayName),
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
@@ -189,7 +189,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		return {
 			id: `capability-${capability}`,
 			label,
-			tooltip: localize('filterByCapability', "Filter by {0}", label),
+			tooltip: localize('filterByCapability', "按 {0} 筛选", label),
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
@@ -206,7 +206,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		return {
 			id: `visible-${visible}`,
 			label,
-			tooltip: localize('filterByVisible', "Filter by {0}", label),
+			tooltip: localize('filterByVisible', "按 {0} 筛选", label),
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
@@ -225,15 +225,15 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		const actions: IAction[] = [];
 
 		// Visibility filters
-		actions.push(this.createVisibleAction(true, localize('filter.visible', 'Visible')));
-		actions.push(this.createVisibleAction(false, localize('filter.hidden', 'Hidden')));
+		actions.push(this.createVisibleAction(true, localize('filter.visible', '显示')));
+		actions.push(this.createVisibleAction(false, localize('filter.hidden', '隐藏')));
 
 		// Capability filters
 		actions.push(new Separator());
 		actions.push(
-			this.createCapabilityAction('tools', localize('capability.tools', 'Tools')),
-			this.createCapabilityAction('vision', localize('capability.vision', 'Vision')),
-			this.createCapabilityAction('agent', localize('capability.agent', 'Agent Mode'))
+			this.createCapabilityAction('tools', localize('capability.tools', '工具')),
+			this.createCapabilityAction('vision', localize('capability.vision', '视觉')),
+			this.createCapabilityAction('agent', localize('capability.agent', '代理模式'))
 		);
 
 		// Provider filters - only show providers with configured models
@@ -246,9 +246,9 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		// Group By
 		actions.push(new Separator());
 		const groupByActions: IAction[] = [];
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', 'Provider')));
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', 'Visibility')));
-		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', '供应商')));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', '可见')));
+		actions.push(new SubmenuAction('groupBy', localize('groupBy', "分组"), groupByActions));
 
 		return actions;
 	}
@@ -348,7 +348,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			templateData.listRowElement.setAttribute('aria-expanded', entry.collapsed ? 'false' : 'true');
 		}
 
-		const label = entry.collapsed ? localize('expand', 'Expand') : localize('collapse', 'Collapse');
+		const label = entry.collapsed ? localize('expand', '展开') : localize('collapse', '折叠');
 		const toggleCollapseAction = {
 			id: 'toggleCollapse',
 			label,
@@ -365,9 +365,9 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 		const isVisible = modelEntry.metadata.isUserSelectable ?? false;
 		const toggleVisibilityAction = toAction({
 			id: 'toggleVisibility',
-			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
+			label: isVisible ? localize('models.hide', '隐藏') : localize('models.show', '显示'),
 			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`}`,
-			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
+			tooltip: isVisible ? localize('models.visible', '在聊天模型选择器中隐藏') : localize('models.hidden', '在聊天模型选择器中显示'),
 			checked: !isVisible,
 			run: async () => this.viewModel.toggleVisibility(entry)
 		});
@@ -454,7 +454,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		}
 
 		if (!entry.modelEntry.metadata.isUserSelectable) {
-			markdown.appendMarkdown(`\n\n${localize('models.userSelectable', 'This model is hidden in the chat model picker')}`);
+			markdown.appendMarkdown(`\n\n${localize('models.userSelectable', '此模型在聊天模型选择器中已隐藏')}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
@@ -508,7 +508,7 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 
 		if (multiplierText !== '-') {
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
-				content: localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText),
+				content: localize('multiplier.tooltip', "每条聊天消息按 {0} 计入您的高级模型请求配额", multiplierText),
 				appearance: {
 					compact: true,
 					skipFadeInAnimation: true
@@ -561,14 +561,14 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
 			let addSeparator = false;
-			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
+			markdown.appendMarkdown(`${localize('models.contextSize', '上下文大小')}: `);
 			if (modelEntry.metadata.maxInputTokens) {
 				const inputDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
 				DOM.append(inputDiv, $('span.codicon.codicon-arrow-down'));
 				const inputText = DOM.append(inputDiv, $('span'));
 				inputText.textContent = formatTokenCount(modelEntry.metadata.maxInputTokens);
 
-				markdown.appendMarkdown(`$(arrow-down) ${modelEntry.metadata.maxInputTokens} (${localize('models.input', 'Input')})`);
+				markdown.appendMarkdown(`$(arrow-down) ${modelEntry.metadata.maxInputTokens} (${localize('models.input', '输入')})`);
 				addSeparator = true;
 			}
 			if (modelEntry.metadata.maxOutputTokens) {
@@ -579,7 +579,7 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 				if (addSeparator) {
 					markdown.appendText(`  |  `);
 				}
-				markdown.appendMarkdown(`$(arrow-up) ${modelEntry.metadata.maxOutputTokens} (${localize('models.output', 'Output')})`);
+				markdown.appendMarkdown(`$(arrow-up) ${modelEntry.metadata.maxOutputTokens} (${localize('models.output', '输出')})`);
 			}
 		}
 
@@ -636,7 +636,7 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 			templateData.elementDisposables.add(this.createCapabilityButton(
 				templateData.metadataRow,
 				capabilityMatches?.includes('toolCalling') || false,
-				localize('models.tools', 'Tools'),
+				localize('models.tools', '工具'),
 				'tools'
 			));
 		}
@@ -645,7 +645,7 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 			templateData.elementDisposables.add(this.createCapabilityButton(
 				templateData.metadataRow,
 				capabilityMatches?.includes('vision') || false,
-				localize('models.vision', 'Vision'),
+				localize('models.vision', '视觉'),
 				'vision'
 			));
 		}
@@ -703,7 +703,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 			const { vendorEntry } = entry;
 			const action = toAction({
 				id: 'manageVendor',
-				label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
+				label: localize('models.manageProvider', '管理 {0}...', entry.vendorEntry.vendorDisplayName),
 				class: ThemeIcon.asClassName(Codicon.gear),
 				run: async () => {
 					await this.commandService.executeCommand(vendorEntry.managementCommand!, vendorEntry.vendor);
@@ -812,7 +812,7 @@ export class ChatModelsWidget extends Disposable {
 	private create(container: HTMLElement): void {
 		const searchAndButtonContainer = DOM.append(container, $('.models-search-and-button-container'));
 
-		const placeholder = localize('Search.FullTextSearchPlaceholder', "Type to search...");
+		const placeholder = localize('Search.FullTextSearchPlaceholder', "输入以搜索...");
 		const searchContainer = DOM.append(searchAndButtonContainer, $('.models-search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(
 			SuggestEnabledInput,
@@ -858,7 +858,7 @@ export class ChatModelsWidget extends Disposable {
 		const filterAction = this._register(new ModelsFilterAction());
 		const clearSearchAction = this._register(new Action(
 			'workbench.models.clearSearch',
-			localize('clearSearch', "Clear Search"),
+			localize('clearSearch', "清除搜索"),
 			ThemeIcon.asClassName(preferencesClearInputIcon),
 			false,
 			() => {
@@ -868,7 +868,7 @@ export class ChatModelsWidget extends Disposable {
 		));
 		const collapseAllAction = this._register(new Action(
 			'workbench.models.collapseAll',
-			localize('collapseAll', "Collapse All"),
+			localize('collapseAll', "全部折叠"),
 			ThemeIcon.asClassName(Codicon.collapseAll),
 			false,
 			() => {
@@ -905,7 +905,7 @@ export class ChatModelsWidget extends Disposable {
 			supportIcons: true,
 		};
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
+		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', '添加模型...')}`;
 		this.addButton.element.classList.add('models-add-model-button');
 		this.addButton.enabled = false;
 		this._register(this.addButton.onDidClick((e) => {
@@ -956,7 +956,7 @@ export class ChatModelsWidget extends Disposable {
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
-				label: localize('modelName', 'Name'),
+				label: localize('modelName', '名称'),
 				tooltip: '',
 				weight: 0.35,
 				minimumWidth: 200,
@@ -967,7 +967,7 @@ export class ChatModelsWidget extends Disposable {
 
 		if (this.viewModel.groupBy === ChatModelGroup.Visibility) {
 			columns.push({
-				label: localize('provider', 'Provider'),
+				label: localize('provider', '供应商'),
 				tooltip: '',
 				weight: 0.15,
 				minimumWidth: 100,
@@ -978,7 +978,7 @@ export class ChatModelsWidget extends Disposable {
 
 		columns.push(
 			{
-				label: localize('tokenLimits', 'Context Size'),
+				label: localize('tokenLimits', '上下文大小'),
 				tooltip: '',
 				weight: 0.1,
 				minimumWidth: 140,
@@ -986,7 +986,7 @@ export class ChatModelsWidget extends Disposable {
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
-				label: localize('capabilities', 'Capabilities'),
+				label: localize('capabilities', '能力'),
 				tooltip: '',
 				weight: 0.25,
 				minimumWidth: 180,
@@ -994,7 +994,7 @@ export class ChatModelsWidget extends Disposable {
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
-				label: localize('cost', 'Multiplier'),
+				label: localize('cost', '倍率'),
 				tooltip: '',
 				weight: 0.05,
 				minimumWidth: 60,
@@ -1033,30 +1033,30 @@ export class ChatModelsWidget extends Disposable {
 				accessibilityProvider: {
 					getAriaLabel: (e: TableEntry) => {
 						if (isVendorEntry(e)) {
-							return localize('vendor.ariaLabel', '{0} Models', e.vendorEntry.vendorDisplayName);
+							return localize('vendor.ariaLabel', '{0} 模型', e.vendorEntry.vendorDisplayName);
 						} else if (isGroupEntry(e)) {
-							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
+							return e.id === 'visible' ? localize('visible.ariaLabel', '可见模型') : localize('hidden.ariaLabel', '隐藏模型');
 						}
 						const ariaLabels = [];
-						ariaLabels.push(localize('model.name', '{0} from {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName));
+						ariaLabels.push(localize('model.name', '{0} 来自 {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName));
 						if (e.modelEntry.metadata.maxInputTokens && e.modelEntry.metadata.maxOutputTokens) {
-							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.modelEntry.metadata.maxInputTokens), formatTokenCount(e.modelEntry.metadata.maxOutputTokens)));
+							ariaLabels.push(localize('model.contextSize', '上下文大小: {0} 输入令牌和 {1} 输出令牌', formatTokenCount(e.modelEntry.metadata.maxInputTokens), formatTokenCount(e.modelEntry.metadata.maxOutputTokens)));
 						}
 						if (e.modelEntry.metadata.capabilities) {
-							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.modelEntry.metadata.capabilities).join(', ')));
+							ariaLabels.push(localize('model.capabilities', '能力: {0}', Object.keys(e.modelEntry.metadata.capabilities).join(', ')));
 						}
 						const multiplierText = (e.modelEntry.metadata.detail && e.modelEntry.metadata.detail.trim().toLowerCase() !== e.modelEntry.vendor.trim().toLowerCase()) ? e.modelEntry.metadata.detail : '-';
 						if (multiplierText !== '-') {
-							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
+							ariaLabels.push(localize('multiplier.tooltip', "每条聊天消息按 {0} 计入您的高级模型请求配额", multiplierText));
 						}
 						if (e.modelEntry.metadata.isUserSelectable) {
-							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));
+							ariaLabels.push(localize('model.visible', '此模型在聊天模型选择器中可见'));
 						} else {
-							ariaLabels.push(localize('model.hidden', 'This model is hidden in the chat model picker'));
+							ariaLabels.push(localize('model.hidden', '此模型隐藏在聊天模型选择器中'));
 						}
 						return ariaLabels.join('. ');
 					},
-					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
+					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', '大语言模型')
 				},
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
@@ -1074,7 +1074,7 @@ export class ChatModelsWidget extends Disposable {
 				const actions: IAction[] = [
 					toAction({
 						id: 'manageVendor',
-						label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
+						label: localize('models.manageProvider', '管理 {0}...', entry.vendorEntry.vendorDisplayName),
 						run: async () => {
 							await this.commandService.executeCommand(entry.vendorEntry.managementCommand!, entry.vendorEntry.vendor);
 							await this.viewModel.refresh();

@@ -35,7 +35,7 @@ CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.sta
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
 
 
-export const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
+export const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', '从编辑器工具栏启动内联聊天的图标。'));
 
 // some gymnastics to enable hold for speech without moving the StartSessionAction into the electron-layer
 
@@ -59,7 +59,7 @@ export class StartSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ACTION_START,
-			title: localize2('run', 'Open Inline Chat'),
+			title: localize2('run', '打开内联聊天'),
 			category: AbstractInline1ChatAction.category,
 			f1: true,
 			precondition: inlineChatContextKey,
@@ -132,7 +132,7 @@ export class FocusInlineChat extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.focus',
-			title: localize2('focus', "Focus Input"),
+			title: localize2('focus', "聚焦输入"),
 			f1: true,
 			category: AbstractInline1ChatAction.category,
 			precondition: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_FOCUSED.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
@@ -159,7 +159,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: localize2('unstash', "Resume Last Dismissed Inline Chat"),
+			title: localize2('unstash', "恢复上次关闭的内联聊天"),
 			category: AbstractInline1ChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
@@ -184,7 +184,7 @@ export class UnstashSessionAction extends EditorAction2 {
 
 export abstract class AbstractInline1ChatAction extends EditorAction2 {
 
-	static readonly category = localize2('cat', "Inline Chat");
+	static readonly category = localize2('cat', "内联聊天");
 
 	constructor(desc: IAction2Options) {
 
@@ -253,7 +253,7 @@ export class ArrowOutUpAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.arrowOutUp',
-			title: localize('arrowUp', 'Cursor Up'),
+			title: localize('arrowUp', '光标上移'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
@@ -271,7 +271,7 @@ export class ArrowOutDownAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.arrowOutDown',
-			title: localize('arrowDown', 'Cursor Down'),
+			title: localize('arrowDown', '光标下移'),
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
@@ -290,8 +290,8 @@ export class AcceptChanges extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: ACTION_ACCEPT_CHANGES,
-			title: localize2('apply1', "Accept Changes"),
-			shortTitle: localize('apply2', 'Accept'),
+			title: localize2('apply1', "接受更改"),
+			shortTitle: localize('apply2', '接受'),
 			icon: Codicon.check,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE),
@@ -326,7 +326,7 @@ export class DiscardHunkAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: ACTION_DISCARD_CHANGES,
-			title: localize('discard', 'Discard'),
+			title: localize('discard', '放弃'),
 			icon: Codicon.chromeClose,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
@@ -351,8 +351,8 @@ export class RerunAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: ACTION_REGENERATE_RESPONSE,
-			title: localize2('chat.rerun.label', "Rerun Request"),
-			shortTitle: localize('rerun', 'Rerun'),
+			title: localize2('chat.rerun.label', "重新运行请求"),
+			shortTitle: localize('rerun', '重新运行'),
 			f1: false,
 			icon: Codicon.refresh,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
@@ -399,7 +399,7 @@ export class CloseAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.close',
-			title: localize('close', 'Close'),
+			title: localize('close', '关闭'),
 			icon: Codicon.close,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
@@ -428,7 +428,7 @@ export class ConfigureInlineChatAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.configure',
-			title: localize2('configure', 'Configure Inline Chat'),
+			title: localize2('configure', '配置内联聊天'),
 			icon: Codicon.settingsGear,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			f1: true,
@@ -450,7 +450,7 @@ export class MoveToNextHunk extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.moveToNextHunk',
-			title: localize2('moveToNextHunk', 'Move to Next Change'),
+			title: localize2('moveToNextHunk', '移动到下一个更改'),
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			f1: true,
 			keybinding: {
@@ -470,7 +470,7 @@ export class MoveToPreviousHunk extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.moveToPreviousHunk',
-			title: localize2('moveToPreviousHunk', 'Move to Previous Change'),
+			title: localize2('moveToPreviousHunk', '移动到上一个更改'),
 			f1: true,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			keybinding: {
@@ -489,7 +489,7 @@ export class ViewInChatAction extends AbstractInline1ChatAction {
 	constructor() {
 		super({
 			id: ACTION_VIEW_IN_CHAT,
-			title: localize('viewInChat', 'View in Chat'),
+			title: localize('viewInChat', '在聊天中查看'),
 			icon: Codicon.chatSparkle,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
@@ -525,7 +525,7 @@ export class ToggleDiffForChange extends AbstractInline1ChatAction {
 		super({
 			id: ACTION_TOGGLE_DIFF,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
-			title: localize2('showChanges', 'Toggle Changes'),
+			title: localize2('showChanges', '切换更改'),
 			icon: Codicon.diffSingle,
 			toggled: {
 				condition: CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF,
@@ -554,7 +554,7 @@ export class ToggleDiffForChange extends AbstractInline1ChatAction {
 //#region --- VERSION 2
 abstract class AbstractInline2ChatAction extends EditorAction2 {
 
-	static readonly category = localize2('cat', "Inline Chat");
+	static readonly category = localize2('cat', "内联聊天");
 
 	constructor(desc: IAction2Options) {
 		const massageMenu = (menu: IAction2Options['menu'] | undefined) => {
@@ -640,7 +640,7 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 	constructor() {
 		super(true, {
 			id: 'inlineChat2.keep',
-			title: localize2('Keep', "Keep"),
+			title: localize2('Keep', "保留"),
 			f1: true,
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(
@@ -676,7 +676,7 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 	constructor() {
 		super(false, {
 			id: 'inlineChat2.close',
-			title: localize2('close2', "Close"),
+			title: localize2('close2', "关闭"),
 			f1: true,
 			icon: Codicon.close,
 			precondition: CTX_INLINE_CHAT_VISIBLE,

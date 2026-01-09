@@ -25,7 +25,7 @@ import { localize2 } from '../../../../nls.js';
 import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
-export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
+export const EXTENSIONS_CATEGORY = localize2('extensions', "扩展");
 
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	readonly searchValue: string | undefined;

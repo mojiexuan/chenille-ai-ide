@@ -1,0 +1,504 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* 弹窗样式 */
+.chenille-dialog-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.4);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2000;
+	backdrop-filter: blur(2px);
+}
+
+.chenille-dialog {
+	width: 800px;
+	height: 600px;
+	max-width: 90vw;
+	max-height: 80vh;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+	overflow: hidden;
+	color: var(--vscode-editorWidget-foreground);
+}
+
+.chenille-dialog-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-sideBar-background);
+}
+
+.chenille-dialog-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chenille-dialog-close {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 6px;
+	color: var(--vscode-icon-foreground);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 0.15s ease;
+}
+
+.chenille-dialog-close:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chenille-dialog-body {
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+}
+
+/* 设置面板 */
+.chenille-settings-panel {
+	display: flex;
+	height: 100%;
+	width: 100%;
+}
+
+/* 左侧菜单 */
+.chenille-settings-menu {
+	width: 180px;
+	min-width: 180px;
+	border-right: 1px solid var(--vscode-widget-border);
+	padding: 12px 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	background: var(--vscode-sideBar-background);
+}
+
+.chenille-menu-item {
+	padding: 10px 12px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	border-radius: 6px;
+	transition: all 0.15s ease;
+	user-select: none;
+}
+
+.chenille-menu-item:hover:not(.disabled):not(.active) {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chenille-menu-item.active {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chenille-menu-item.disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.chenille-menu-item .codicon {
+	font-size: 16px;
+	opacity: 0.8;
+}
+
+/* 右侧内容区 */
+.chenille-settings-content {
+	flex: 1;
+	overflow: hidden;
+	background: var(--vscode-editor-background);
+	display: flex;
+	flex-direction: column;
+}
+
+/* 内容面板样式 */
+.chenille-panel-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 16px 24px 12px 24px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-editor-background);
+	flex-shrink: 0;
+}
+
+.chenille-panel-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+/* 列表样式 */
+.chenille-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 20px 24px;
+	overflow: auto;
+	flex: 1;
+}
+
+/* 自定义滚动条 */
+.chenille-panel-list::-webkit-scrollbar,
+.chenille-form::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.chenille-panel-list::-webkit-scrollbar-track,
+.chenille-form::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chenille-panel-list::-webkit-scrollbar-thumb,
+.chenille-form::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.chenille-panel-list::-webkit-scrollbar-thumb:hover,
+.chenille-form::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.chenille-panel-list::-webkit-scrollbar-corner,
+.chenille-form::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+.chenille-list-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 14px 16px;
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 6px;
+	transition: all 0.15s ease;
+}
+
+.chenille-list-item:hover {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chenille-list-item-info {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chenille-list-item-name {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chenille-list-item-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-list-item-actions {
+	display: flex;
+	gap: 6px;
+}
+
+/* 按钮样式 */
+.chenille-btn {
+	padding: 6px 14px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	transition: all 0.15s ease;
+	user-select: none;
+}
+
+.chenille-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.chenille-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.chenille-btn-secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chenille-btn-secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chenille-btn-danger {
+	background: transparent;
+	color: var(--vscode-errorForeground);
+	padding: 6px 8px;
+}
+
+.chenille-btn-danger:hover {
+	background: rgba(255, 85, 85, 0.15);
+}
+
+/* 表单样式 */
+.chenille-form {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 20px 24px;
+	overflow: auto;
+	flex: 1;
+}
+
+.chenille-form > .chenille-form-group {
+	max-width: 450px;
+}
+
+.chenille-form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chenille-form-label {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chenille-form-input,
+.chenille-form-select,
+.chenille-form-textarea {
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	font-family: inherit;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chenille-form-input:hover,
+.chenille-form-select:hover,
+.chenille-form-textarea:hover {
+	border-color: var(--vscode-input-border);
+}
+
+.chenille-form-input:focus,
+.chenille-form-select:focus,
+.chenille-form-textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.chenille-form-input::placeholder,
+.chenille-form-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.chenille-form-select {
+	cursor: pointer;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23888' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	padding-right: 36px;
+}
+
+.chenille-form-select option {
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	padding: 8px 12px;
+}
+
+.chenille-form-select option:hover,
+.chenille-form-select option:checked {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chenille-form-textarea {
+	min-height: 120px;
+	resize: vertical;
+	line-height: 1.5;
+}
+
+.chenille-form-group-checkbox {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+
+.chenille-form-checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	font-size: 13px;
+}
+
+.chenille-form-checkbox {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	accent-color: var(--vscode-focusBorder);
+}
+
+.chenille-form-hint {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 4px;
+}
+
+.chenille-form-actions {
+	display: flex;
+	gap: 10px;
+	margin-top: 12px;
+	padding-top: 16px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+/* 空状态 */
+.chenille-empty-state {
+	text-align: center;
+	padding: 60px 20px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+}
+
+/* 智能体管理样式 */
+.chenille-agent-item {
+	padding: 16px;
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 6px;
+	margin-bottom: 12px;
+}
+
+.chenille-agent-item:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.chenille-agent-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.chenille-agent-icon {
+	font-size: 24px;
+	color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+}
+
+.chenille-agent-info {
+	flex: 1;
+}
+
+.chenille-agent-name {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.chenille-agent-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-agent-config {
+	display: flex;
+	gap: 16px;
+}
+
+.chenille-config-group {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chenille-config-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.chenille-agent-tip {
+	text-align: center;
+	padding: 20px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	background: var(--vscode-input-background);
+	border: 1px dashed var(--vscode-input-border);
+	border-radius: 6px;
+	margin-top: 12px;
+}
+
+/* 内置提示词样式 */
+.chenille-list-item-builtin {
+	background: var(--vscode-sideBar-background);
+	border-style: dashed;
+}
+
+.chenille-list-item-name-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.chenille-badge {
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-weight: 500;
+	text-transform: uppercase;
+}
+
+.chenille-badge-builtin {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+/* 只读表单样式 */
+.chenille-form-input[readonly],
+.chenille-form-textarea[readonly] {
+	background: var(--vscode-input-background);
+	opacity: 0.8;
+	cursor: not-allowed;
+}

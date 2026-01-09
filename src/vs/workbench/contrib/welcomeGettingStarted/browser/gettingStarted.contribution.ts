@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize2('miWelcome', 'Welcome'),
+			title: localize2('miWelcome', '欢迎'),
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -47,7 +47,7 @@ registerAction2(class extends Action2 {
 				order: 1,
 			},
 			metadata: {
-				description: localize2('minWelcomeDescription', 'Opens a Walkthrough to help you get started in Chenille.')
+				description: localize2('minWelcomeDescription', '打开演练以帮助你开始使用 Chenille。')
 			}
 		});
 	}
@@ -107,20 +107,20 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('welcome', "Welcome")
+		localize('welcome', "欢迎")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize2('welcome', "Welcome");
+const category = localize2('welcome', "欢迎");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.goBack',
-			title: localize2('welcome.goBack', 'Go Back'),
+			title: localize2('welcome.goBack', '返回'),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
@@ -158,7 +158,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.markStepComplete',
-			title: localize('welcome.markStepComplete', "Mark Step Complete"),
+			title: localize('welcome.markStepComplete', "标记步骤为已完成"),
 			category,
 		});
 	}
@@ -174,7 +174,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.markStepIncomplete',
-			title: localize('welcome.markStepInomplete', "Mark Step Incomplete"),
+			title: localize('welcome.markStepInomplete', "标记步骤为未完成"),
 			category,
 		});
 	}
@@ -190,7 +190,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showAllWalkthroughs',
-			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
+			title: localize2('welcome.showAllWalkthroughs', '打开演练...'),
 			category,
 			f1: true,
 			menu: {
@@ -228,7 +228,7 @@ registerAction2(class extends Action2 {
 		quickPick.canSelectMany = false;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
-		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
+		quickPick.placeholder = localize('pickWalkthroughs', '选择要打开的演练');
 		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		disposables.add(quickPick.onDidAccept(() => {
@@ -256,7 +256,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
+export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "当前工作区的平台，在远程或无服务器上下文中可能与 UI 的平台不同"));
 class WorkspacePlatformContribution {
 
 	static readonly ID = 'workbench.contrib.workspacePlatform';
@@ -301,29 +301,29 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "启用后，安装扩展时将打开该扩展的演练。")
 		},
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
 			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
 			'enumDescriptions': [
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with Chenille and extensions."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "启动时不打开编辑器。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "打开欢迎页面，其中包含帮助你开始使用 Chenille 和扩展的内容。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "打开包含 README 的文件夹时打开 README，否则回退到 'welcomePage'。注意: 这仅作为全局配置生效，如果在工作区或文件夹配置中设置将被忽略。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "打开新的无标题文本文件(仅在打开空窗口时适用)。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "打开空工作台时打开欢迎页面。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "在编辑器区域打开新终端。"),
 			],
 			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+			'description': localize('workbench.startupEditor', "控制启动时显示哪个编辑器(如果没有从上一个会话恢复)。")
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: false,
-			deprecationMessage: localize('deprecationMessage', "Deprecated, use the global `workbench.reduceMotion`."),
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+			deprecationMessage: localize('deprecationMessage', "已弃用，请使用全局设置 `workbench.reduceMotion`。"),
+			description: localize('workbench.welcomePage.preferReducedMotion', "启用后，减少欢迎页面中的动画效果。")
 		}
 	}
 });

@@ -17,13 +17,13 @@ on:
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
-    runs-on: macos-14-xlarge
+    runs-on: macos-14
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -53,13 +53,13 @@ jobs:
           xcode-select -print-path
           python3 -m pip install --break-system-packages setuptools
 
-          for i in {1..5}; do # try 5 times
+          for i in {1..5}; do # 最多重试 5 次
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 依赖安装失败次数过多" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
@@ -67,10 +67,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
-          # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
-          # flipped the default to support legacy linux distros which shouldn't happen
-          # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
 
       - name: Create node_modules archive
@@ -108,19 +104,19 @@ jobs:
         run: |
           set -e
 
-          for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
+          for i in {1..3}; do # 最多重试 3 次
             if npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
-              echo "Download successful on attempt $i"
+              echo "第 $i 次尝试下载成功"
               break
             fi
 
             if [ $i -eq 3 ]; then
-              echo "Download failed after 3 attempts" >&2
+              echo "连续 3 次下载失败" >&2
               exit 1
             fi
 
-            echo "Download failed on attempt $i, retrying..."
-            sleep 5 # optional: add a small delay between retries
+            echo "第 $i 次下载失败，准备重试……"
+            sleep 5
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -220,8 +216,6 @@ jobs:
           path: .build/crashes
           if-no-files-found: ignore
 
-      # In order to properly symbolify above crash reports
-      # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@v5
         if: failure()

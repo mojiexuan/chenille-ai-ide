@@ -122,6 +122,19 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { ICommitMessageService, CommitMessageChannel, CommitMessageChannelName } from '../../chenille/common/commitMessage.js';
+import { CommitMessageMainService } from '../../chenille/electron-main/commitMessageService.js';
+import { IAiModelStorageService, ModelStorageChannel, ModelStorageChannelName, IAiPromptStorageService, PromptStorageChannel, PromptStorageChannelName, IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName } from '../../chenille/common/storageIpc.js';
+import { AiModelStorageMainService } from '../../chenille/electron-main/modelStorage.js';
+import { AiPromptStorageMainService } from '../../chenille/electron-main/promptStorage.js';
+import { AiAgentStorageMainService } from '../../chenille/electron-main/agentStorage.js';
+import { IAiAgentMainService, AiAgentMainService } from '../../chenille/electron-main/agentService.js';
+import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '../../chenille/common/chatService.js';
+import { ChenilleAiMainService } from '../../chenille/electron-main/chatService.js';
+import { IChenilleInlineCompletionService, ChenilleInlineCompletionChannel, ChenilleInlineCompletionChannelName } from '../../chenille/common/inlineCompletionService.js';
+import { ChenilleInlineCompletionMainService } from '../../chenille/electron-main/inlineCompletionService.js';
+import { IChenilleVersionCheckService, ChenilleVersionCheckChannel, ChenilleVersionCheckChannelName } from '../../chenille/common/versionCheckService.js';
+import { ChenilleVersionCheckMainService } from '../../chenille/electron-main/versionCheckService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1106,6 +1119,15 @@ export class CodeApplication extends Disposable {
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
+		// Chenille: AI 存储服务
+		services.set(IAiModelStorageService, new SyncDescriptor(AiModelStorageMainService));
+		services.set(IAiPromptStorageService, new SyncDescriptor(AiPromptStorageMainService));
+		services.set(IAiAgentStorageService, new SyncDescriptor(AiAgentStorageMainService));
+		services.set(IAiAgentMainService, new SyncDescriptor(AiAgentMainService));
+		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
+		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
+		services.set(IChenilleInlineCompletionService, new SyncDescriptor(ChenilleInlineCompletionMainService));
+		services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1239,6 +1261,32 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Chenille: 存储服务 IPC
+		const modelStorageChannel = new ModelStorageChannel(accessor.get(IAiModelStorageService));
+		mainProcessElectronServer.registerChannel(ModelStorageChannelName, modelStorageChannel);
+
+		const promptStorageChannel = new PromptStorageChannel(accessor.get(IAiPromptStorageService));
+		mainProcessElectronServer.registerChannel(PromptStorageChannelName, promptStorageChannel);
+
+		const agentStorageChannel = new AgentStorageChannel(accessor.get(IAiAgentStorageService));
+		mainProcessElectronServer.registerChannel(AgentStorageChannelName, agentStorageChannel);
+
+		// Chenille: 提交消息生成服务
+		const commitMessageChannel = new CommitMessageChannel(accessor.get(ICommitMessageService));
+		mainProcessElectronServer.registerChannel(CommitMessageChannelName, commitMessageChannel);
+
+		// Chenille: Chat 服务
+		const chatChannel = new ChenilleAiChannel(accessor.get(IChenilleAiService));
+		mainProcessElectronServer.registerChannel(ChenilleAiChannelName, chatChannel);
+
+		// Chenille: Inline Completion 服务
+		const inlineCompletionChannel = new ChenilleInlineCompletionChannel(accessor.get(IChenilleInlineCompletionService));
+		mainProcessElectronServer.registerChannel(ChenilleInlineCompletionChannelName, inlineCompletionChannel);
+
+		// Chenille: 版本检查服务
+		const versionCheckChannel = new ChenilleVersionCheckChannel(accessor.get(IChenilleVersionCheckService));
+		mainProcessElectronServer.registerChannel(ChenilleVersionCheckChannelName, versionCheckChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

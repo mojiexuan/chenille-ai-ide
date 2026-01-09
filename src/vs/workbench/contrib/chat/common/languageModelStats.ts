@@ -47,7 +47,7 @@ export const CopilotUsageExtensionFeatureId = 'copilot';
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: CopilotUsageExtensionFeatureId,
 	label: localize('Language Models', "Copilot"),
-	description: localize('languageModels', "Language models usage statistics of this extension."),
+	description: localize('languageModels', "语言模型此扩展的使用统计数据。"),
 	icon: Codicon.copilot,
 	access: {
 		canToggle: false

@@ -177,7 +177,7 @@ export class ExtensionsResource implements IProfileResource {
 							if (token.isCancellationRequested) {
 								return;
 							}
-							progress?.(localize('installingExtension', "Installing extension {0}...", installExtensionInfo.extension.displayName ?? installExtensionInfo.extension.identifier.id));
+							progress?.(localize('installingExtension', "正在安装扩展 {0}...", installExtensionInfo.extension.displayName ?? installExtensionInfo.extension.identifier.id));
 							await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
 						}
 					} else {
@@ -269,7 +269,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 
 	readonly type = ProfileResourceType.Extensions;
 	readonly handle = ProfileResourceType.Extensions;
-	readonly label = { label: localize('extensions', "Extensions") };
+	readonly label = { label: localize('extensions', "扩展") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
 	contextValue = ProfileResourceType.Extensions;
 	checkbox: ITreeItemCheckboxState | undefined;
@@ -284,7 +284,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 			handle: e.identifier.id.toLowerCase(),
 			parent: this,
 			label: { label: e.displayName || e.identifier.id },
-			description: e.applicationScoped ? localize('all profiles and disabled', "All Profiles") : undefined,
+			description: e.applicationScoped ? localize('all profiles and disabled', "所有配置文件") : undefined,
 			collapsibleState: TreeItemCollapsibleState.None,
 			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedExtensions.has(e.identifier.id.toLowerCase()); },
@@ -295,9 +295,9 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
 				},
-				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+				tooltip: localize('exclude', "选择 {0} 扩展", e.displayName || e.identifier.id),
 				accessibilityInformation: {
-					label: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+					label: localize('exclude', "选择 {0} 扩展", e.displayName || e.identifier.id),
 				}
 			} : undefined,
 			themeIcon: Codicon.extensions,

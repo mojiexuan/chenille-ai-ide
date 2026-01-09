@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "chenille-ai-ide",
   "version": "1.107.1",
   "distro": "0a18739abab6297f022e9a1c870feefe54bf8197",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Chenille"
   },
   "license": "MIT",
   "main": "./out/main.js",
@@ -72,6 +72,8 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^1.34.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
@@ -110,6 +112,7 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
+    "openai": "^6.15.0",
     "tas-client": "0.3.1",
     "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",
@@ -231,10 +234,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "url": "https://github.com/mojiexuan/chenille-ai-ide.git"
   },
   "bugs": {
-    "url": "https://github.com/microsoft/vscode/issues"
+    "url": "https://github.com/mojiexuan/chenille-ai-ide/issues"
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"

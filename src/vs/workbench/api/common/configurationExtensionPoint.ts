@@ -28,24 +28,24 @@ const configurationEntrySchema: IJSONSchema = {
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', 'A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.'),
+			description: nls.localize('vscode.extension.contributes.configuration.title', '当前设置类别的标题。此标签将在设置编辑器中作为子标题呈现。如果标题与扩展显示名称相同，则该类别将分组在主扩展标题下。'),
 			type: 'string'
 		},
 		order: {
-			description: nls.localize('vscode.extension.contributes.configuration.order', 'When specified, gives the order of this category of settings relative to other categories.'),
+			description: nls.localize('vscode.extension.contributes.configuration.order', '指定时，给出此设置类别相对于其他类别的顺序。'),
 			type: 'integer'
 		},
 		properties: {
-			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
+			description: nls.localize('vscode.extension.contributes.configuration.properties', '配置属性的描述。'),
 			type: 'object',
 			propertyNames: {
 				pattern: '\\S+',
-				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', 'Property should not be empty.'),
+				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', '属性不应为空。'),
 			},
 			additionalProperties: {
 				anyOf: [
 					{
-						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
+						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', '配置属性的架构。'),
 						$ref: 'http://json-schema.org/draft-07/schema#'
 					},
 					{
@@ -56,65 +56,65 @@ const configurationEntrySchema: IJSONSchema = {
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
-									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings or only in the remote settings."),
-									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
-									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
-									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
-									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
+									nls.localize('scope.application.description', "只能在用户设置中配置的配置。"),
+									nls.localize('scope.machine.description', "只能在用户设置或远程设置中配置的配置。"),
+									nls.localize('scope.window.description', "可以在用户、远程或工作区设置中配置的配置。"),
+									nls.localize('scope.resource.description', "可以在用户、远程、工作区或文件夹设置中配置的配置。"),
+									nls.localize('scope.language-overridable.description', "可以在语言特定设置中配置的资源配置。"),
+									nls.localize('scope.machine-overridable.description', "也可以在工作区或文件夹设置中配置的计算机配置。")
 								],
-								markdownDescription: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
+								markdownDescription: nls.localize('scope.description', "配置适用的作用域。可用的作用域有 `application`、`machine`、`window`、`resource` 和 `machine-overridable`。")
 							},
 							enumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
+								description: nls.localize('scope.enumDescriptions', '枚举值的描述')
 							},
 							markdownEnumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
+								description: nls.localize('scope.markdownEnumDescriptions', 'Markdown 格式的枚举值描述。')
 							},
 							enumItemLabels: {
 								type: 'array',
 								items: {
 									type: 'string'
 								},
-								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
+								markdownDescription: nls.localize('scope.enumItemLabels', '要在设置编辑器中显示的枚举值标签。指定后，{0} 值仍会显示在标签之后，但不太突出。', '`enum`')
 							},
 							markdownDescription: {
 								type: 'string',
-								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
+								description: nls.localize('scope.markdownDescription', 'Markdown 格式的描述。')
 							},
 							deprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
+								description: nls.localize('scope.deprecationMessage', '如果设置，该属性将被标记为已弃用，并显示给定的消息作为说明。')
 							},
 							markdownDeprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
+								description: nls.localize('scope.markdownDeprecationMessage', '如果设置，该属性将被标记为已弃用，并以 Markdown 格式显示给定的消息作为说明。')
 							},
 							editPresentation: {
 								type: 'string',
 								enum: ['singlelineText', 'multilineText'],
 								enumDescriptions: [
-									nls.localize('scope.singlelineText.description', 'The value will be shown in an inputbox.'),
-									nls.localize('scope.multilineText.description', 'The value will be shown in a textarea.')
+									nls.localize('scope.singlelineText.description', '值将显示在输入框中。'),
+									nls.localize('scope.multilineText.description', '值将显示在文本区域中。')
 								],
 								default: 'singlelineText',
-								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
+								description: nls.localize('scope.editPresentation', '指定时，控制字符串设置的呈现格式。')
 							},
 							order: {
 								type: 'integer',
-								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
+								description: nls.localize('scope.order', '指定时，给出此设置相对于同一类别中其他设置的顺序。具有 order 属性的设置将放在没有设置此属性的设置之前。')
 							},
 							ignoreSync: {
 								type: 'boolean',
-								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+								description: nls.localize('scope.ignoreSync', '启用后，设置同步默认不会同步此配置的用户值。')
 							},
 							tags: {
 								type: 'array',
@@ -128,16 +128,16 @@ const configurationEntrySchema: IJSONSchema = {
 										'usesOnlineServices',
 									],
 									enumDescriptions: [
-										nls.localize('accessibility', 'Accessibility settings'),
-										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
-										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
-										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
-										nls.localize('telemetry', 'Telemetry settings'),
-										nls.localize('usesOnlineServices', 'Settings that use online services')
+										nls.localize('accessibility', '辅助功能设置'),
+										nls.localize('advanced', '高级设置默认在设置编辑器中隐藏，除非用户选择显示高级设置。'),
+										nls.localize('experimental', '实验性设置可能会更改，并可能在将来的版本中删除。'),
+										nls.localize('preview', '预览设置可用于在功能最终确定之前试用新功能。'),
+										nls.localize('telemetry', '遥测设置'),
+										nls.localize('usesOnlineServices', '使用在线服务的设置')
 									],
 								},
 								additionalItems: true,
-								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+								markdownDescription: nls.localize('scope.tags', '放置设置的标签列表。然后可以在设置编辑器中搜索该标签。例如，指定 `experimental` 标签允许通过搜索 `@tag:experimental` 来查找设置。'),
 							}
 						}
 					}
@@ -187,13 +187,13 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 			for (const key of Object.keys(overrides)) {
 				const registeredPropertyScheme = registeredProperties[key];
 				if (registeredPropertyScheme?.disallowConfigurationDefault) {
-					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. This setting does not allow contributing configuration defaults.", key));
+					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "无法为 '{0}' 注册配置默认值。此设置不允许贡献配置默认值。", key));
 					delete overrides[key];
 					continue;
 				}
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
 					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
-						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
+						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "无法为 '{0}' 注册配置默认值。仅支持 machine-overridable、window、resource 和 language overridable 作用域设置的默认值。", key));
 						delete overrides[key];
 						continue;
 					}
@@ -212,7 +212,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	extensionPoint: 'configuration',
 	deps: [defaultConfigurationExtPoint],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+		description: nls.localize('vscode.extension.contributes.configuration', '贡献配置设置。'),
 		oneOf: [
 			configurationEntrySchema,
 			{
@@ -246,7 +246,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
-			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
+			extension.collector.error(nls.localize('invalid.title', "'configuration.title' 必须是字符串"));
 		}
 
 		validateProperties(configuration, extension);
@@ -263,7 +263,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
 			if (typeof properties !== 'object') {
-				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' 必须是对象"));
 				configuration.properties = {};
 			}
 			for (const key in properties) {
@@ -276,12 +276,12 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				}
 				if (seenProperties.has(key) && !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extension.description.identifier.value.toLowerCase())) {
 					delete properties[key];
-					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
+					extension.collector.warn(nls.localize('config.property.duplicate', "无法注册 '{0}'。此属性已被注册。", key));
 					continue;
 				}
 				if (!isObject(propertyConfiguration)) {
 					delete properties[key];
-					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
+					extension.collector.error(nls.localize('invalid.property', "configuration.properties 属性 '{0}' 必须是对象", key));
 					continue;
 				}
 				if (extensionConfigurationPolicy?.[key]) {
@@ -298,7 +298,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		}
 		const subNodes = configuration.allOf;
 		if (subNodes) {
-			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
+			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' 已弃用，不应再使用。请改为将多个配置部分作为数组传递给 'configuration' 贡献点。"));
 			for (const node of subNodes) {
 				validateProperties(node, extension);
 			}
@@ -344,7 +344,7 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		'folders': {
 			minItems: 0,
 			uniqueItems: true,
-			description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace."),
+			description: nls.localize('workspaceConfig.folders.description', "要在工作区中加载的文件夹列表。"),
 			items: {
 				type: 'object',
 				defaultSnippets: [{ body: { path: '$1' } }],
@@ -352,11 +352,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					properties: {
 						path: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.path.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
+							description: nls.localize('workspaceConfig.path.description', "文件路径。例如 `/root/folderA` 或 `./folderA`（相对路径将相对于工作区文件的位置解析）。")
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							description: nls.localize('workspaceConfig.name.description', "文件夹的可选名称。")
 						}
 					},
 					required: ['path']
@@ -364,11 +364,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					properties: {
 						uri: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.uri.description', "URI of the folder")
+							description: nls.localize('workspaceConfig.uri.description', "文件夹的 URI")
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							description: nls.localize('workspaceConfig.name.description', "文件夹的可选名称。")
 						}
 					},
 					required: ['uri']
@@ -378,19 +378,19 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		'settings': {
 			type: 'object',
 			default: {},
-			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
+			description: nls.localize('workspaceConfig.settings.description', "工作区设置"),
 			$ref: workspaceSettingsSchemaId
 		},
 		'launch': {
 			type: 'object',
 			default: { configurations: [], compounds: [] },
-			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
+			description: nls.localize('workspaceConfig.launch.description', "工作区启动配置"),
 			$ref: launchSchemaId
 		},
 		'tasks': {
 			type: 'object',
 			default: { version: '2.0.0', tasks: [] },
-			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
+			description: nls.localize('workspaceConfig.tasks.description', "工作区任务配置"),
 			$ref: tasksSchemaId
 		},
 		'mcp': {
@@ -404,27 +404,27 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					}
 				}
 			},
-			description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+			description: nls.localize('workspaceConfig.mcp.description', "模型上下文协议服务器配置"),
 			$ref: mcpSchemaId
 		},
 		'extensions': {
 			type: 'object',
 			default: {},
-			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
+			description: nls.localize('workspaceConfig.extensions.description', "工作区扩展"),
 			$ref: 'vscode://schemas/extensions'
 		},
 		'remoteAuthority': {
 			type: 'string',
 			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
+			description: nls.localize('workspaceConfig.remoteAuthority', "工作区所在的远程服务器。"),
 		},
 		'transient': {
 			type: 'boolean',
 			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.transient', "A transient workspace will disappear when restarting or reloading."),
+			description: nls.localize('workspaceConfig.transient', "临时工作区将在重新启动或重新加载时消失。"),
 		}
 	},
-	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
+	errorMessage: nls.localize('unknownWorkspaceProperty', "未知的工作区配置属性")
 });
 
 
@@ -444,7 +444,7 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const properties = getAllConfigurationProperties(configuration);
 
 		const contrib = properties ? Object.keys(properties) : [];
-		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "Description"), nls.localize('default', "Default")];
+		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "描述"), nls.localize('default', "默认值")];
 		const rows: IRowData[][] = contrib.sort((a, b) => a.localeCompare(b))
 			.map(key => {
 				return [
@@ -466,7 +466,7 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'configuration',
-	label: nls.localize('settings', "Settings"),
+	label: nls.localize('settings', "设置"),
 	access: {
 		canToggle: false
 	},

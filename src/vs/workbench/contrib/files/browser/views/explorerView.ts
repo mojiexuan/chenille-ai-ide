@@ -283,7 +283,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const setHeader = () => {
 			titleElement.textContent = this.name;
 			this.updateTitle(this.name);
-			this.ariaHeaderLabel = nls.localize('explorerSection', "Explorer Section: {0}", this.name);
+			this.ariaHeaderLabel = nls.localize('explorerSection', "资源管理器部分: {0}", this.name);
 			titleElement.setAttribute('aria-label', this.ariaHeaderLabel);
 		};
 
@@ -1003,7 +1003,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFileFromExplorer',
-			title: nls.localize('createNewFile', "New File..."),
+			title: nls.localize('createNewFile', "新建文件..."),
 			f1: false,
 			icon: Codicon.newFile,
 			precondition: CanCreateContext,
@@ -1026,7 +1026,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.createFolderFromExplorer',
-			title: nls.localize('createNewFolder', "New Folder..."),
+			title: nls.localize('createNewFolder', "新建文件夹..."),
 			f1: false,
 			icon: Codicon.newFolder,
 			precondition: CanCreateContext,
@@ -1049,7 +1049,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: nls.localize2('refreshExplorer', "Refresh Explorer"),
+			title: nls.localize2('refreshExplorer', "刷新资源管理器"),
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -1059,7 +1059,7 @@ registerAction2(class extends Action2 {
 				order: 30,
 			},
 			metadata: {
-				description: nls.localize2('refreshExplorerMetadata', "Forces a refresh of the Explorer.")
+				description: nls.localize2('refreshExplorerMetadata', "强制刷新资源管理器。")
 			},
 			precondition: ExplorerFindProviderActive.negate()
 		});
@@ -1077,7 +1077,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: nls.localize2('collapseExplorerFolders', "Collapse Folders in Explorer"),
+			title: nls.localize2('collapseExplorerFolders', "折叠资源管理器中的文件夹"),
 			f1: true,
 			icon: Codicon.collapseAll,
 			menu: {
@@ -1087,7 +1087,7 @@ registerAction2(class extends Action2 {
 				order: 40
 			},
 			metadata: {
-				description: nls.localize2('collapseExplorerFoldersMetadata', "Folds all folders in the Explorer.")
+				description: nls.localize2('collapseExplorerFoldersMetadata', "折叠资源管理器中的所有文件夹。")
 			}
 		});
 	}

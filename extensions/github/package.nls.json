@@ -10,7 +10,7 @@
 	"config.gitProtocol": "Controls which protocol is used to clone a GitHub repository",
 	"config.showAvatar": "Controls whether to show the GitHub avatar of the commit author in various hovers (ex: Git blame, Timeline, Source Control Graph, etc.)",
 	"welcome.publishFolder": {
-		"message": "You can directly publish this folder to a GitHub repository. Once published, you'll have access to source control features powered by Git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
+		"message": "您可以直接将此文件夹发布到GitHub存储库。一旦发布，您将可以访问由Git和GitHub支持的源代码控制功能。\n[$(github) Publish to GitHub](command:github.publish)",
 		"comment": [
 			"{Locked='$(github)'}",
 			"Do not translate '$(github)'. It will be rendered as an icon",

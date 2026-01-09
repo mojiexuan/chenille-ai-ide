@@ -55,16 +55,16 @@ export interface IUserDataSyncWorkbenchService {
 
 export function getSyncAreaLabel(source: SyncResource): string {
 	switch (source) {
-		case SyncResource.Settings: return localize('settings', "Settings");
-		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
-		case SyncResource.Snippets: return localize('snippets', "Snippets");
-		case SyncResource.Prompts: return localize('prompts', "Prompts and Instructions");
-		case SyncResource.Tasks: return localize('tasks', "Tasks");
-		case SyncResource.Mcp: return localize('mcp', "MCP Servers");
-		case SyncResource.Extensions: return localize('extensions', "Extensions");
-		case SyncResource.GlobalState: return localize('ui state label', "UI State");
-		case SyncResource.Profiles: return localize('profiles', "Profiles");
-		case SyncResource.WorkspaceState: return localize('workspace state label', "Workspace State");
+		case SyncResource.Settings: return localize('settings', "设置");
+		case SyncResource.Keybindings: return localize('keybindings', "键盘快捷方式");
+		case SyncResource.Snippets: return localize('snippets', "代码片段");
+		case SyncResource.Prompts: return localize('prompts', "提示和说明");
+		case SyncResource.Tasks: return localize('tasks', "任务");
+		case SyncResource.Mcp: return localize('mcp', "MCP 服务器");
+		case SyncResource.Extensions: return localize('extensions', "扩展");
+		case SyncResource.GlobalState: return localize('ui state label', "UI 状态");
+		case SyncResource.Profiles: return localize('profiles', "配置文件");
+		case SyncResource.WorkspaceState: return localize('workspace state label', "工作区状态");
 	}
 }
 
@@ -78,9 +78,9 @@ export interface IUserDataSyncConflictsView extends IView {
 	open(conflict: IResourcePreview): Promise<void>;
 }
 
-export const SYNC_TITLE: ILocalizedString = localize2('sync category', "Settings Sync");
+export const SYNC_TITLE: ILocalizedString = localize2('sync category', "设置同步");
 
-export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
+export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', '设置同步视图的视图图标。'));
 
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
@@ -100,7 +100,7 @@ export const SYNC_CONFLICTS_VIEW_ID = 'workbench.views.sync.conflicts';
 
 export const DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR: Readonly<IAction2Options> = {
 	id: 'workbench.userDataSync.actions.downloadSyncActivity',
-	title: localize2('download sync activity title', "Download Settings Sync Activity"),
+	title: localize2('download sync activity title', "下载设置同步活动"),
 	category: Categories.Developer,
 	f1: true,
 	precondition: ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))

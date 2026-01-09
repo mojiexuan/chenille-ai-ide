@@ -69,14 +69,14 @@ export class GutterIndicatorMenuContent {
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
-			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
+			title: `${localize('goto', "转到")} / ${localize('accept', "接受")}`,
 			icon: Codicon.check,
 			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
 			id: 'reject',
-			title: localize('reject', "Reject"),
+			title: localize('reject', "拒绝"),
 			icon: Codicon.close,
 			commandId: hideInlineCompletionId
 		}));
@@ -112,13 +112,13 @@ export class GutterIndicatorMenuContent {
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
 				id: 'showExpanded',
-				title: localize('showExpanded', "Show Expanded"),
+				title: localize('showExpanded', "显示展开"),
 				icon: Codicon.expandAll,
 				commandId: toggleShowCollapsedId
 			}))
 			: option(createOptionArgs({
 				id: 'showCollapsed',
-				title: localize('showCollapsed', "Show Collapsed"),
+				title: localize('showCollapsed', "显示折叠"),
 				icon: Codicon.collapseAll,
 				commandId: toggleShowCollapsedId
 			}))
@@ -126,14 +126,14 @@ export class GutterIndicatorMenuContent {
 
 		const snooze = option(createOptionArgs({
 			id: 'snooze',
-			title: localize('snooze', "Snooze"),
+			title: localize('snooze', "暂停提醒"),
 			icon: Codicon.bellSlash,
 			commandId: 'editor.action.inlineSuggest.snooze'
 		}));
 
 		const settings = option(createOptionArgs({
 			id: 'settings',
-			title: localize('settings', "Settings"),
+			title: localize('settings', "设置"),
 			icon: Codicon.gear,
 			commandId: 'workbench.action.openSettings',
 			commandArgs: ['@tag:nextEditSuggestions']

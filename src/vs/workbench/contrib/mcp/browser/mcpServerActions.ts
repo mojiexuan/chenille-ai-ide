@@ -252,7 +252,7 @@ export class InstallAction extends McpServerAction {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
+		super('extensions.install', localize('install', "安装"), InstallAction.CLASS, false);
 		this.update();
 	}
 
@@ -276,7 +276,7 @@ export class InstallAction extends McpServerAction {
 
 		if (this.open) {
 			this.mcpWorkbenchService.open(this.mcpServer);
-			alert(localize('mcpServerInstallation', "Installing MCP Server {0} started. An editor is now open with more details on this MCP Server", this.mcpServer.label));
+			alert(localize('mcpServerInstallation', "正在安装 MCP 服务器 {0}。已打开编辑器显示此 MCP 服务器的详细信息", this.mcpServer.label));
 		}
 
 		type McpServerInstallClassification = {
@@ -310,7 +310,7 @@ export class InstallInWorkspaceAction extends McpServerAction {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.installWorkspace', localize('installInWorkspace', "Install in Workspace"), InstallAction.CLASS, false);
+		super('extensions.installWorkspace', localize('installInWorkspace', "安装到工作区"), InstallAction.CLASS, false);
 		this.update();
 	}
 
@@ -337,7 +337,7 @@ export class InstallInWorkspaceAction extends McpServerAction {
 
 		if (this.open) {
 			this.mcpWorkbenchService.open(this.mcpServer, { preserveFocus: true });
-			alert(localize('mcpServerInstallation', "Installing MCP Server {0} started. An editor is now open with more details on this MCP Server", this.mcpServer.label));
+			alert(localize('mcpServerInstallation', "正在安装 MCP 服务器 {0}。已打开编辑器显示此 MCP 服务器的详细信息", this.mcpServer.label));
 		}
 
 		const target = await this.getConfigurationTarget();
@@ -366,14 +366,14 @@ export class InstallInWorkspaceAction extends McpServerAction {
 		const options: OptionQuickPickItem[] = [];
 
 		for (const folder of this.workspaceService.getWorkspace().folders) {
-			options.push({ target: folder, label: folder.name, description: localize('install in workspace folder', "Workspace Folder") });
+			options.push({ target: folder, label: folder.name, description: localize('install in workspace folder', "工作区文件夹") });
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			if (options.length > 0) {
 				options.push({ type: 'separator' });
 			}
-			options.push({ target: ConfigurationTarget.WORKSPACE, label: localize('mcp.target.workspace', "Workspace") });
+			options.push({ target: ConfigurationTarget.WORKSPACE, label: localize('mcp.target.workspace', "工作区") });
 		}
 
 		if (options.length === 1) {
@@ -381,7 +381,7 @@ export class InstallInWorkspaceAction extends McpServerAction {
 		}
 
 		const targetPick = await this.quickInputService.pick(options, {
-			title: localize('mcp.target.title', "Choose where to install the MCP server"),
+			title: localize('mcp.target.title', "选择 MCP 服务器的安装位置"),
 		});
 
 		return (targetPick as OptionQuickPickItem)?.target;
@@ -401,9 +401,9 @@ export class InstallInRemoteAction extends McpServerAction {
 		@ILabelService private readonly labelService: ILabelService,
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.installRemote', localize('installInRemote', "Install (Remote)"), InstallAction.CLASS, false);
+		super('extensions.installRemote', localize('installInRemote', "安装(远程)"), InstallAction.CLASS, false);
 		const remoteLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
-		this.label = localize('installInRemoteLabel', "Install in {0}", remoteLabel);
+		this.label = localize('installInRemoteLabel', "安装到 {0}", remoteLabel);
 		this.update();
 	}
 
@@ -435,7 +435,7 @@ export class InstallInRemoteAction extends McpServerAction {
 
 		if (this.open) {
 			this.mcpWorkbenchService.open(this.mcpServer);
-			alert(localize('mcpServerInstallation', "Installing MCP Server {0} started. An editor is now open with more details on this MCP Server", this.mcpServer.label));
+			alert(localize('mcpServerInstallation', "正在安装 MCP 服务器 {0}。已打开编辑器显示此 MCP 服务器的详细信息", this.mcpServer.label));
 		}
 
 		type McpServerInstallClassification = {
@@ -458,7 +458,7 @@ export class InstallInRemoteAction extends McpServerAction {
 
 export class InstallingLabelAction extends McpServerAction {
 
-	private static readonly LABEL = localize('installing', "Installing");
+	private static readonly LABEL = localize('installing', "正在安装");
 	private static readonly CLASS = `${McpServerAction.LABEL_ACTION_CLASS} install installing`;
 
 	constructor() {
@@ -478,7 +478,7 @@ export class UninstallAction extends McpServerAction {
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 	) {
-		super('extensions.uninstall', localize('uninstall', "Uninstall"), UninstallAction.CLASS, false);
+		super('extensions.uninstall', localize('uninstall', "卸载"), UninstallAction.CLASS, false);
 		this.update();
 	}
 
@@ -497,7 +497,7 @@ export class UninstallAction extends McpServerAction {
 		}
 		this.class = UninstallAction.CLASS;
 		this.enabled = true;
-		this.label = localize('uninstall', "Uninstall");
+		this.label = localize('uninstall', "卸载");
 	}
 
 	override async run(): Promise<void> {
@@ -578,7 +578,7 @@ export class ManageMcpServerAction extends DropDownAction {
 	) {
 
 		super(ManageMcpServerAction.ID, '', '', true, instantiationService);
-		this.tooltip = localize('manage', "Manage");
+		this.tooltip = localize('manage', "管理");
 		this.update();
 	}
 
@@ -610,7 +610,7 @@ export class StartServerAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.start', localize('start', "Start Server"), StartServerAction.CLASS, false);
+		super('extensions.start', localize('start', "启动服务器"), StartServerAction.CLASS, false);
 		this.update();
 	}
 
@@ -627,7 +627,7 @@ export class StartServerAction extends McpServerAction {
 		}
 		this.class = StartServerAction.CLASS;
 		this.enabled = true;
-		this.label = localize('start', "Start Server");
+		this.label = localize('start', "启动服务器");
 	}
 
 	override async run(): Promise<void> {
@@ -658,7 +658,7 @@ export class StopServerAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.stop', localize('stop', "Stop Server"), StopServerAction.CLASS, false);
+		super('extensions.stop', localize('stop', "停止服务器"), StopServerAction.CLASS, false);
 		this.update();
 	}
 
@@ -675,7 +675,7 @@ export class StopServerAction extends McpServerAction {
 		}
 		this.class = StopServerAction.CLASS;
 		this.enabled = true;
-		this.label = localize('stop', "Stop Server");
+		this.label = localize('stop', "停止服务器");
 	}
 
 	override async run(): Promise<void> {
@@ -705,7 +705,7 @@ export class RestartServerAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.restart', localize('restart', "Restart Server"), RestartServerAction.CLASS, false);
+		super('extensions.restart', localize('restart', "重启服务器"), RestartServerAction.CLASS, false);
 		this.update();
 	}
 
@@ -722,7 +722,7 @@ export class RestartServerAction extends McpServerAction {
 		}
 		this.class = RestartServerAction.CLASS;
 		this.enabled = true;
-		this.label = localize('restart', "Restart Server");
+		this.label = localize('restart', "重启服务器");
 	}
 
 	override async run(): Promise<void> {
@@ -751,8 +751,8 @@ export class AuthServerAction extends McpServerAction {
 	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent account`;
 	private static readonly HIDE = `${this.CLASS} hide`;
 
-	private static readonly SIGN_OUT = localize('mcp.signOut', 'Sign Out');
-	private static readonly DISCONNECT = localize('mcp.disconnect', 'Disconnect Account');
+	private static readonly SIGN_OUT = localize('mcp.signOut', '退出登录');
+	private static readonly DISCONNECT = localize('mcp.disconnect', '断开账户连接');
 
 	private _accountQuery: IAccountQuery | undefined;
 
@@ -761,7 +761,7 @@ export class AuthServerAction extends McpServerAction {
 		@IAuthenticationQueryService private readonly _authenticationQueryService: IAuthenticationQueryService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService
 	) {
-		super('extensions.restart', localize('restart', "Restart Server"), RestartServerAction.CLASS, false);
+		super('extensions.restart', localize('restart', "重启服务器"), RestartServerAction.CLASS, false);
 		this.update();
 	}
 
@@ -851,7 +851,7 @@ export class ShowServerOutputAction extends McpServerAction {
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
 	) {
-		super('extensions.output', localize('output', "Show Output"), ShowServerOutputAction.CLASS, false);
+		super('extensions.output', localize('output', "显示输出"), ShowServerOutputAction.CLASS, false);
 		this.update();
 	}
 
@@ -864,7 +864,7 @@ export class ShowServerOutputAction extends McpServerAction {
 		}
 		this.class = ShowServerOutputAction.CLASS;
 		this.enabled = true;
-		this.label = localize('output', "Show Output");
+		this.label = localize('output', "显示输出");
 	}
 
 	override async run(): Promise<void> {
@@ -894,7 +894,7 @@ export class ShowServerConfigurationAction extends McpServerAction {
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService
 	) {
-		super('extensions.config', localize('config', "Show Configuration"), ShowServerConfigurationAction.CLASS, false);
+		super('extensions.config', localize('config', "显示配置"), ShowServerConfigurationAction.CLASS, false);
 		this.update();
 	}
 
@@ -927,7 +927,7 @@ export class ShowServerJsonConfigurationAction extends McpServerAction {
 		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super('extensions.jsonConfig', localize('configJson', "Show Configuration (JSON)"), ShowServerJsonConfigurationAction.CLASS, false);
+		super('extensions.jsonConfig', localize('configJson', "显示配置 (JSON)"), ShowServerJsonConfigurationAction.CLASS, false);
 		this.update();
 	}
 
@@ -979,7 +979,7 @@ export class ConfigureModelAccessAction extends McpServerAction {
 		@IMcpService private readonly mcpService: IMcpService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super('extensions.config', localize('mcp.configAccess', 'Configure Model Access'), ConfigureModelAccessAction.CLASS, false);
+		super('extensions.config', localize('mcp.configAccess', '配置模型访问'), ConfigureModelAccessAction.CLASS, false);
 		this.update();
 	}
 
@@ -992,7 +992,7 @@ export class ConfigureModelAccessAction extends McpServerAction {
 		}
 		this.class = ConfigureModelAccessAction.CLASS;
 		this.enabled = true;
-		this.label = localize('mcp.configAccess', 'Configure Model Access');
+		this.label = localize('mcp.configAccess', '配置模型访问');
 	}
 
 	override async run(): Promise<void> {
@@ -1024,7 +1024,7 @@ export class ShowSamplingRequestsAction extends McpServerAction {
 		@IMcpSamplingService private readonly samplingService: IMcpSamplingService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super('extensions.config', localize('mcp.samplingLog', 'Show Sampling Requests'), ShowSamplingRequestsAction.CLASS, false);
+		super('extensions.config', localize('mcp.samplingLog', '显示采样请求'), ShowSamplingRequestsAction.CLASS, false);
 		this.update();
 	}
 
@@ -1053,7 +1053,7 @@ export class ShowSamplingRequestsAction extends McpServerAction {
 		this.editorService.openEditor({
 			resource: undefined,
 			contents: this.samplingService.getLogText(server),
-			label: localize('mcp.samplingLog.title', 'MCP Sampling: {0}', server.definition.label),
+			label: localize('mcp.samplingLog.title', 'MCP 采样: {0}', server.definition.label),
 		});
 	}
 
@@ -1077,7 +1077,7 @@ export class BrowseResourcesAction extends McpServerAction {
 		@IMcpService private readonly mcpService: IMcpService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super('extensions.config', localize('mcp.resources', 'Browse Resources'), BrowseResourcesAction.CLASS, false);
+		super('extensions.config', localize('mcp.resources', '浏览资源'), BrowseResourcesAction.CLASS, false);
 		this.update();
 	}
 

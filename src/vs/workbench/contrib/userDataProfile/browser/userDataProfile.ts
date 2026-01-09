@@ -111,7 +111,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			EditorPaneDescriptor.create(
 				UserDataProfilesEditor,
 				UserDataProfilesEditor.ID,
-				localize('userdataprofilesEditor', "Profiles Editor")
+				localize('userdataprofilesEditor', "配置文件编辑器")
 			),
 			[
 				new SyncDescriptor(UserDataProfilesEditorInput)
@@ -141,7 +141,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerProfileSubMenu(): void {
 		const getProfilesTitle = () => {
-			return localize('profiles', "Profile ({0})", this.userDataProfileService.currentProfile.name);
+			return localize('profiles', "配置文件 ({0})", this.userDataProfileService.currentProfile.name);
 		};
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			get title() {
@@ -165,7 +165,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerOpenProfileSubMenu(): void {
 		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			title: localize('New Profile Window', "New Window with Profile"),
+			title: localize('New Profile Window', "带配置文件的新窗口"),
 			submenu: OpenProfileMenu,
 			group: '1_new',
 			order: 4,
@@ -191,7 +191,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
 					metadata: {
-						description: localize2('change profile', "Switch to {0} profile", profile.name),
+						description: localize2('change profile', "切换到｛0｝配置文件", profile.name),
 					},
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
@@ -215,7 +215,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: `workbench.profiles.actions.newWindowWithProfile`,
-					title: localize2('newWindowWithProfile', "New Window with Profile..."),
+					title: localize2('newWindowWithProfile', "带配置文件的新窗口..."),
 					category: PROFILES_CATEGORY,
 					precondition: HAS_PROFILES_CONTEXT,
 					f1: true,
@@ -232,8 +232,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						profile
 					})),
 					{
-						title: localize('new window with profile', "New Window with Profile"),
-						placeHolder: localize('pick profile', "Select Profile"),
+						title: localize('new window with profile', "带配置文件的新窗口"),
+						placeHolder: localize('pick profile', "选择配置文件"),
 						canPickMany: false
 					});
 				if (pick) {
@@ -255,7 +255,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id,
 					title: localize2('openShort', "{0}", profile.name),
 					metadata: {
-						description: localize2('open profile', "Open New Window with {0} Profile", profile.name),
+						description: localize2('open profile', "使用 {0} 配置文件打开新窗口", profile.name),
 					},
 					menu: {
 						id: OpenProfileMenu,
@@ -275,7 +275,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				category: PROFILES_CATEGORY,
-				title: localize2('open', "Open {0} Profile", profile.name),
+				title: localize2('open', "打开｛0｝配置文件", profile.name),
 				precondition: HAS_PROFILES_CONTEXT
 			},
 		}));
@@ -289,7 +289,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: `workbench.profiles.actions.switchProfile`,
-					title: localize2('switchProfile', 'Switch Profile...'),
+					title: localize2('switchProfile', '切换配置文件...'),
 					category: PROFILES_CATEGORY,
 					f1: true,
 				});
@@ -307,7 +307,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				}
 
 				const result = await quickInputService.pick(items.sort((a, b) => a.profile.name.localeCompare(b.profile.name)), {
-					placeHolder: localize('selectProfile', "Select Profile")
+					placeHolder: localize('selectProfile', "选择配置文件")
 				});
 				if (result) {
 					await that.userDataProfileManagementService.switchProfile(result.profile);
@@ -372,7 +372,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id,
-					title: localize2('export profile', "Export Profile..."),
+					title: localize2('export profile', "导出配置文件..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 				});
@@ -386,7 +386,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarShare, {
 			command: {
 				id,
-				title: localize2('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
+				title: localize2('export profile in share', "导出配置文件 ({0})...", that.userDataProfileService.currentProfile.name),
 			},
 		}));
 		return disposables;
@@ -399,7 +399,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.createFromCurrentProfile',
-					title: localize2('save profile as', "Save Current Profile As..."),
+					title: localize2('save profile as', "将当前配置文件另存为..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 				});
@@ -418,7 +418,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.createProfile',
-					title: localize2('create profile', "New Profile..."),
+					title: localize2('create profile', "新建配置文件..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 					menu: [
@@ -443,7 +443,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			constructor() {
 				super({
 					id: 'workbench.profiles.actions.deleteProfile',
-					title: localize2('delete profile', "Delete Profile..."),
+					title: localize2('delete profile', "删除配置文件..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: HAS_PROFILES_CONTEXT,
@@ -466,8 +466,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							profile
 						})),
 						{
-							title: localize('delete specific profile', "Delete Profile..."),
-							placeHolder: localize('pick profile to delete', "Select Profiles to Delete"),
+							title: localize('delete specific profile', "删除配置文件..."),
+							placeHolder: localize('pick profile to delete', "选择要删除的配置文件"),
 							canPickMany: true
 						});
 					if (picks) {

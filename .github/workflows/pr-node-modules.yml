@@ -1,4 +1,4 @@
-name: Code OSS (node_modules)
+name: Chenille AI IDE (node_modules)
 
 on:
   push:
@@ -10,9 +10,9 @@ permissions: {}
 jobs:
   compile:
     name: Compile
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -43,18 +43,18 @@ jobs:
         run: |
           set -e
 
-          for i in {1..5}; do # try 5 times
+          for i in {1..5}; do # 最多重试 5 次
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 依赖安装失败次数过多" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create node_modules archive
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -82,16 +82,16 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.ts
         env:
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   linux:
     name: Linux
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-latest
     env:
       NPM_ARCH: x64
       VSCODE_ARCH: x64
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -115,16 +115,16 @@ jobs:
         run: |
           set -e
 
-          for i in {1..5}; do # try 5 times
+          for i in {1..5}; do # 最多重试 5 次
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 依赖安装失败次数过多" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -133,37 +133,29 @@ jobs:
 
           source ./build/azure-pipelines/linux/setup-env.sh
 
-          for i in {1..5}; do # try 5 times
+          for i in {1..5}; do # 最多重试 5 次
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 依赖安装失败次数过多" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
-
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   macOS:
     name: macOS
-    runs-on: macos-14-xlarge
+    runs-on: macos-14
     env:
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -189,97 +181,17 @@ jobs:
           xcode-select -print-path
           python3 -m pip install --break-system-packages setuptools
 
-          for i in {1..5}; do # try 5 times
+          for i in {1..5}; do # 最多重试 5 次
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 依赖安装失败次数过多" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
           npm_config_arch: ${{ env.NPM_ARCH }}
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
-          # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
-          # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
-          # flipped the default to support legacy linux distros which shouldn't happen
-          # on macOS.
-          GYP_DEFINES: "kerberos_use_rtld=false"
-
-      - name: Create node_modules archive
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-
-  windows:
-    name: Windows
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
-    env:
-      NPM_ARCH: x64
-      VSCODE_ARCH: x64
-    steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Prepare node_modules cache key
-        shell: pwsh
-        run: |
-          mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
-
-      - name: Restore node_modules cache
-        uses: actions/cache@v4
-        id: node-modules-cache
-        with:
-          path: .build/node_modules_cache
-          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
-
-      - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-
-          for ($i = 1; $i -le 5; $i++) {
-            try {
-              exec { npm ci }
-              break
-            }
-            catch {
-              if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
-                throw
-              }
-              Write-Host "npm ci failed attempt $i, retrying..."
-              Start-Sleep -Seconds 2
-            }
-          }
-        env:
-          npm_config_arch: ${{ env.NPM_ARCH }}
-          npm_config_foreground_scripts: "true"
-          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
-          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
-
-      - name: Create node_modules archive
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
-          exec { mkdir -Force .build/node_modules_cache }
-          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

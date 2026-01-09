@@ -46,31 +46,31 @@ type AssistedConfigurationType = AddConfigurationType.NpmPackage | AddConfigurat
 
 export const AssistedTypes = {
 	[AddConfigurationType.NpmPackage]: {
-		title: localize('mcp.npm.title', "Enter NPM Package Name"),
-		placeholder: localize('mcp.npm.placeholder', "Package name (e.g., @org/package)"),
-		pickLabel: localize('mcp.serverType.npm', "NPM Package"),
-		pickDescription: localize('mcp.serverType.npm.description', "Install from an NPM package name"),
+		title: localize('mcp.npm.title', "输入 NPM 包名称"),
+		placeholder: localize('mcp.npm.placeholder', "包名称 (例如 @org/package)"),
+		pickLabel: localize('mcp.serverType.npm', "NPM 包"),
+		pickDescription: localize('mcp.serverType.npm.description', "从 NPM 包名称安装"),
 		enabledConfigKey: null, // always enabled
 	},
 	[AddConfigurationType.PipPackage]: {
-		title: localize('mcp.pip.title', "Enter Pip Package Name"),
-		placeholder: localize('mcp.pip.placeholder', "Package name (e.g., package-name)"),
-		pickLabel: localize('mcp.serverType.pip', "Pip Package"),
-		pickDescription: localize('mcp.serverType.pip.description', "Install from a Pip package name"),
+		title: localize('mcp.pip.title', "输入 Pip 包名称"),
+		placeholder: localize('mcp.pip.placeholder', "包名称 (例如 package-name)"),
+		pickLabel: localize('mcp.serverType.pip', "Pip 包"),
+		pickDescription: localize('mcp.serverType.pip.description', "从 Pip 包名称安装"),
 		enabledConfigKey: null, // always enabled
 	},
 	[AddConfigurationType.NuGetPackage]: {
-		title: localize('mcp.nuget.title', "Enter NuGet Package Name"),
-		placeholder: localize('mcp.nuget.placeholder', "Package name (e.g., Package.Name)"),
-		pickLabel: localize('mcp.serverType.nuget', "NuGet Package"),
-		pickDescription: localize('mcp.serverType.nuget.description', "Install from a NuGet package name"),
+		title: localize('mcp.nuget.title', "输入 NuGet 包名称"),
+		placeholder: localize('mcp.nuget.placeholder', "包名称 (例如 Package.Name)"),
+		pickLabel: localize('mcp.serverType.nuget', "NuGet 包"),
+		pickDescription: localize('mcp.serverType.nuget.description', "从 NuGet 包名称安装"),
 		enabledConfigKey: 'chat.mcp.assisted.nuget.enabled',
 	},
 	[AddConfigurationType.DockerImage]: {
-		title: localize('mcp.docker.title', "Enter Docker Image Name"),
-		placeholder: localize('mcp.docker.placeholder', "Image name (e.g., mcp/imagename)"),
-		pickLabel: localize('mcp.serverType.docker', "Docker Image"),
-		pickDescription: localize('mcp.serverType.docker.description', "Install from a Docker image"),
+		title: localize('mcp.docker.title', "输入 Docker 镜像名称"),
+		placeholder: localize('mcp.docker.placeholder', "镜像名称 (例如 mcp/imagename)"),
+		pickLabel: localize('mcp.serverType.docker', "Docker 镜像"),
+		pickDescription: localize('mcp.serverType.docker.description', "从 Docker 镜像安装"),
 		enabledConfigKey: null, // always enabled
 	},
 };
@@ -146,8 +146,8 @@ export class McpAddConfigurationCommand {
 	private async getServerType(): Promise<AddConfigurationType | undefined> {
 		type TItem = { kind: AddConfigurationType | 'browse' | 'discovery' } & IQuickPickItem;
 		const items: QuickPickInput<TItem>[] = [
-			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "Command (stdio)"), description: localize('mcp.serverType.command.description', "Run a local command that implements the MCP protocol") },
-			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP or Server-Sent Events)"), description: localize('mcp.serverType.http.description', "Connect to a remote HTTP server that implements the MCP protocol") }
+			{ kind: AddConfigurationType.Stdio, label: localize('mcp.serverType.command', "命令 (stdio)"), description: localize('mcp.serverType.command.description', "运行实现 MCP 协议的本地命令") },
+			{ kind: AddConfigurationType.HTTP, label: localize('mcp.serverType.http', "HTTP (HTTP 或服务器发送事件)"), description: localize('mcp.serverType.http.description', "连接到实现 MCP 协议的远程 HTTP 服务器") }
 		];
 
 		let aiSupported: boolean | undefined;
@@ -158,7 +158,7 @@ export class McpAddConfigurationCommand {
 		}
 
 		if (aiSupported) {
-			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "Manual Install") });
+			items.unshift({ type: 'separator', label: localize('mcp.serverType.manual', "手动安装") });
 
 			const elligableTypes = Object.entries(AssistedTypes).map(([type, { pickLabel, pickDescription, enabledConfigKey }]) => {
 				if (enabledConfigKey) {
@@ -175,7 +175,7 @@ export class McpAddConfigurationCommand {
 			}).filter(x => !!x);
 
 			items.push(
-				{ type: 'separator', label: localize('mcp.serverType.copilot', "Model-Assisted") },
+				{ type: 'separator', label: localize('mcp.serverType.copilot', "模型辅助") },
 				...elligableTypes
 			);
 		}
@@ -186,17 +186,17 @@ export class McpAddConfigurationCommand {
 		if (discovery && typeof discovery === 'object' && allDiscoverySources.some(d => !discovery[d])) {
 			items.push({
 				kind: 'discovery',
-				label: localize('mcp.servers.discovery', "Add from another application..."),
+				label: localize('mcp.servers.discovery', "从其他应用程序添加..."),
 			});
 		}
 
 		items.push({
 			kind: 'browse',
-			label: localize('mcp.servers.browse', "Browse MCP Servers..."),
+			label: localize('mcp.servers.browse', "浏览 MCP 服务器..."),
 		});
 
 		const result = await this._quickInputService.pick<TItem>(items, {
-			placeHolder: localize('mcp.serverType.placeholder', "Choose the type of MCP server to add"),
+			placeHolder: localize('mcp.serverType.placeholder', "选择要添加的 MCP 服务器类型"),
 		});
 
 		if (result?.kind === 'browse') {
@@ -214,8 +214,8 @@ export class McpAddConfigurationCommand {
 
 	private async getStdioConfig(): Promise<IMcpStdioServerConfiguration | undefined> {
 		const command = await this._quickInputService.input({
-			title: localize('mcp.command.title', "Enter Command"),
-			placeHolder: localize('mcp.command.placeholder', "Command to run (with optional arguments)"),
+			title: localize('mcp.command.title', "输入命令"),
+			placeHolder: localize('mcp.command.placeholder', "要运行的命令(可带参数)"),
 			ignoreFocusLost: true,
 		});
 
@@ -239,8 +239,8 @@ export class McpAddConfigurationCommand {
 
 	private async getSSEConfig(): Promise<IMcpRemoteServerConfiguration | undefined> {
 		const url = await this._quickInputService.input({
-			title: localize('mcp.url.title', "Enter Server URL"),
-			placeHolder: localize('mcp.url.placeholder', "URL of the MCP server (e.g., http://localhost:3000)"),
+			title: localize('mcp.url.title', "输入服务器 URL"),
+			placeHolder: localize('mcp.url.placeholder', "MCP 服务器的 URL (例如 http://localhost:3000)"),
 			ignoreFocusLost: true,
 		});
 
@@ -257,8 +257,8 @@ export class McpAddConfigurationCommand {
 
 	private async getServerId(suggestion = `my-mcp-server-${generateUuid().split('-')[0]}`): Promise<string | undefined> {
 		const id = await this._quickInputService.input({
-			title: localize('mcp.serverId.title', "Enter Server ID"),
-			placeHolder: localize('mcp.serverId.placeholder', "Unique identifier for this server"),
+			title: localize('mcp.serverId.title', "输入服务器 ID"),
+			placeHolder: localize('mcp.serverId.placeholder', "此服务器的唯一标识符"),
 			value: suggestion,
 			ignoreFocusLost: true,
 		});
@@ -268,21 +268,21 @@ export class McpAddConfigurationCommand {
 
 	private async getConfigurationTarget(): Promise<ConfigurationTarget | IWorkspaceFolder | undefined> {
 		const options: (IQuickPickItem & { target?: ConfigurationTarget | IWorkspaceFolder })[] = [
-			{ target: ConfigurationTarget.USER_LOCAL, label: localize('mcp.target.user', "Global"), description: localize('mcp.target.user.description', "Available in all workspaces, runs locally") }
+			{ target: ConfigurationTarget.USER_LOCAL, label: localize('mcp.target.user', "全局"), description: localize('mcp.target.user.description', "在所有工作区中可用，本地运行") }
 		];
 
 		const raLabel = this._environmentService.remoteAuthority && this._label.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 		if (raLabel) {
-			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "Remote"), description: localize('mcp.target..remote.description', "Available on this remote machine, runs on {0}", raLabel) });
+			options.push({ target: ConfigurationTarget.USER_REMOTE, label: localize('mcp.target.remote', "远程"), description: localize('mcp.target..remote.description', "在此远程计算机上可用，在 {0} 上运行", raLabel) });
 		}
 
 		const workbenchState = this._workspaceService.getWorkbenchState();
 		if (workbenchState !== WorkbenchState.EMPTY) {
 			const target = workbenchState === WorkbenchState.FOLDER ? this._workspaceService.getWorkspace().folders[0] : ConfigurationTarget.WORKSPACE;
 			if (this._environmentService.remoteAuthority) {
-				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description.remote', "Available in this workspace, runs on {0}", raLabel) });
+				options.push({ target, label: localize('mcp.target.workspace', "工作区"), description: localize('mcp.target.workspace.description.remote', "在此工作区中可用，在 {0} 上运行", raLabel) });
 			} else {
-				options.push({ target, label: localize('mcp.target.workspace', "Workspace"), description: localize('mcp.target.workspace.description', "Available in this workspace, runs locally") });
+				options.push({ target, label: localize('mcp.target.workspace', "工作区"), description: localize('mcp.target.workspace.description', "在此工作区中可用，本地运行") });
 			}
 		}
 
@@ -291,8 +291,8 @@ export class McpAddConfigurationCommand {
 		}
 
 		const targetPick = await this._quickInputService.pick(options, {
-			title: localize('mcp.target.title', "Add MCP Server"),
-			placeHolder: localize('mcp.target.placeholder', "Select the configuration target")
+			title: localize('mcp.target.title', "添加 MCP 服务器"),
+			placeHolder: localize('mcp.target.placeholder', "选择配置目标")
 		});
 
 		return targetPick?.target;
@@ -318,7 +318,7 @@ export class McpAddConfigurationCommand {
 
 		const loadingQuickPickStore = new DisposableStore();
 		const loadingQuickPick = loadingQuickPickStore.add(this._quickInputService.createQuickPick<IQuickPickItem & { id: LoadAction; helpUri?: URI }>());
-		loadingQuickPick.title = localize('mcp.loading.title', "Loading package details...");
+		loadingQuickPick.title = localize('mcp.loading.title', "正在加载包详情...");
 		loadingQuickPick.busy = true;
 		loadingQuickPick.ignoreFocusOut = true;
 
@@ -354,26 +354,26 @@ export class McpAddConfigurationCommand {
 				if (result?.helpUri) {
 					items.push({
 						id: LoadAction.OpenUri,
-						label: result.helpUriLabel ?? localize('mcp.error.openHelpUri', 'Open help URL'),
+						label: result.helpUriLabel ?? localize('mcp.error.openHelpUri', '打开帮助链接'),
 						helpUri: URI.parse(result.helpUri),
 					});
 				}
 
 				items.push(
-					{ id: LoadAction.Retry, label: localize('mcp.error.retry', 'Try a different package') },
-					{ id: LoadAction.Cancel, label: localize('cancel', 'Cancel') },
+					{ id: LoadAction.Retry, label: localize('mcp.error.retry', '尝试其他包') },
+					{ id: LoadAction.Cancel, label: localize('cancel', '取消') },
 				);
 
 				loadingQuickPick.items = items;
 			} else {
 				loadingQuickPick.title = localize(
-					'mcp.confirmPublish', 'Install {0}{1} from {2}?',
+					'mcp.confirmPublish', '从 {2} 安装 {0}{1}?',
 					result.name ?? packageName,
 					result.version ? `@${result.version}` : '',
 					result.publisher);
 				loadingQuickPick.items = [
-					{ id: LoadAction.Allow, label: localize('allow', "Allow") },
-					{ id: LoadAction.Cancel, label: localize('cancel', 'Cancel') }
+					{ id: LoadAction.Allow, label: localize('allow', "允许") },
+					{ id: LoadAction.Cancel, label: localize('cancel', '取消') }
 				];
 			}
 			loadingQuickPick.busy = false;
@@ -531,13 +531,13 @@ export class McpAddConfigurationCommand {
 
 	public async pickForUrlHandler(resource: URI, showIsPrimary = false): Promise<void> {
 		const name = decodeURIComponent(basename(resource)).replace(/\.json$/, '');
-		const placeHolder = localize('install.title', 'Install MCP server {0}', name);
+		const placeHolder = localize('install.title', '安装 MCP 服务器 {0}', name);
 
 		const items: IQuickPickItem[] = [
-			{ id: 'install', label: localize('install.start', 'Install Server') },
-			{ id: 'show', label: localize('install.show', 'Show Configuration', name) },
-			{ id: 'rename', label: localize('install.rename', 'Rename "{0}"', name) },
-			{ id: 'cancel', label: localize('cancel', 'Cancel') },
+			{ id: 'install', label: localize('install.start', '安装服务器') },
+			{ id: 'show', label: localize('install.show', '显示配置', name) },
+			{ id: 'rename', label: localize('install.rename', '重命名 "{0}"', name) },
+			{ id: 'cancel', label: localize('cancel', '取消') },
 		];
 		if (showIsPrimary) {
 			[items[0], items[1]] = [items[1], items[0]];
@@ -559,12 +559,12 @@ export class McpAddConfigurationCommand {
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {
-					this._notificationService.error(localize('install.error', 'Error installing MCP server {0}: {1}', name, e.message));
+					this._notificationService.error(localize('install.error', '安装 MCP 服务器 {0} 时出错: {1}', name, e.message));
 					await this._editorService.openEditor({ resource });
 				}
 				break;
 			case 'rename': {
-				const newName = await this._quickInputService.input({ placeHolder: localize('install.newName', 'Enter new name'), value: name });
+				const newName = await this._quickInputService.input({ placeHolder: localize('install.newName', '输入新名称'), value: name });
 				if (newName) {
 					const newURI = resource.with({ path: `/${encodeURIComponent(newName)}.json` });
 					await this._editorService.save(getEditors());

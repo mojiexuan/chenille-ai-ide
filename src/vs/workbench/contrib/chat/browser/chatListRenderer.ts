@@ -89,6 +89,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatCollapsedContextContentPart, isCollapsedContextContent, extractCollapsedContextSummary } from './chatContentParts/chatCollapsedContextContentPart.js';
 import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
@@ -1654,6 +1655,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		this.finalizeCurrentThinkingPart(context, templateData);
+
+		// 检查是否是收拢的上下文内容
+		const markdownValue = typeof markdown.content === 'string' ? markdown.content : markdown.content.value;
+		if (isCollapsedContextContent(markdownValue)) {
+			const summary = extractCollapsedContextSummary(markdownValue);
+			const collapsedPart = new ChatCollapsedContextContentPart(
+				summary,
+				context,
+				this.chatContentMarkdownRenderer
+			);
+			collapsedPart.addDisposable(collapsedPart.onDidChangeHeight(() => {
+				this.updateItemHeight(templateData);
+			}));
+			return collapsedPart;
+		}
+
 		const element = context.element;
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;

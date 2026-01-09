@@ -105,7 +105,7 @@ export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	readonly type = ProfileResourceType.Settings;
 	readonly handle = ProfileResourceType.Settings;
-	readonly label = { label: localize('settings', "Settings") };
+	readonly label = { label: localize('settings', "设置") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
 	checkbox: ITreeItemCheckboxState | undefined;
 

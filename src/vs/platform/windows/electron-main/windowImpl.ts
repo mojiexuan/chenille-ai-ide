@@ -924,13 +924,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
-							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
-							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"),
-							localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")
+							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "重新打开"),
+							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "关闭"),
+							localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "继续等待")
 						],
-						message: localize('appStalled', "The window is not responding"),
-						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
+						message: localize('appStalled', "窗口没有响应"),
+						detail: localize('appStalledDetail', "您可以重新打开或关闭窗口，也可以继续等待。"),
+						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "不还原编辑器") : undefined
 					}, this._win);
 
 					// Handle choice
@@ -945,23 +945,23 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				else if (type === WindowError.PROCESS_GONE) {
 					let message: string;
 					if (!details) {
-						message = localize('appGone', "The window terminated unexpectedly");
+						message = localize('appGone', "窗口意外终止");
 					} else {
-						message = localize('appGoneDetails', "The window terminated unexpectedly (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
+						message = localize('appGoneDetails', "窗口意外终止 (原因: '{0}', 代码: '{1}')", details.reason, details.exitCode ?? '<unknown>');
 					}
 
 					// Show Dialog
 					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
-							this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
-							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")
+							this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "重新打开") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "新建窗口"),
+							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "关闭")
 						],
 						message,
 						detail: this._config?.workspace ?
-							localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
-							localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
-						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
+							localize('appGoneDetailWorkspace', "对于给您带来的不便，我们深表歉意。您可以重新打开窗口，从您停止的地方继续。") :
+							localize('appGoneDetailEmptyWindow', "对于给您带来的不便，我们深表歉意。您可以打开一个新的空窗口重新开始。"),
+						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "不还原编辑器") : undefined
 					}, this._win);
 
 					// Handle choice

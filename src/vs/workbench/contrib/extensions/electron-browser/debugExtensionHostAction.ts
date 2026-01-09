@@ -79,7 +79,7 @@ export class DebugExtensionHostInNewWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.debugExtensionHost',
-			title: nls.localize2('debugExtensionHost', "Debug Extension Host In New Window"),
+			title: nls.localize2('debugExtensionHost', "在新窗口中调试扩展主机"),
 			category: Categories.Developer,
 			f1: true,
 			icon: Codicon.debugStart,

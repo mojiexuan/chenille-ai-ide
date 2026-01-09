@@ -144,14 +144,14 @@ export class CloneManager {
 		}
 
 		if (action === undefined) {
-			let message = l10n.t('Would you like to open the repository?');
+			let message = l10n.t('您想打开存储库吗？');
 			const open = l10n.t('Open');
-			const openNewWindow = l10n.t('Open in New Window');
+			const openNewWindow = l10n.t('在新窗口中打开');
 			const choices = [open, openNewWindow];
 
-			const addToWorkspace = l10n.t('Add to Workspace');
+			const addToWorkspace = l10n.t('添加到工作区');
 			if (workspace.workspaceFolders) {
-				message = l10n.t('Would you like to open the repository, or add it to the current workspace?');
+				message = l10n.t('您想打开存储库，还是将其添加到当前工作区？');
 				choices.push(addToWorkspace);
 			}
 
@@ -186,12 +186,12 @@ export class CloneManager {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
-				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
+				const label = isWorkspace ? l10n.t('工作区: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
 				return { label, description: knownFolder.workspacePath, item: knownFolder };
 			});
-			const cloneAgain = { label: l10n.t('Clone again') };
+			const cloneAgain = { label: l10n.t('再次克隆') };
 			items.push(cloneAgain);
-			const placeHolder = l10n.t('Open Existing Repository Clone');
+			const placeHolder = l10n.t('打开现有存储库克隆');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
 			if (pick === cloneAgain) {
 				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;

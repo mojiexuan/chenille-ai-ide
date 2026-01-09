@@ -21,8 +21,13 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }> = Event.None;
+	readonly onContextCollapseWarning: Event<{ sessionId: string; usagePercent: number }> = Event.None;
 
 	private sessions = new ResourceMap<IChatModel>();
+
+	getSessionTokenStats(_sessionId: string): { totalTokens: number; contextSize: number; usagePercent: number } | undefined {
+		return undefined;
+	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
 

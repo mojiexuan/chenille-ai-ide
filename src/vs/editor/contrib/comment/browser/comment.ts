@@ -82,7 +82,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 	constructor() {
 		super(Type.Toggle, {
 			id: 'editor.action.commentLine',
-			label: nls.localize2('comment.line', "Toggle Line Comment"),
+			label: nls.localize2('comment.line', "切换行注释"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -92,7 +92,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
-				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
+				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "切换行注释"),
 				order: 1
 			},
 			canTriggerInlineEdits: true,
@@ -104,7 +104,7 @@ class AddLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceAdd, {
 			id: 'editor.action.addCommentLine',
-			label: nls.localize2('comment.line.add', "Add Line Comment"),
+			label: nls.localize2('comment.line.add', "添加行注释"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -120,7 +120,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceRemove, {
 			id: 'editor.action.removeCommentLine',
-			label: nls.localize2('comment.line.remove', "Remove Line Comment"),
+			label: nls.localize2('comment.line.remove', "删除行注释"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -137,7 +137,7 @@ class BlockCommentAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.blockComment',
-			label: nls.localize2('comment.block', "Toggle Block Comment"),
+			label: nls.localize2('comment.block', "切换块注释"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -148,7 +148,7 @@ class BlockCommentAction extends EditorAction {
 			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
-				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
+				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "切换块注释"),
 				order: 2
 			},
 			canTriggerInlineEdits: true,

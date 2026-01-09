@@ -3,42 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatModeKind } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ToolsScope } from '../chatSelectedTools.js';
+import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { showToolsPicker } from './chatToolPicker.js';
+
+// Chenille: 以下 import 用于被注释掉的 ConfigureToolsAction
+// import { Codicon } from '../../../../../base/common/codicons.js';
+// import { IChatWidget } from '../chat.js';
+// import { $ } from '../../../../../base/browser/dom.js';
+// import { Iterable } from '../../../../../base/common/iterator.js';
+// import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
+// import { ThemeIcon } from '../../../../../base/common/themables.js';
+// import { localize } from '../../../../../nls.js';
+// import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+// import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+// import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+// import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+// import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+// import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+// import { ChatModeKind } from '../../common/constants.js';
+// import { ToolsScope } from '../chatSelectedTools.js';
+// import { showToolsPicker } from './chatToolPicker.js';
 
 
-type SelectedToolData = {
-	enabled: number;
-	total: number;
-};
-type SelectedToolClassification = {
-	owner: 'connor4312';
-	comment: 'Details the capabilities of the MCP server';
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of enabled chat tools' };
-	total: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of total chat tools' };
-};
+// Chenille: 以下类型定义用于被注释掉的 ConfigureToolsAction
+// type SelectedToolData = {
+// 	enabled: number;
+// 	total: number;
+// };
+// type SelectedToolClassification = {
+// 	owner: 'connor4312';
+// 	comment: 'Details the capabilities of the MCP server';
+// 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of enabled chat tools' };
+// 	total: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of total chat tools' };
+// };
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
@@ -111,6 +117,8 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	}
 }
 
+// Chenille: 使用自定义工具系统，禁用原有的配置工具按钮
+/*
 class ConfigureToolsAction extends Action2 {
 	public static ID = 'workbench.action.chat.configureTools';
 
@@ -259,10 +267,12 @@ class ConfigureToolsActionRendering implements IWorkbenchContribution {
 		markAsSingleton(disposable);
 	}
 }
+*/
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
 	registerAction2(SkipToolConfirmation);
-	registerAction2(ConfigureToolsAction);
-	registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
+	// Chenille: 使用自定义工具系统，禁用原有的配置工具按钮
+	// registerAction2(ConfigureToolsAction);
+	// registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
 }

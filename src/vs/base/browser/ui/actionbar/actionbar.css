@@ -26,7 +26,7 @@
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
-	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
+	position: relative; /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
 }
 
 .monaco-action-bar .action-item.disabled {
@@ -52,14 +52,14 @@
 	border-radius: 5px;
 }
 
-.monaco-action-bar .action-item.disabled .action-label:not(.icon) ,
+.monaco-action-bar .action-item.disabled .action-label:not(.icon),
 .monaco-action-bar .action-item.disabled .action-label:not(.icon)::before,
 .monaco-action-bar .action-item.disabled .action-label:not(.icon):hover {
 	color: var(--vscode-disabledForeground);
 }
 
 /* Unable to change color of SVGs, hence opacity is used */
-.monaco-action-bar .action-item.disabled .action-label.icon ,
+.monaco-action-bar .action-item.disabled .action-label.icon,
 .monaco-action-bar .action-item.disabled .action-label.icon::before,
 .monaco-action-bar .action-item.disabled .action-label.icon:hover {
 	opacity: 0.6;
@@ -79,8 +79,8 @@
 	display: block;
 	border-bottom: 1px solid var(--vscode-disabledForeground);
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	margin-left: 0.8em;
+	margin-right: 0.8em;
 }
 
 .monaco-action-bar .action-item .action-label.separator {
@@ -113,12 +113,17 @@
 	display: flex;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+.monaco-action-bar
+	.action-item.action-dropdown-item
+	> .action-dropdown-item-separator {
 	display: flex;
 	align-items: center;
 	cursor: default;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+.monaco-action-bar
+	.action-item.action-dropdown-item
+	> .action-dropdown-item-separator
+	> div {
 	width: 1px;
 }

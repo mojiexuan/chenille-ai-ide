@@ -30,8 +30,8 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: 'workbench.extensions.installMissingDependencies',
-				category: localize('extensions', "Extensions"),
-				title: localize('auto install missing deps', "Install Missing Dependencies")
+				category: localize('extensions', "扩展"),
+				title: localize('auto install missing deps', "安装缺少的依赖项")
 			}
 		});
 	}
@@ -66,15 +66,15 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 				await Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('finished installing missing deps', "Finished installing missing dependencies. Please reload the window now."),
+					message: localize('finished installing missing deps', "已完成安装缺少的依赖项。请立即重新加载窗口。"),
 					actions: {
-						primary: [new Action('realod', localize('reload', "Reload Window"), '', true,
+						primary: [new Action('realod', localize('reload', "重新加载窗口"), '', true,
 							() => this.hostService.reload())]
 					}
 				});
 			}
 		} else {
-			this.notificationService.info(localize('no missing deps', "There are no missing dependencies to install."));
+			this.notificationService.info(localize('no missing deps', "没有缺少的依赖项需要安装。"));
 		}
 	}
 }

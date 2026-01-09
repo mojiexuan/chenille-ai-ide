@@ -28,6 +28,7 @@ import { IChatVariablesService, IDynamicVariable } from '../common/chatVariables
 import { IChatWidgetService } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from './imageUtils.js';
+import { IChenilleChatProvider } from '../../../../chenille/common/chatProvider.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -48,6 +49,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly extensionService: IExtensionService,
+		private readonly chenilleChatProvider: IChenilleChatProvider,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -58,6 +60,18 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+			return;
+		}
+
+		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		if (!widget) {
+			return;
+		}
+
+		// 检查模型是否支持视觉能力
+		const vscodeVision = widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		const chenilleVision = await this.chenilleChatProvider.supportsVision();
+		if (!vscodeVision && !chenilleVision) {
 			return;
 		}
 
@@ -87,11 +101,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		}
 		const currClipboard = await imageItem.asFile()?.data();
 		if (token.isCancellationRequested || !currClipboard) {
-			return;
-		}
-
-		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-		if (!widget) {
 			return;
 		}
 
@@ -438,10 +447,11 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
+		@IChenilleChatProvider chenilleChatProvider: IChenilleChatProvider,
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, chenilleChatProvider, fileService, environmentService, logService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));

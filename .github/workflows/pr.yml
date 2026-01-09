@@ -1,11 +1,10 @@
-name: Code OSS
+name: Chenille AI IDE
 
 on:
   pull_request:
     branches:
       - main
       - 'release/*'
-      - '1.107/sessions'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,14 +13,14 @@ concurrency:
 permissions: {}
 
 env:
-  VSCODE_QUALITY: 'oss'
+  CHENILLE_QUALITY: 'oss'
 
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout microsoft/vscode
+      - name: Checkout chenille-ai-ide
         uses: actions/checkout@v6
 
       - name: Setup Node.js
@@ -55,10 +54,10 @@ jobs:
           for i in {1..5}; do # try 5 times
             npm ci && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "npm 安装失败次数过多，终止执行" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "npm 安装失败，第 $i 次重试中……"
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -81,13 +80,6 @@ jobs:
         run: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  linux-cli-tests:
-    name: Linux
-    uses: ./.github/workflows/pr-linux-cli-test.yml
-    with:
-      job_name: CLI
-      rustup_toolchain: 1.85
 
   linux-electron-tests:
     name: Linux

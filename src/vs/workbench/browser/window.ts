@@ -182,17 +182,17 @@ export abstract class BaseWindow extends Disposable {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
-			localize('closeWindowMessage', "Are you sure you want to close the window?");
+			(isMacintosh ? localize('quitMessageMac', "确定要退出吗?") : localize('quitMessage', "确定要退出吗?")) :
+			localize('closeWindowMessage', "确定要关闭窗口吗?");
 		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "退出") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "退出")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "关闭窗口");
 
 		const res = await dialogService.confirm({
 			message,
 			primaryButton,
 			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
+				label: localize('doNotAskAgain', "不再询问")
 			}
 		});
 
@@ -296,11 +296,11 @@ export class BrowserWindow extends BaseWindow {
 			// state.
 			await this.dialogService.prompt({
 				type: Severity.Error,
-				message: localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
-				detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running."),
+				message: localize('shutdownError', "发生意外错误，需要重新加载此页面。"),
+				detail: localize('shutdownErrorDetail', "工作台在运行时意外终止。"),
 				buttons: [
 					{
-						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "重新加载"),
 						run: () => mainWindow.location.reload() // do not use any services at this point since they are likely not functional at this point
 					}
 				]
@@ -357,13 +357,13 @@ export class BrowserWindow extends BaseWindow {
 						if (!opened) {
 							await this.dialogService.prompt({
 								type: Severity.Warning,
-								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+								message: localize('unableToOpenExternal', '浏览器阻止了打开新标签页或窗口。请按"重试"再试一次。'),
 								custom: {
-									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "请在[浏览器设置]({0})中允许此网站的弹出窗口。", 'https://aka.ms/allow-vscode-popup'), true) }]
 								},
 								buttons: [
 									{
-										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
+										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "重试"),
 										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
 									}
 								],
@@ -395,7 +395,7 @@ export class BrowserWindow extends BaseWindow {
 
 						const buttons: IPromptButton<void>[] = [
 							{
-								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
+								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "重试"),
 								run: () => invokeProtocolHandler()
 							}
 						];
@@ -403,13 +403,13 @@ export class BrowserWindow extends BaseWindow {
 						if (downloadUrl !== undefined) {
 							detail = localize(
 								'openExternalDialogDetail.v2',
-								"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+								"我们已在您的计算机上启动 {0}。\n\n如果 {1} 未启动，请重试或在下方安装。",
 								this.productService.nameLong,
 								this.productService.nameLong
 							);
 
 							buttons.push({
-								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "安装"),
 								run: async () => {
 									await this.openerService.open(URI.parse(downloadUrl));
 
@@ -420,7 +420,7 @@ export class BrowserWindow extends BaseWindow {
 						} else {
 							detail = localize(
 								'openExternalDialogDetailNoInstall',
-								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
+								"我们已在您的计算机上启动 {0}。\n\n如果 {1} 未启动，请在下方重试。",
 								this.productService.nameLong,
 								this.productService.nameLong
 							);
@@ -430,7 +430,7 @@ export class BrowserWindow extends BaseWindow {
 						// to avoid showing the user two dialogs at once
 						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
-							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
+							message: localize('openExternalDialogTitle', "全部完成。您现在可以关闭此标签页了。"),
 							detail,
 							buttons,
 							cancelButton: true

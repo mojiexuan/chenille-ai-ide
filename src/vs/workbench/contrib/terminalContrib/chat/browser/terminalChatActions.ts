@@ -34,8 +34,8 @@ import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/ter
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Open Inline Chat'),
-	category: localize2('terminalCategory', "Terminal"),
+	title: localize2('startChat', '打开内联聊天'),
+	category: localize2('terminalCategory', "终端"),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
@@ -84,7 +84,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Close,
-	title: localize2('closeChat', 'Close'),
+	title: localize2('closeChat', '关闭'),
 	category: AbstractInline1ChatAction.category,
 	keybinding: {
 		primary: KeyCode.Escape,
@@ -116,8 +116,8 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.RunCommand,
-	title: localize2('runCommand', 'Run Chat Command'),
-	shortTitle: localize2('run', 'Run'),
+	title: localize2('runCommand', '运行聊天命令'),
+	shortTitle: localize2('run', '运行'),
 	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -149,8 +149,8 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.RunFirstCommand,
-	title: localize2('runFirstCommand', 'Run First Chat Command'),
-	shortTitle: localize2('runFirst', 'Run First'),
+	title: localize2('runFirstCommand', '运行第一个聊天命令'),
+	shortTitle: localize2('runFirst', '运行第一个'),
 	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -181,8 +181,8 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
-	title: localize2('insertCommand', 'Insert Chat Command'),
-	shortTitle: localize2('insert', 'Insert'),
+	title: localize2('insertCommand', '插入聊天命令'),
+	shortTitle: localize2('insert', '插入'),
 	category: AbstractInline1ChatAction.category,
 	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
@@ -215,8 +215,8 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertFirstCommand,
-	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
-	shortTitle: localize2('insertFirst', 'Insert First'),
+	title: localize2('insertFirstCommand', '插入第一个聊天命令'),
+	shortTitle: localize2('insertFirst', '插入第一个'),
 	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -247,7 +247,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.RerunRequest,
-	title: localize2('chat.rerun.label', "Rerun Request"),
+	title: localize2('chat.rerun.label', "重新运行请求"),
 	f1: false,
 	icon: Codicon.refresh,
 	category: AbstractInline1ChatAction.category,
@@ -291,7 +291,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
-	title: localize2('viewInChat', 'View in Chat'),
+	title: localize2('viewInChat', '在聊天中查看'),
 	category: AbstractInline1ChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
@@ -319,8 +319,8 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalChatCommandId.ViewHiddenChatTerminals,
-			title: localize2('viewHiddenChatTerminals', 'View Hidden Chat Terminals'),
-			category: localize2('terminalCategory2', 'Terminal'),
+			title: localize2('viewHiddenChatTerminals', '查看隐藏的聊天终端'),
+			category: localize2('terminalCategory2', '终端'),
 			f1: true,
 			precondition: ContextKeyExpr.and(TerminalChatContextKeys.hasHiddenChatTerminals, ChatContextKeys.enabled),
 			menu: [{
@@ -364,7 +364,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			detail: string | undefined;
 			id: string;
 		}
-		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', 'Last: {0}', command).value;
+		const lastCommandLocalized = (command: string) => localize2('chatTerminal.lastCommand', '上次: {0}', command).value;
 
 		const metas: IItemMeta[] = [];
 		for (const instance of all.values()) {
@@ -404,10 +404,10 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		}
 
 		const qp = quickInputService.createQuickPick<IQuickPickItem>();
-		qp.placeholder = localize2('selectChatTerminal', 'Select a chat terminal to show and focus').value;
+		qp.placeholder = localize2('selectChatTerminal', '选择要显示和聚焦的聊天终端').value;
 		qp.items = items;
 		qp.canSelectMany = false;
-		qp.title = localize2('showChatTerminals.title', 'Chat Terminals').value;
+		qp.title = localize2('showChatTerminals.title', '聊天终端').value;
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
 		const qpDisposables = new DisposableStore();
@@ -471,7 +471,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: TerminalChatCommandId.FocusMostRecentChatTerminal,
-		title: localize('chat.focusMostRecentTerminal', 'Chat: Focus Most Recent Terminal'),
+		title: localize('chat.focusMostRecentTerminal', '聊天: 聚焦最近的终端'),
 	},
 	when: ChatContextKeys.inChatSession
 });
@@ -479,7 +479,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: TerminalChatCommandId.FocusMostRecentChatTerminalOutput,
-		title: localize('chat.focusMostRecentTerminalOutput', 'Chat: Focus Most Recent Terminal Output'),
+		title: localize('chat.focusMostRecentTerminalOutput', '聊天: 聚焦最近的终端输出'),
 	},
 	when: ChatContextKeys.inChatSession
 });

@@ -96,8 +96,8 @@ registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsServ
 Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 	ctor: ManageExtensionsQuickAccessProvider,
 	prefix: ManageExtensionsQuickAccessProvider.PREFIX,
-	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "Press Enter to manage extensions."),
-	helpEntries: [{ description: localize('manageExtensionsHelp', "Manage Extensions") }]
+	placeholder: localize('manageExtensionsQuickAccessPlaceholder', "按 Enter 管理扩展。"),
+	helpEntries: [{ description: localize('manageExtensionsHelp', "管理扩展") }]
 });
 
 // Editor
@@ -105,7 +105,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		ExtensionEditor,
 		ExtensionEditor.ID,
-		localize('extension', "Extension")
+		localize('extension', "扩展")
 	),
 	[
 		new SyncDescriptor(ExtensionsInput)
@@ -114,10 +114,10 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 export const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: localize2('extensions', "Extensions"),
+		title: localize2('extensions', "扩展"),
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
-			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "扩展(&E)"),
 			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
 			order: 4,
 		},
@@ -132,47 +132,47 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'extensions',
 		order: 30,
-		title: localize('extensionsConfigurationTitle', "Extensions"),
+		title: localize('extensionsConfigurationTitle', "扩展"),
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
 				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
-					localize('all', "All Extensions"),
-					localize('enabled', "Only Enabled Extensions"),
-					localize('none', "None"),
+					localize('all', "所有扩展"),
+					localize('enabled', "仅已启用的扩展"),
+					localize('none', "无"),
 				],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions.'),
-					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
+					localize('extensions.autoUpdate.true', '自动下载并安装所有扩展的更新。'),
+					localize('extensions.autoUpdate.enabled', '仅自动下载并安装已启用扩展的更新。'),
+					localize('extensions.autoUpdate.false', '扩展不会自动更新。'),
 				],
-				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
+				description: localize('extensions.autoUpdate', "控制扩展的自动更新行为。更新从 Microsoft 在线服务获取。"),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
 			'extensions.autoCheckUpdates': {
 				type: 'boolean',
-				description: localize('extensionsCheckUpdates', "When enabled, automatically checks extensions for updates. If an extension has an update, it is marked as outdated in the Extensions view. The updates are fetched from a Microsoft online service."),
+				description: localize('extensionsCheckUpdates', "启用后，将自动检查扩展更新。如果扩展有更新，它将在扩展视图中标记为过时。更新从 Microsoft 在线服务获取。"),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
-				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
+				description: localize('extensionsIgnoreRecommendations', "启用后，将不显示扩展推荐通知。"),
 				default: false
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
-				deprecationMessage: localize('extensionsShowRecommendationsOnlyOnDemand_Deprecated', "This setting is deprecated. Use extensions.ignoreRecommendations setting to control recommendation notifications. Use Extensions view's visibility actions to hide Recommended view by default."),
+				deprecationMessage: localize('extensionsShowRecommendationsOnlyOnDemand_Deprecated', "此设置已弃用。使用 extensions.ignoreRecommendations 设置来控制推荐通知。使用扩展视图的可见性操作来默认隐藏推荐视图。"),
 				default: false,
 				tags: ['usesOnlineServices']
 			},
 			'extensions.closeExtensionDetailsOnViewChange': {
 				type: 'boolean',
-				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "启用后，当离开扩展视图时，包含扩展详细信息的编辑器将自动关闭。"),
 				default: false
 			},
 			'extensions.confirmedUriHandlerExtensionIds': {
@@ -180,7 +180,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				items: {
 					type: 'string'
 				},
-				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
+				description: localize('handleUriConfirmedExtensions', "当扩展在此列表中时，该扩展处理 URI 时将不显示确认提示。"),
 				default: [],
 				scope: ConfigurationScope.APPLICATION
 			},
@@ -188,16 +188,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: ['boolean', 'string'],
 				enum: [true, false, 'auto'],
 				enumDescriptions: [
-					localize('extensionsWebWorker.true', "The Web Worker Extension Host will always be launched."),
-					localize('extensionsWebWorker.false', "The Web Worker Extension Host will never be launched."),
-					localize('extensionsWebWorker.auto', "The Web Worker Extension Host will be launched when a web extension needs it."),
+					localize('extensionsWebWorker.true', "Web Worker 扩展主机将始终启动。"),
+					localize('extensionsWebWorker.false', "Web Worker 扩展主机将永不启动。"),
+					localize('extensionsWebWorker.auto', "当 Web 扩展需要时，Web Worker 扩展主机将启动。"),
 				],
-				description: localize('extensionsWebWorker', "Enable web worker extension host."),
+				description: localize('extensionsWebWorker', "启用 Web Worker 扩展主机。"),
 				default: 'auto'
 			},
 			'extensions.supportVirtualWorkspaces': {
 				type: 'object',
-				markdownDescription: localize('extensions.supportVirtualWorkspaces', "Override the virtual workspaces support of an extension."),
+				markdownDescription: localize('extensions.supportVirtualWorkspaces', "覆盖扩展的虚拟工作区支持。"),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						type: 'boolean',
@@ -214,7 +214,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.affinity': {
 				type: 'object',
-				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
+				markdownDescription: localize('extensions.affinity', "配置扩展在不同的扩展主机进程中执行。"),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						type: 'integer',
@@ -232,7 +232,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "Override the untrusted workspace support of an extension. Extensions using `true` will always be enabled. Extensions using `limited` will always be enabled, and the extension will hide functionality that requires trust. Extensions using `false` will only be enabled only when the workspace is trusted."),
+				markdownDescription: localize('extensions.supportUntrustedWorkspaces', "覆盖扩展的不受信任工作区支持。使用 `true` 的扩展将始终启用。使用 `limited` 的扩展将始终启用，但扩展将隐藏需要信任的功能。使用 `false` 的扩展仅在工作区受信任时启用。"),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						type: 'object',
@@ -241,15 +241,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 								type: ['boolean', 'string'],
 								enum: [true, false, 'limited'],
 								enumDescriptions: [
-									localize('extensions.supportUntrustedWorkspaces.true', "Extension will always be enabled."),
-									localize('extensions.supportUntrustedWorkspaces.false', "Extension will only be enabled only when the workspace is trusted."),
-									localize('extensions.supportUntrustedWorkspaces.limited', "Extension will always be enabled, and the extension will hide functionality requiring trust."),
+									localize('extensions.supportUntrustedWorkspaces.true', "扩展将始终启用。"),
+									localize('extensions.supportUntrustedWorkspaces.false', "扩展仅在工作区受信任时启用。"),
+									localize('extensions.supportUntrustedWorkspaces.limited', "扩展将始终启用，但扩展将隐藏需要信任的功能。"),
 								],
-								description: localize('extensions.supportUntrustedWorkspaces.supported', "Defines the untrusted workspace support setting for the extension."),
+								description: localize('extensions.supportUntrustedWorkspaces.supported', "定义扩展的不受信任工作区支持设置。"),
 							},
 							'version': {
 								type: 'string',
-								description: localize('extensions.supportUntrustedWorkspaces.version', "Defines the version of the extension for which the override should be applied. If not specified, the override will be applied independent of the extension version."),
+								description: localize('extensions.supportUntrustedWorkspaces.version', "定义应用覆盖的扩展版本。如果未指定，覆盖将独立于扩展版本应用。"),
 							}
 						}
 					}
@@ -257,30 +257,30 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.experimental.deferredStartupFinishedActivation': {
 				type: 'boolean',
-				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
+				description: localize('extensionsDeferredStartupFinishedActivation', "启用后，声明 `onStartupFinished` 激活事件的扩展将在超时后激活。"),
 				default: false
 			},
 			'extensions.experimental.issueQuickAccess': {
 				type: 'boolean',
-				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
+				description: localize('extensionsInQuickAccess', "启用后，可以通过快速访问搜索扩展并从那里报告问题。"),
 				default: true
 			},
 			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
-				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),
+				description: localize('extensions.verifySignature', "启用后，扩展在安装前将验证其签名。"),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				included: isNative
 			},
 			[AutoRestartConfigurationKey]: {
 				type: 'boolean',
-				description: localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus. There can be a data loss if you have open Notebooks or Custom Editors."),
+				description: localize('autoRestart', "如果激活，当窗口不在焦点时，扩展将在更新后自动重启。如果您有打开的笔记本或自定义编辑器，可能会丢失数据。"),
 				default: false,
 				included: product.quality !== 'stable'
 			},
 			[ExtensionGalleryServiceUrlConfigKey]: {
 				type: 'string',
-				description: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
+				description: localize('extensions.gallery.serviceUrl', "配置要连接的应用市场服务 URL"),
 				default: '',
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices'],
@@ -292,19 +292,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localization: {
 						description: {
 							key: 'extensions.gallery.serviceUrl',
-							value: localize('extensions.gallery.serviceUrl', "Configure the Marketplace service URL to connect to"),
+							value: localize('extensions.gallery.serviceUrl', "配置要连接的应用市场服务 URL"),
 						}
 					}
 				},
 			},
 			'extensions.supportNodeGlobalNavigator': {
 				type: 'boolean',
-				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
+				description: localize('extensionsSupportNodeGlobalNavigator', "启用后，Node.js navigator 对象将在全局作用域中公开。"),
 				default: false,
 			},
 			[ExtensionRequestsTimeoutConfigKey]: {
 				type: 'number',
-				description: localize('extensionsRequestTimeout', "Controls the timeout in milliseconds for HTTP requests made when fetching extensions from the Marketplace"),
+				description: localize('extensionsRequestTimeout', "控制从应用市场获取扩展时 HTTP 请求的超时时间(毫秒)"),
 				default: 60_000,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['advanced', 'usesOnlineServices']
@@ -322,7 +322,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	if (extension) {
 		extensionService.open(extension, { tab, preserveFocus, feature });
 	} else {
-		throw new Error(localize('notFound', "Extension '{0}' not found.", extensionId));
+		throw new Error(localize('notFound', "未找到扩展 '{0}'。", extensionId));
 	}
 });
 
@@ -341,11 +341,11 @@ CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAcce
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.installExtension',
 	metadata: {
-		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
+		description: localize('workbench.extensions.installExtension.description', "安装指定的扩展"),
 		args: [
 			{
 				name: 'extensionIdOrVSIXUri',
-				description: localize('workbench.extensions.installExtension.arg.decription', "Extension id or VSIX resource uri"),
+				description: localize('workbench.extensions.installExtension.arg.decription', "扩展 ID 或 VSIX 资源 URI"),
 				constraint: (value: any) => typeof value === 'string' || value instanceof URI,
 			},
 			{
@@ -358,31 +358,31 @@ CommandsRegistry.registerCommand({
 					'properties': {
 						'installOnlyNewlyAddedFromExtensionPackVSIX': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, Chenille installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
+							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "启用后，Chenille 仅从扩展包 VSIX 安装新添加的扩展。此选项仅在安装 VSIX 时考虑。"),
 							default: false
 						},
 						'installPreReleaseVersion': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, Chenille installs the pre-release version of the extension if available."),
+							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "启用后，Chenille 将安装扩展的预发布版本(如果可用)。"),
 							default: false
 						},
 						'donotSync': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, Chenille do not sync this extension when Settings Sync is on."),
+							'description': localize('workbench.extensions.installExtension.option.donotSync', "启用后，当设置同步开启时，Chenille 不会同步此扩展。"),
 							default: false
 						},
 						'justification': {
 							'type': ['string', 'object'],
-							'description': localize('workbench.extensions.installExtension.option.justification', "Justification for installing the extension. This is a string or an object that can be used to pass any information to the installation handlers. i.e. `{reason: 'This extension wants to open a URI', action: 'Open URI'}` will show a message box with the reason and action upon install."),
+							'description': localize('workbench.extensions.installExtension.option.justification', "安装扩展的理由。这是一个字符串或对象，可用于向安装处理程序传递任何信息。例如 `{reason: '此扩展想要打开 URI', action: '打开 URI'}` 将在安装时显示带有原因和操作的消息框。"),
 						},
 						'enable': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.enable', "When enabled, the extension will be enabled if it is installed but disabled. If the extension is already enabled, this has no effect."),
+							'description': localize('workbench.extensions.installExtension.option.enable', "启用后，如果扩展已安装但被禁用，则将启用该扩展。如果扩展已启用，则此选项无效。"),
 							default: false
 						},
 						'context': {
 							'type': 'object',
-							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
+							'description': localize('workbench.extensions.installExtension.option.context', "安装的上下文。这是一个 JSON 对象，可用于向安装处理程序传递任何信息。例如 `{skipWalkthrough: true}` 将在安装时跳过打开演练。"),
 						}
 					}
 				}
@@ -410,7 +410,7 @@ CommandsRegistry.registerCommand({
 				if (extension?.enablementState === EnablementState.DisabledByExtensionKind) {
 					const [gallery] = await extensionGalleryService.getExtensions([{ id, preRelease: options?.installPreReleaseVersion }], CancellationToken.None);
 					if (!gallery) {
-						throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
+						throw new Error(localize('notFound', "未找到扩展 '{0}'。", arg));
 					}
 					await extensionManagementService.installFromGallery(gallery, {
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
@@ -442,10 +442,10 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.uninstallExtension',
 	metadata: {
-		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
+		description: localize('workbench.extensions.uninstallExtension.description', "卸载指定的扩展"),
 		args: [
 			{
-				name: localize('workbench.extensions.uninstallExtension.arg.name', "Id of the extension to uninstall"),
+				name: localize('workbench.extensions.uninstallExtension.arg.name', "要卸载的扩展 ID"),
 				schema: {
 					'type': 'string'
 				}
@@ -454,16 +454,16 @@ CommandsRegistry.registerCommand({
 	},
 	handler: async (accessor, id: string) => {
 		if (!id) {
-			throw new Error(localize('id required', "Extension id required."));
+			throw new Error(localize('id required', "需要扩展 ID。"));
 		}
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const installed = await extensionManagementService.getInstalled();
 		const [extensionToUninstall] = installed.filter(e => areSameExtensions(e.identifier, { id }));
 		if (!extensionToUninstall) {
-			throw new Error(localize('notInstalled', "Extension '{0}' is not installed. Make sure you use the full extension ID, including the publisher, e.g.: ms-dotnettools.csharp.", id));
+			throw new Error(localize('notInstalled', "扩展 '{0}' 未安装。请确保使用完整的扩展 ID，包括发布者，例如: ms-dotnettools.csharp。", id));
 		}
 		if (extensionToUninstall.isBuiltin) {
-			throw new Error(localize('builtin', "Extension '{0}' is a Built-in extension and cannot be uninstalled", id));
+			throw new Error(localize('builtin', "扩展 '{0}' 是内置扩展，无法卸载", id));
 		}
 
 		try {
@@ -478,10 +478,10 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.search',
 	metadata: {
-		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
+		description: localize('workbench.extensions.search.description', "搜索特定扩展"),
 		args: [
 			{
-				name: localize('workbench.extensions.search.arg.name', "Query to use in search"),
+				name: localize('workbench.extensions.search.arg.name', "搜索查询"),
 				schema: { 'type': 'string' }
 			}
 		]
@@ -598,8 +598,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,
-				placeholder: localize('installExtensionQuickAccessPlaceholder', "Type the name of an extension to install or search."),
-				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "Install or Search Extensions") }]
+				placeholder: localize('installExtensionQuickAccessPlaceholder', "输入扩展名称以安装或搜索。"),
+				helpEntries: [{ description: localize('installExtensionQuickAccessHelp', "安装或搜索扩展") }]
 			});
 		}
 	}
@@ -617,7 +617,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			command: {
 				id: VIEWLET_ID,
-				title: localize('showExtensions', "Extensions")
+				title: localize('showExtensions', "扩展")
 			},
 			group: '2_configuration',
 			order: 3
@@ -625,7 +625,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.focusExtensionsView',
-			title: localize2('focusExtensions', 'Focus on Extensions View'),
+			title: localize2('focusExtensions', '聚焦到扩展视图'),
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
@@ -635,7 +635,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
-			title: localize2('installExtensions', 'Install Extensions'),
+			title: localize2('installExtensions', '安装扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -648,7 +648,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showRecommendedKeymapExtensions',
-			title: localize2('showRecommendedKeymapExtensionsShort', 'Keymaps'),
+			title: localize2('showRecommendedKeymapExtensionsShort', '键盘映射'),
 			category: PreferencesLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -659,14 +659,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '2_keyboard_discover_actions'
 			}],
 			menuTitles: {
-				[MenuId.EditorTitle.id]: localize('importKeyboardShortcutsFroms', "Migrate Keyboard Shortcuts from...")
+				[MenuId.EditorTitle.id]: localize('importKeyboardShortcutsFroms', "从...迁移键盘快捷方式")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@recommended:keymaps ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showLanguageExtensions',
-			title: localize2('showLanguageExtensionsShort', 'Language Extensions'),
+			title: localize2('showLanguageExtensionsShort', '语言扩展'),
 			category: PreferencesLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -677,7 +677,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.checkForUpdates',
-			title: localize2('checkForUpdates', 'Check for Extension Updates'),
+			title: localize2('checkForUpdates', '检查扩展更新'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -694,7 +694,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (outdated.length) {
 					return this.extensionsWorkbenchService.openSearch('@outdated ');
 				} else {
-					return this.dialogService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
+					return this.dialogService.info(localize('noUpdatesAvailable', "所有扩展都是最新的。"));
 				}
 			}
 		});
@@ -702,7 +702,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false);
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
+			title: localize2('enableAutoUpdate', '为所有扩展启用自动更新'),
 			category: ExtensionsLocalizedLabel,
 			precondition: enableAutoUpdateWhenCondition,
 			menu: [{
@@ -719,7 +719,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, false);
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
+			title: localize2('disableAutoUpdate', '为所有扩展禁用自动更新'),
 			precondition: disableAutoUpdateWhenCondition,
 			category: ExtensionsLocalizedLabel,
 			menu: [{
@@ -735,7 +735,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.updateAllExtensions',
-			title: localize2('updateAll', 'Update All Extensions'),
+			title: localize2('updateAll', '更新所有扩展'),
 			category: ExtensionsLocalizedLabel,
 			precondition: HasOutdatedExtensionsContext,
 			menu: [
@@ -762,7 +762,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAll',
-			title: localize2('enableAll', 'Enable All Extensions'),
+			title: localize2('enableAll', '启用所有扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -783,7 +783,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAllWorkspace',
-			title: localize2('enableAllWorkspace', 'Enable All Extensions for this Workspace'),
+			title: localize2('enableAllWorkspace', '为此工作区启用所有扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -799,7 +799,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAll',
-			title: localize2('disableAll', 'Disable All Installed Extensions'),
+			title: localize2('disableAll', '禁用所有已安装的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -820,7 +820,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAllWorkspace',
-			title: localize2('disableAllWorkspace', 'Disable All Installed Extensions for this Workspace'),
+			title: localize2('disableAllWorkspace', '为此工作区禁用所有已安装的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -836,7 +836,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID,
-			title: localize2('InstallFromVSIX', 'Install from VSIX...'),
+			title: localize2('InstallFromVSIX', '从 VSIX 安装...'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -851,11 +851,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const fileDialogService = accessor.get(IFileDialogService);
 				const commandService = accessor.get(ICommandService);
 				const vsixPaths = await fileDialogService.showOpenDialog({
-					title: localize('installFromVSIX', "Install from VSIX"),
+					title: localize('installFromVSIX', "从 VSIX 安装"),
 					filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 					canSelectFiles: true,
 					canSelectMany: true,
-					openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+					openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "安装(&I)"))
 				});
 				if (vsixPaths) {
 					await commandService.executeCommand(INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, vsixPaths);
@@ -865,7 +865,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID,
-			title: localize('installVSIX', "Install Extension VSIX"),
+			title: localize('installVSIX', "安装扩展 VSIX"),
 			menu: [{
 				id: MenuId.ExplorerContext,
 				group: 'extensions',
@@ -893,10 +893,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (requireReload) {
 					notificationService.prompt(
 						Severity.Info,
-						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "Completed installing extensions. Please reload Visual Studio Code to enable them.")
-							: localize('InstallVSIXAction.successReload', "Completed installing extension. Please reload Visual Studio Code to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successReload', "扩展安装完成。请重新加载 Visual Studio Code 以启用它们。")
+							: localize('InstallVSIXAction.successReload', "扩展安装完成。请重新加载 Visual Studio Code 以启用它。"),
 						[{
-							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+							label: localize('InstallVSIXAction.reloadNow', "立即重新加载"),
 							run: () => hostService.reload()
 						}]
 					);
@@ -904,10 +904,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else if (requireRestart) {
 					notificationService.prompt(
 						Severity.Info,
-						vsixs.length > 1 ? localize('InstallVSIXs.successRestart', "Completed installing extensions. Please restart extensions to enable them.")
-							: localize('InstallVSIXAction.successRestart', "Completed installing extension. Please restart extensions to enable it."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successRestart', "扩展安装完成。请重启扩展以启用它们。")
+							: localize('InstallVSIXAction.successRestart', "扩展安装完成。请重启扩展以启用它。"),
 						[{
-							label: localize('InstallVSIXAction.restartExtensions', "Restart Extensions"),
+							label: localize('InstallVSIXAction.restartExtensions', "重启扩展"),
 							run: () => extensionsWorkbenchService.updateRunningExtensions()
 						}]
 					);
@@ -915,7 +915,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				else {
 					notificationService.prompt(
 						Severity.Info,
-						vsixs.length > 1 ? localize('InstallVSIXs.successNoReload', "Completed installing extensions.") : localize('InstallVSIXAction.successNoReload', "Completed installing extension."),
+						vsixs.length > 1 ? localize('InstallVSIXs.successNoReload', "扩展安装完成。") : localize('InstallVSIXAction.successNoReload', "扩展安装完成。"),
 						[]
 					);
 				}
@@ -924,7 +924,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensionFromLocation',
-			title: localize2('installExtensionFromLocation', 'Install Extension from Location...'),
+			title: localize2('installExtensionFromLocation', '从位置安装扩展...'),
 			category: Categories.Developer,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -937,10 +937,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						const quickInputService = accessor.get(IQuickInputService);
 						const disposables = new DisposableStore();
 						const quickPick = disposables.add(quickInputService.createQuickPick());
-						quickPick.title = localize('installFromLocation', "Install Extension from Location");
+						quickPick.title = localize('installFromLocation', "从位置安装扩展");
 						quickPick.customButton = true;
-						quickPick.customLabel = localize('install button', "Install");
-						quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
+						quickPick.customLabel = localize('install button', "安装");
+						quickPick.placeholder = localize('installFromLocationPlaceHolder', "Web 扩展的位置");
 						quickPick.ignoreFocusOut = true;
 						disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 							quickPick.hide();
@@ -963,7 +963,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						canSelectFolders: true,
 						canSelectFiles: false,
 						canSelectMany: false,
-						title: localize('installFromLocation', "Install Extension from Location"),
+						title: localize('installFromLocation', "从位置安装扩展"),
 					});
 					if (extensionLocation?.[0]) {
 						await extensionManagementService.installFromLocation(extensionLocation[0]);
@@ -974,7 +974,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		MenuRegistry.appendMenuItem(extensionsSearchActionsMenu, {
 			submenu: extensionsFilterSubMenu,
-			title: localize('filterExtensions', "Filter Extensions..."),
+			title: localize('filterExtensions', "筛选扩展..."),
 			group: 'navigation',
 			order: 2,
 			icon: filterIcon,
@@ -984,7 +984,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const featuresExtensionsWhenContext = ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Featured}_`)));
 		this.registerExtensionAction({
 			id: showFeaturedExtensionsId,
-			title: localize2('showFeaturedExtensions', 'Show Featured Extensions'),
+			title: localize2('showFeaturedExtensions', '显示精选扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -996,14 +996,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('featured filter', "Featured")
+				[extensionsFilterSubMenu.id]: localize('featured filter', "精选")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@featured ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showPopularExtensions',
-			title: localize2('showPopularExtensions', 'Show Popular Extensions'),
+			title: localize2('showPopularExtensions', '显示热门扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1015,14 +1015,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 2,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('most popular filter', "Most Popular")
+				[extensionsFilterSubMenu.id]: localize('most popular filter', "最热门")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@popular ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showRecommendedExtensions',
-			title: localize2('showRecommendedExtensions', 'Show Recommended Extensions'),
+			title: localize2('showRecommendedExtensions', '显示推荐的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1034,14 +1034,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 2,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('most popular recommended', "Recommended")
+				[extensionsFilterSubMenu.id]: localize('most popular recommended', "推荐")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@recommended ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.recentlyPublishedExtensions',
-			title: localize2('recentlyPublishedExtensions', 'Show Recently Published Extensions'),
+			title: localize2('recentlyPublishedExtensions', '显示最近发布的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1053,7 +1053,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 2,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('recently published filter', "Recently Published")
+				[extensionsFilterSubMenu.id]: localize('recently published filter', "最近发布")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@recentlyPublished ')
 		});
@@ -1061,7 +1061,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsCategoryFilterSubMenu,
-			title: localize('filter by category', "Category"),
+			title: localize('filter by category', "类别"),
 			when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.regex(CONTEXT_GALLERY_FILTER_CAPABILITIES.key, new RegExp(`_${FilterType.Category}_`))),
 			group: '2_categories',
 			order: 1,
@@ -1082,7 +1082,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installedExtensions',
-			title: localize2('installedExtensions', 'Show Installed Extensions'),
+			title: localize2('installedExtensions', '显示已安装的扩展'),
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			menu: [{
@@ -1091,14 +1091,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('installed filter', "Installed")
+				[extensionsFilterSubMenu.id]: localize('installed filter', "已安装")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@installed ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.listBuiltInExtensions',
-			title: localize2('showBuiltInExtensions', 'Show Built-in Extensions'),
+			title: localize2('showBuiltInExtensions', '显示内置扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1109,14 +1109,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 3,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('builtin filter', "Built-in")
+				[extensionsFilterSubMenu.id]: localize('builtin filter', "内置")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@builtin ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.extensionUpdates',
-			title: localize2('extensionUpdates', 'Show Extension Updates'),
+			title: localize2('extensionUpdates', '显示扩展更新'),
 			category: ExtensionsLocalizedLabel,
 			precondition: CONTEXT_HAS_GALLERY,
 			f1: true,
@@ -1127,14 +1127,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 2,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('extension updates filter', "Updates")
+				[extensionsFilterSubMenu.id]: localize('extension updates filter', "更新")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@updates')
 		});
 
 		this.registerExtensionAction({
 			id: LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID,
-			title: localize2('showWorkspaceUnsupportedExtensions', 'Show Extensions Unsupported By Workspace'),
+			title: localize2('showWorkspaceUnsupportedExtensions', '显示工作区不支持的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1146,14 +1146,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER),
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "Workspace Unsupported")
+				[extensionsFilterSubMenu.id]: localize('workspace unsupported filter', "工作区不支持")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@workspaceUnsupported')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showEnabledExtensions',
-			title: localize2('showEnabledExtensions', 'Show Enabled Extensions'),
+			title: localize2('showEnabledExtensions', '显示已启用的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1164,14 +1164,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 4,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('enabled filter', "Enabled")
+				[extensionsFilterSubMenu.id]: localize('enabled filter', "已启用")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@enabled ')
 		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showDisabledExtensions',
-			title: localize2('showDisabledExtensions', 'Show Disabled Extensions'),
+			title: localize2('showDisabledExtensions', '显示已禁用的扩展'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1182,7 +1182,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 5,
 			}],
 			menuTitles: {
-				[extensionsFilterSubMenu.id]: localize('disabled filter', "Disabled")
+				[extensionsFilterSubMenu.id]: localize('disabled filter', "已禁用")
 			},
 			run: () => this.extensionsWorkbenchService.openSearch('@disabled ')
 		});
@@ -1190,18 +1190,18 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const extensionsSortSubMenu = new MenuId('extensionsSortSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsSortSubMenu,
-			title: localize('sorty by', "Sort By"),
+			title: localize('sorty by', "排序方式"),
 			when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext)),
 			group: '4_sort',
 			order: 1,
 		});
 
 		[
-			{ id: 'installs', title: localize('sort by installs', "Install Count"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.InstallCount },
-			{ id: 'rating', title: localize('sort by rating', "Rating"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.WeightedRating },
-			{ id: 'name', title: localize('sort by name', "Name"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.Title },
-			{ id: 'publishedDate', title: localize('sort by published date', "Published Date"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.PublishedDate },
-			{ id: 'updateDate', title: localize('sort by update date', "Updated Date"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()), sortCapability: 'UpdateDate' },
+			{ id: 'installs', title: localize('sort by installs', "安装次数"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.InstallCount },
+			{ id: 'rating', title: localize('sort by rating', "评分"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.WeightedRating },
+			{ id: 'name', title: localize('sort by name', "名称"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.Title },
+			{ id: 'publishedDate', title: localize('sort by published date', "发布日期"), precondition: BuiltInExtensionsContext.negate(), sortCapability: SortBy.PublishedDate },
+			{ id: 'updateDate', title: localize('sort by update date', "更新日期"), precondition: ContextKeyExpr.and(SearchMarketplaceExtensionsContext.negate(), RecommendedExtensionsContext.negate(), BuiltInExtensionsContext.negate()), sortCapability: 'UpdateDate' },
 		].map(({ id, title, precondition, sortCapability }, index) => {
 			const sortCapabilityContext = ContextKeyExpr.regex(CONTEXT_GALLERY_SORT_CAPABILITIES.key, new RegExp(`_${sortCapability}_`));
 			this.registerExtensionAction({
@@ -1225,7 +1225,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.clearExtensionsSearchResults',
-			title: localize2('clearExtensionsSearchResults', 'Clear Extensions Search Results'),
+			title: localize2('clearExtensionsSearchResults', '清除扩展搜索结果'),
 			category: ExtensionsLocalizedLabel,
 			icon: clearSearchResultsIcon,
 			f1: true,
@@ -1247,7 +1247,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.refreshExtension',
-			title: localize2('refreshExtension', 'Refresh'),
+			title: localize2('refreshExtension', '刷新'),
 			category: ExtensionsLocalizedLabel,
 			icon: refreshIcon,
 			f1: true,
@@ -1267,7 +1267,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installWorkspaceRecommendedExtensions',
-			title: localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"),
+			title: localize('installWorkspaceRecommendedExtensions', "安装工作区推荐的扩展"),
 			icon: installWorkspaceRecommendedIcon,
 			menu: {
 				id: MenuId.ViewTitle,
@@ -1377,7 +1377,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showPreReleaseVersion',
-			title: localize2('show pre-release version', 'Show Pre-Release Version'),
+			title: localize2('show pre-release version', '显示预发布版本'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
@@ -1393,7 +1393,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showReleasedVersion',
-			title: localize2('show released version', 'Show Release Version'),
+			title: localize2('show released version', '显示正式版本'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
@@ -1459,7 +1459,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.switchToPreRlease',
-			title: localize('enablePreRleaseLabel', "Switch to Pre-Release Version"),
+			title: localize('enablePreRleaseLabel', "切换到预发布版本"),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.ExtensionContext,
@@ -1481,7 +1481,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.switchToRelease',
-			title: localize('disablePreRleaseLabel', "Switch to Release Version"),
+			title: localize('disablePreRleaseLabel', "切换到正式版本"),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.ExtensionContext,
@@ -1522,7 +1522,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installUnsigned',
-			title: localize('install', "Install"),
+			title: localize('install', "安装"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
@@ -1544,7 +1544,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installAndDonotSync',
-			title: localize('install installAndDonotSync', "Install (Do not Sync)"),
+			title: localize('install installAndDonotSync', "安装(不同步)"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
@@ -1568,7 +1568,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installPrereleaseAndDonotSync',
-			title: localize('installPrereleaseAndDonotSync', "Install Pre-Release (Do not Sync)"),
+			title: localize('installPrereleaseAndDonotSync', "安装预发布版本(不同步)"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
@@ -1611,7 +1611,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtension',
-			title: localize2('workbench.extensions.action.copyExtension', 'Copy'),
+			title: localize2('workbench.extensions.action.copyExtension', '复制'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
@@ -1621,12 +1621,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);
-					const id = localize('extensionInfoId', 'Id: {0}', extensionId);
-					const description = localize('extensionInfoDescription', 'Description: {0}', extension.description);
-					const verision = localize('extensionInfoVersion', 'Version: {0}', extension.version);
-					const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
-					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
+					const name = localize('extensionInfoName', '名称: {0}', extension.displayName);
+					const id = localize('extensionInfoId', 'ID: {0}', extensionId);
+					const description = localize('extensionInfoDescription', '描述: {0}', extension.description);
+					const verision = localize('extensionInfoVersion', '版本: {0}', extension.version);
+					const publisher = localize('extensionInfoPublisher', '发布者: {0}', extension.publisherDisplayName);
+					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS 应用市场链接: {0}', `${extension.url}`) : null;
 					const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
 					await clipboardService.writeText(clipboardStr);
 				}
@@ -1635,7 +1635,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtensionId',
-			title: localize2('workbench.extensions.action.copyExtensionId', 'Copy Extension ID'),
+			title: localize2('workbench.extensions.action.copyExtensionId', '复制扩展 ID'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
@@ -1645,7 +1645,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyLink',
-			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
+			title: localize2('workbench.extensions.action.copyLink', '复制链接'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy',
@@ -1661,7 +1661,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: localize2('workbench.extensions.action.configure', 'Settings'),
+			title: localize2('workbench.extensions.action.configure', '设置'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1673,7 +1673,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.download',
-			title: localize('download VSIX', "Download VSIX"),
+			title: localize('download VSIX', "下载 VSIX"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
@@ -1686,7 +1686,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.downloadPreRelease',
-			title: localize('download pre-release', "Download Pre-Release VSIX"),
+			title: localize('download pre-release', "下载预发布版 VSIX"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
@@ -1699,7 +1699,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.downloadSpecificVersion',
-			title: localize('download specific version', "Download Specific Version VSIX..."),
+			title: localize('download specific version', "下载特定版本 VSIX..."),
 			menu: {
 				id: MenuId.ExtensionContext,
 				when: ContextKeyExpr.and(ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isGalleryExtension')),
@@ -1712,7 +1712,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.manageAccountPreferences',
-			title: localize2('workbench.extensions.action.changeAccountPreference', "Account Preferences"),
+			title: localize2('workbench.extensions.action.changeAccountPreference', "账户首选项"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1724,7 +1724,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: localize2('workbench.extensions.action.configureKeybindings', 'Keyboard Shortcuts'),
+			title: localize2('workbench.extensions.action.configureKeybindings', '键盘快捷方式'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1736,7 +1736,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.toggleApplyToAllProfiles',
-			title: localize2('workbench.extensions.action.toggleApplyToAllProfiles', "Apply Extension to all Profiles"),
+			title: localize2('workbench.extensions.action.toggleApplyToAllProfiles', "将扩展应用到所有配置文件"),
 			toggled: ContextKeyExpr.has('isApplicationScopedExtension'),
 			menu: {
 				id: MenuId.ExtensionContext,
@@ -1755,7 +1755,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: TOGGLE_IGNORE_EXTENSION_ACTION_ID,
-			title: localize2('workbench.extensions.action.toggleIgnoreExtension', "Sync This Extension"),
+			title: localize2('workbench.extensions.action.toggleIgnoreExtension', "同步此扩展"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1772,7 +1772,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.ignoreRecommendation',
-			title: localize2('workbench.extensions.action.ignoreRecommendation', "Ignore Recommendation"),
+			title: localize2('workbench.extensions.action.ignoreRecommendation', "忽略推荐"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '3_recommendations',
@@ -1784,7 +1784,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.undoIgnoredRecommendation',
-			title: localize2('workbench.extensions.action.undoIgnoredRecommendation', "Undo Ignored Recommendation"),
+			title: localize2('workbench.extensions.action.undoIgnoredRecommendation', "撤消忽略的推荐"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '3_recommendations',
@@ -1796,7 +1796,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addExtensionToWorkspaceRecommendations',
-			title: localize2('workbench.extensions.action.addExtensionToWorkspaceRecommendations', "Add to Workspace Recommendations"),
+			title: localize2('workbench.extensions.action.addExtensionToWorkspaceRecommendations', "添加到工作区推荐"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '3_recommendations',
@@ -1808,7 +1808,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.removeExtensionFromWorkspaceRecommendations',
-			title: localize2('workbench.extensions.action.removeExtensionFromWorkspaceRecommendations', "Remove from Workspace Recommendations"),
+			title: localize2('workbench.extensions.action.removeExtensionFromWorkspaceRecommendations', "从工作区推荐中移除"),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '3_recommendations',
@@ -1820,7 +1820,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceRecommendations',
-			title: localize2('workbench.extensions.action.addToWorkspaceRecommendations', "Add Extension to Workspace Recommendations"),
+			title: localize2('workbench.extensions.action.addToWorkspaceRecommendations', "将扩展添加到工作区推荐"),
 			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1843,7 +1843,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderRecommendations',
-			title: localize2('workbench.extensions.action.addToWorkspaceFolderRecommendations', "Add Extension to Workspace Folder Recommendations"),
+			title: localize2('workbench.extensions.action.addToWorkspaceFolderRecommendations', "将扩展添加到工作区文件夹推荐"),
 			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1854,7 +1854,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceIgnoredRecommendations',
-			title: localize2('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "Add Extension to Workspace Ignored Recommendations"),
+			title: localize2('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "将扩展添加到工作区忽略的推荐"),
 			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1877,7 +1877,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations',
-			title: localize2('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "Add Extension to Workspace Folder Ignored Recommendations"),
+			title: localize2('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "将扩展添加到工作区文件夹忽略的推荐"),
 			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1899,7 +1899,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.manageTrustedPublishers',
-			title: localize2('workbench.extensions.action.manageTrustedPublishers', "Manage Trusted Extension Publishers"),
+			title: localize2('workbench.extensions.action.manageTrustedPublishers', "管理受信任的扩展发布者"),
 			category: EXTENSIONS_CATEGORY,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
@@ -1914,8 +1914,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				})).sort((a, b) => a.label.localeCompare(b.label));
 				const result = await quickInputService.pick(trustedPublisherItems, {
 					canPickMany: true,
-					title: localize('trustedPublishers', "Manage Trusted Extension Publishers"),
-					placeHolder: localize('trustedPublishersPlaceholder', "Choose which publishers to trust"),
+					title: localize('trustedPublishers', "管理受信任的扩展发布者"),
+					placeHolder: localize('trustedPublishersPlaceholder', "选择要信任的发布者"),
 				});
 				if (result) {
 					const untrustedPublishers = [];
@@ -2055,7 +2055,7 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.actions.gallery.signIn',
-			title: localize2('signInToMarketplace', 'Sign in to access Extensions Marketplace'),
+			title: localize2('signInToMarketplace', '登录以访问扩展应用市场'),
 			menu: {
 				id: MenuId.AccountsContext,
 				when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)

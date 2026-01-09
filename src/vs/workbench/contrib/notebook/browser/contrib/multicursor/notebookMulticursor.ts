@@ -1012,7 +1012,7 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID,
-			title: localize('selectAllFindMatches', "Select All Occurrences of Find Match"),
+			title: localize('selectAllFindMatches', "选择所有查找匹配项"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 			),
@@ -1063,7 +1063,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
-			title: localize('addFindMatchToSelection', "Add Selection to Next Find Match"),
+			title: localize('addFindMatchToSelection', "将选择添加到下一个查找匹配项"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -1102,7 +1102,7 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.exit',
-			title: localize('exitMultiSelection', "Exit Multi Cursor Mode"),
+			title: localize('exitMultiSelection', "退出多光标模式"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -1137,7 +1137,7 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.deleteLeft',
-			title: localize('deleteLeftMultiSelection', "Delete Left"),
+			title: localize('deleteLeftMultiSelection', "向左删除"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -1180,7 +1180,7 @@ class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.deleteRight',
-			title: localize('deleteRightMultiSelection', "Delete Right"),
+			title: localize('deleteRightMultiSelection', "向右删除"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,

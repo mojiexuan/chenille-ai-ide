@@ -195,9 +195,9 @@ export class NativeWindow extends BaseWindow {
 		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, ...argsRaw: unknown[]) => {
 			this.notificationService.prompt(
 				Severity.Error,
-				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				localize('sharedProcessCrash', "共享后台进程意外终止。请重新启动应用程序以恢复。"),
 				[{
-					label: localize('restart', "Restart"),
+					label: localize('restart', "重新启动"),
 					run: () => this.nativeHostService.relaunch()
 				}],
 				{
@@ -222,15 +222,15 @@ export class NativeWindow extends BaseWindow {
 				Severity.Error,
 				message,
 				[{
-					label: localize('restart', "Restart"),
+					label: localize('restart', "重新启动"),
 					run: () => this.nativeHostService.relaunch()
 				},
 				{
-					label: localize('configure', "Configure"),
+					label: localize('configure', "配置"),
 					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
 				},
 				{
-					label: localize('learnMore', "Learn More"),
+					label: localize('learnMore', "了解更多"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
 			);
@@ -240,9 +240,9 @@ export class NativeWindow extends BaseWindow {
 			const message = argsRaw[0] as string;
 			this.notificationService.prompt(
 				Severity.Error,
-				localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+				localize('keychainWriteError', '将登录信息写入密钥链失败，错误为「{0}」。', message),
 				[{
-					label: localize('troubleshooting', "Troubleshooting Guide"),
+					label: localize('troubleshooting', "故障排除指南"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
 				}]
 			);
@@ -251,9 +251,9 @@ export class NativeWindow extends BaseWindow {
 		ipcRenderer.on('vscode:showTranslatedBuildWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
+				localize("runningTranslated", "您正在运行 {0} 的模拟版本。为获得更好的性能，请下载适用于您计算机的 {0} 原生 arm64 版本。", this.productService.nameLong),
 				[{
-					label: localize('downloadArmBuild', "Download"),
+					label: localize('downloadArmBuild', "下载"),
 					run: () => {
 						const quality = this.productService.quality;
 						const stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
@@ -270,9 +270,9 @@ export class NativeWindow extends BaseWindow {
 		ipcRenderer.on('vscode:showArgvParseWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
+				localize("showArgvParseWarning", "运行时参数文件 'argv.json' 包含错误。请更正后重新启动。"),
 				[{
-					label: localize('showArgvParseWarningAction', "Open File"),
+					label: localize('showArgvParseWarningAction', "打开文件"),
 					run: () => this.editorService.openEditor({ resource: this.nativeEnvironmentService.argvResource })
 				}],
 				{
@@ -292,16 +292,16 @@ export class NativeWindow extends BaseWindow {
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input({
 				type: 'warning',
-				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
-				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+				message: localize('proxyAuthRequired', "需要代理身份验证"),
+				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "登录(&L)"),
 				inputs:
 					[
-						{ placeholder: localize('username', "Username"), value: payload.username },
-						{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+						{ placeholder: localize('username', "用户名"), value: payload.username },
+						{ placeholder: localize('password', "密码"), type: 'password', value: payload.password }
 					],
-				detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+				detail: localize('proxyDetail', "代理 {0} 需要用户名和密码。", `${payload.authInfo.host}:${payload.authInfo.port}`),
 				checkbox: {
-					label: localize('rememberCredentials', "Remember my credentials"),
+					label: localize('rememberCredentials', "记住我的凭据"),
 					checked: rememberCredentials
 				}
 			});
@@ -516,7 +516,7 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
-		this.dialogService.error(this.toShutdownLabel(reason, true), localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error)));
+		this.dialogService.error(this.toShutdownLabel(reason, true), localize('shutdownErrorDetail', "错误: {0}", toErrorMessage(error)));
 	}
 
 	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
@@ -531,7 +531,7 @@ export class NativeWindow extends BaseWindow {
 				cancellable: false,								// do not allow to cancel
 				sticky: true,									// do not allow to dismiss
 				title: this.toShutdownLabel(reason, false),
-				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "The following operations are still running: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
+				detail: pendingJoiners.length > 0 ? localize('willShutdownDetail', "以下操作仍在运行: \n{0}", pendingJoiners.map(joiner => `- ${joiner.label}`).join('\n')) : undefined
 			}, () => {
 				return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
 			}, () => {
@@ -548,38 +548,38 @@ export class NativeWindow extends BaseWindow {
 		if (isError) {
 			switch (reason) {
 				case ShutdownReason.CLOSE:
-					return localize('shutdownErrorClose', "An unexpected error prevented the window to close");
+					return localize('shutdownErrorClose', "发生意外错误，导致窗口无法关闭");
 				case ShutdownReason.QUIT:
-					return localize('shutdownErrorQuit', "An unexpected error prevented the application to quit");
+					return localize('shutdownErrorQuit', "发生意外错误，导致应用程序无法退出");
 				case ShutdownReason.RELOAD:
-					return localize('shutdownErrorReload', "An unexpected error prevented the window to reload");
+					return localize('shutdownErrorReload', "发生意外错误，导致窗口无法重新加载");
 				case ShutdownReason.LOAD:
-					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace");
+					return localize('shutdownErrorLoad', "发生意外错误，导致无法更改工作区");
 			}
 		}
 
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				return localize('shutdownTitleClose', "Closing the window is taking a bit longer...");
+				return localize('shutdownTitleClose', "正在关闭窗口，需要更长时间...");
 			case ShutdownReason.QUIT:
-				return localize('shutdownTitleQuit', "Quitting the application is taking a bit longer...");
+				return localize('shutdownTitleQuit', "正在退出应用程序，需要更长时间...");
 			case ShutdownReason.RELOAD:
-				return localize('shutdownTitleReload', "Reloading the window is taking a bit longer...");
+				return localize('shutdownTitleReload', "正在重新加载窗口，需要更长时间...");
 			case ShutdownReason.LOAD:
-				return localize('shutdownTitleLoad', "Changing the workspace is taking a bit longer...");
+				return localize('shutdownTitleLoad', "正在更改工作区，需要更长时间...");
 		}
 	}
 
 	private toForceShutdownLabel(reason: ShutdownReason): string {
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				return localize('shutdownForceClose', "Close Anyway");
+				return localize('shutdownForceClose', "仍然关闭");
 			case ShutdownReason.QUIT:
-				return localize('shutdownForceQuit', "Quit Anyway");
+				return localize('shutdownForceQuit', "仍然退出");
 			case ShutdownReason.RELOAD:
-				return localize('shutdownForceReload', "Reload Anyway");
+				return localize('shutdownForceReload', "仍然重新加载");
 			case ShutdownReason.LOAD:
-				return localize('shutdownForceLoad', "Change Anyway");
+				return localize('shutdownForceLoad', "仍然更改");
 		}
 	}
 
@@ -722,7 +722,7 @@ export class NativeWindow extends BaseWindow {
 
 			// Show warning message (unix only)
 			if (isAdmin && !isWindows) {
-				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+				this.notificationService.warn(localize('runningAsRoot', "不建议以 root 用户身份运行 {0}。", this.productService.nameShort));
 			}
 		})();
 
@@ -742,7 +742,7 @@ export class NativeWindow extends BaseWindow {
 				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
 					this.bannerService.show({
 						id: 'appRootWarning.banner',
-						message: localize('appRootWarning.banner', "Files you store within the installation folder ('{0}') may be OVERWRITTEN or DELETED IRREVERSIBLY without warning at update time.", this.labelService.getUriLabel(installLocationUri)),
+						message: localize('appRootWarning.banner', '您存储在安装文件夹「{0}」中的文件可能会在更新时被覆盖或不可恢复地删除，且不会发出警告。', this.labelService.getUriLabel(installLocationUri)),
 						icon: Codicon.warning
 					});
 
@@ -759,13 +759,13 @@ export class NativeWindow extends BaseWindow {
 			]);
 
 			if (eolReleases.has(majorVersion)) {
-				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+				const message = localize('macoseolmessage', "{0} 在 {1} 上即将停止接收更新。请考虑升级您的 macOS 版本。", this.productService.nameLong, eolReleases.get(majorVersion));
 
 				this.notificationService.prompt(
 					Severity.Warning,
 					message,
 					[{
-						label: localize('learnMore', "Learn More"),
+						label: localize('learnMore', "了解更多"),
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
@@ -780,10 +780,10 @@ export class NativeWindow extends BaseWindow {
 		// Slow shell environment progress indicator
 		const shellEnv = process.shellEnv();
 		this.progressService.withProgress({
-			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			title: localize('resolveShellEnvironment', "正在解析 shell 环境..."),
 			location: ProgressLocation.Window,
 			delay: 1600,
-			buttons: [localize('learnMore', "Learn More")]
+			buttons: [localize('learnMore', "了解更多")]
 		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
 	}
 
@@ -1207,11 +1207,11 @@ class ZoomStatusEntry extends Disposable {
 		const left = $('.zoom-status-left');
 		container.appendChild(left);
 
-		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
-		const zoomInAction: Action = disposables.add(new Action('workbench.action.zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand(zoomInAction.id)));
-		const zoomResetAction: Action = disposables.add(new Action('workbench.action.zoomReset', localize('zoomReset', "Reset"), undefined, true, () => this.commandService.executeCommand(zoomResetAction.id)));
+		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "缩小"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
+		const zoomInAction: Action = disposables.add(new Action('workbench.action.zoomIn', localize('zoomIn', "放大"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand(zoomInAction.id)));
+		const zoomResetAction: Action = disposables.add(new Action('workbench.action.zoomReset', localize('zoomReset', "重置"), undefined, true, () => this.commandService.executeCommand(zoomResetAction.id)));
 		zoomResetAction.tooltip = localize('zoomResetLabel', "{0} ({1})", zoomResetAction.label, this.keybindingService.lookupKeybinding(zoomResetAction.id)?.getLabel());
-		const zoomSettingsAction: Action = disposables.add(new Action('workbench.action.openSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand(zoomSettingsAction.id, 'window.zoom')));
+		const zoomSettingsAction: Action = disposables.add(new Action('workbench.action.openSettings', localize('zoomSettings', "设置"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand(zoomSettingsAction.id, 'window.zoom')));
 		const zoomLevelLabel = disposables.add(new Action('zoomLabel', undefined, undefined, false));
 
 		this.zoomLevelLabel = zoomLevelLabel;
@@ -1230,7 +1230,7 @@ class ZoomStatusEntry extends Disposable {
 		actionBarRight.push(zoomResetAction, { icon: false, label: true });
 		actionBarRight.push(zoomSettingsAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomSettingsAction.id)?.getLabel() });
 
-		const name = localize('status.windowZoom', "Window Zoom");
+		const name = localize('status.windowZoom', "窗口缩放");
 		disposables.add(this.statusbarService.addEntry({
 			name,
 			text: visibleOrText,
@@ -1248,7 +1248,7 @@ class ZoomStatusEntry extends Disposable {
 			const zoomLevel = getZoomLevel(targetWindow);
 
 			this.zoomLevelLabel.label = `${zoomLevel}`;
-			this.zoomLevelLabel.tooltip = localize('zoomNumber', "Zoom Level: {0} ({1}%)", zoomLevel, zoomFactor);
+			this.zoomLevelLabel.tooltip = localize('zoomNumber', "缩放级别: {0} ({1}%)", zoomLevel, zoomFactor);
 		}
 	}
 }
