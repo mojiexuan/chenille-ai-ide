@@ -116,7 +116,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 			order: 30,
 			command: {
 				id: OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID,
-				title: nls.localize('scopedConsoleAction.Integrated', "Open in Integrated Terminal")
+				title: nls.localize('scopedConsoleAction.Integrated', "在集成终端中打开")
 			},
 			when: ContextKeyExpr.or(shouldShowIntegratedOnLocal, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote))
 		};
@@ -127,7 +127,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 			order: 31,
 			command: {
 				id: OPEN_IN_TERMINAL_COMMAND_ID,
-				title: nls.localize('scopedConsoleAction.external', "Open in External Terminal")
+				title: nls.localize('scopedConsoleAction.external', "在外部终端中打开")
 			},
 			when: shouldShowExternalKindOnLocal
 		};
@@ -158,7 +158,7 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 
 	private _refreshOpenInTerminalMenuItemTitle(): void {
 		if (this.isWindows()) {
-			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "Open in Windows Terminal");
+			this._openInTerminalMenuItem.command.title = nls.localize('scopedConsoleAction.wt', "在 Windows 终端中打开");
 		}
 	}
 }

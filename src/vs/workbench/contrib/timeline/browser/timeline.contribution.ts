@@ -23,8 +23,8 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { URI } from '../../../../base/common/uri.js';
 
-const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
-const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
+const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', '时间线视图的图标。'));
+const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', '打开时间线操作的图标。'));
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
@@ -47,18 +47,18 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 configurationRegistry.registerConfiguration({
 	id: 'timeline',
 	order: 1001,
-	title: localize('timelineConfigurationTitle', "Timeline"),
+	title: localize('timelineConfigurationTitle', "时间线"),
 	type: 'object',
 	properties: {
 		'timeline.pageSize': {
 			type: ['number', 'null'],
 			default: 50,
-			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` will automatically choose a page size based on the visible area of the Timeline view."),
+			markdownDescription: localize('timeline.pageSize', "时间线视图中默认显示的项目数以及加载更多项目时的数量。设置为 `null` 将根据时间线视图的可见区域自动选择页面大小。"),
 		},
 		'timeline.pageOnScroll': {
 			type: 'boolean',
 			default: true,
-			description: localize('timeline.pageOnScroll', "Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
+			description: localize('timeline.pageOnScroll', "控制当滚动到列表末尾时，时间线视图是否加载下一页项目。"),
 		},
 	}
 });
@@ -68,7 +68,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new Tim
 namespace OpenTimelineAction {
 
 	export const ID = 'files.openTimeline';
-	export const LABEL = localize('files.openTimeline', "Open Timeline");
+	export const LABEL = localize('files.openTimeline', "打开时间线");
 
 	export function handler(): ICommandHandler {
 		return (accessor, arg) => {
@@ -94,11 +94,11 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
 }));
 
-const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
+const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', '筛选时间线操作的图标。'));
 
 MenuRegistry.appendMenuItem(MenuId.TimelineTitle, {
 	submenu: MenuId.TimelineFilterSubMenu,
-	title: localize('filterTimeline', "Filter Timeline"),
+	title: localize('filterTimeline', "筛选时间线"),
 	group: 'navigation',
 	order: 100,
 	icon: timelineFilter

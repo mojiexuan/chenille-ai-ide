@@ -31,7 +31,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
 import { AiModelMessage, AiToolCall, AiTool } from '../../common/types.js';
-import { CHENILLE_FILE_TOOLS, VSCODE_TOOL_DEFINITIONS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
+import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, isChenilleFileTool, getInternalToolId } from '../../tools/dispatcher.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
@@ -871,12 +871,10 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChenilleToolDispatcher private readonly toolDispatcher: IChenilleToolDispatcher,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.registerAgent();
 		this.registerChenilleFileTools();
-		this.logAvailableVSCodeTools();
 	}
 
 	/**
@@ -891,8 +889,6 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 		// 注册 Agent 实现
 		const agentImpl = this._register(this.instantiationService.createInstance(ChenilleAgentImpl));
 		this._register(this.chatAgentService.registerAgentImplementation(agentData.id, agentImpl));
-
-		this.logService.info('[Chenille] Agent registered:', agentData.id);
 	}
 
 	/**
@@ -915,22 +911,6 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 
 			const toolImpl = new ChenilleFileToolWrapper(toolDef, this.toolDispatcher);
 			this._register(this.toolsService.registerTool(toolData, toolImpl));
-
-			this.logService.debug('[Chenille] File tool registered:', toolData.id);
 		}
-
-		this.logService.info(`[Chenille] Registered ${CHENILLE_FILE_TOOLS.length} file tools`);
-	}
-
-	/**
-	 * 记录可用的 VS Code 内置工具
-	 */
-	private logAvailableVSCodeTools(): void {
-		const vsCodeTools = [...this.toolsService.getTools()];
-		const vsCodeToolNames = VSCODE_TOOL_DEFINITIONS.map(t => t.chenilleName);
-
-		this.logService.info(`[Chenille] VS Code tools available: ${vsCodeTools.length}`);
-		this.logService.debug('[Chenille] VS Code tool IDs:', vsCodeTools.map(t => t.id).join(', '));
-		this.logService.info(`[Chenille] Chenille will use these VS Code tools: ${vsCodeToolNames.join(', ')}`);
 	}
 }
