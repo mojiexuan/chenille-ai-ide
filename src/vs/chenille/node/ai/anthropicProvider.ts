@@ -129,11 +129,7 @@ function toAnthropicTools(options: ChatCompletionOptions): Tool[] | undefined {
 	return options.tools.map(t => ({
 		name: t.function.name,
 		description: t.function.description,
-		input_schema: {
-			type: 'object' as const,
-			properties: t.function.parameters.properties,
-			required: t.function.parameters.required,
-		},
+		input_schema: t.function.parameters as Tool['input_schema'],
 	}));
 }
 
@@ -199,123 +195,116 @@ export class AnthropicProvider implements IAIProvider {
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		return new Promise<void>((resolve) => {
-			const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-			let currentToolIndex = -1;
-			let hasReceivedContent = false;
-			let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+		let currentToolIndex = -1;
+		let hasReceivedContent = false;
+		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
-			const streamParams = {
+		try {
+			// 使用 create + stream: true，返回 async iterable
+			const stream = await client.messages.create({
 				model: model.model,
 				messages: toAnthropicMessages(options.messages),
 				system: extractSystemPrompt(options.messages),
 				temperature,
 				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
 				tools: toAnthropicTools(options),
-			};
+				stream: true,
+			});
 
-			let stream: ReturnType<typeof client.messages.stream>;
-			try {
-				stream = client.messages.stream(streamParams);
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: `Stream creation failed: ${errorMessage}` });
-				resolve();
+			for await (const event of stream) {
+				if (options.token?.isCancellationRequested) {
+					break;
+				}
+
+				switch (event.type) {
+					case 'message_start':
+						hasReceivedContent = true;
+						if (event.message?.usage) {
+							finalUsage = {
+								promptTokens: event.message.usage.input_tokens,
+								completionTokens: event.message.usage.output_tokens,
+								totalTokens: event.message.usage.input_tokens + event.message.usage.output_tokens,
+							};
+						}
+						break;
+
+					case 'content_block_start':
+						hasReceivedContent = true;
+						if (event.content_block?.type === 'tool_use') {
+							currentToolIndex++;
+							accumulatedToolCalls.set(currentToolIndex, {
+								id: event.content_block.id || generateToolCallId(),
+								name: event.content_block.name || '',
+								arguments: '',
+							});
+						}
+						break;
+
+					case 'content_block_delta':
+						hasReceivedContent = true;
+						if (event.delta?.type === 'text_delta' && event.delta.text) {
+							options.call?.({ content: event.delta.text, done: false });
+						} else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
+							const tc = accumulatedToolCalls.get(currentToolIndex);
+							if (tc) {
+								tc.arguments += event.delta.partial_json;
+							}
+						}
+						break;
+
+					case 'message_delta':
+						if (event.usage) {
+							finalUsage = {
+								promptTokens: finalUsage?.promptTokens || 0,
+								completionTokens: event.usage.output_tokens || 0,
+								totalTokens: (finalUsage?.promptTokens || 0) + (event.usage.output_tokens || 0),
+							};
+						}
+						break;
+				}
+			}
+
+			if (options.token?.isCancellationRequested) {
 				return;
 			}
 
-			stream.on('text', (text) => {
-				if (options.token?.isCancellationRequested) {
-					return;
-				}
-				hasReceivedContent = true;
-				options.call?.({ content: text, done: false });
-			});
+			if (!hasReceivedContent) {
+				options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
+				return;
+			}
 
-			stream.on('contentBlock', (block) => {
-				if (options.token?.isCancellationRequested) {
-					return;
-				}
-				hasReceivedContent = true;
-				if (block.type === 'tool_use') {
-					currentToolIndex++;
-					accumulatedToolCalls.set(currentToolIndex, {
-						id: block.id || generateToolCallId(),
-						name: block.name,
-						arguments: JSON.stringify(block.input),
-					});
-				}
-			});
-
-			stream.on('message', (message) => {
-				hasReceivedContent = true;
-				if (message.usage) {
-					finalUsage = {
-						promptTokens: message.usage.input_tokens,
-						completionTokens: message.usage.output_tokens,
-						totalTokens: message.usage.input_tokens + message.usage.output_tokens,
-					};
-				}
-			});
-
-			stream.on('error', (error) => {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: errorMessage });
-				resolve();
-			});
-
-			stream.on('end', () => {
-				if (options.token?.isCancellationRequested) {
-					resolve();
-					return;
-				}
-
-				if (!hasReceivedContent) {
-					options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
-					resolve();
-					return;
-				}
-
-				// 流结束后，发送累积的工具调用
-				if (accumulatedToolCalls.size > 0) {
-					const toolCalls: AiToolCall[] = [];
-					for (const [, tc] of accumulatedToolCalls) {
-						if (tc.name) {
-							toolCalls.push({
-								id: tc.id || generateToolCallId(),
-								type: 'function' as const,
-								function: {
-									name: tc.name,
-									arguments: tc.arguments,
-								},
-							});
-						}
-					}
-
-					if (toolCalls.length > 0) {
-						options.call?.({
-							content: '',
-							tool_calls: toolCalls,
-							done: false,
+			// 流结束后，发送累积的工具调用
+			if (accumulatedToolCalls.size > 0) {
+				const toolCalls: AiToolCall[] = [];
+				for (const [, tc] of accumulatedToolCalls) {
+					if (tc.name) {
+						toolCalls.push({
+							id: tc.id || generateToolCallId(),
+							type: 'function' as const,
+							function: {
+								name: tc.name,
+								arguments: tc.arguments,
+							},
 						});
 					}
 				}
 
-				options.call?.({ content: '', done: true, usage: finalUsage });
-				resolve();
-			});
-
-			// 处理取消
-			const checkCancellation = setInterval(() => {
-				if (options.token?.isCancellationRequested) {
-					clearInterval(checkCancellation);
-					stream.controller.abort();
+				if (toolCalls.length > 0) {
+					options.call?.({
+						content: '',
+						tool_calls: toolCalls,
+						done: false,
+					});
 				}
-			}, 100);
+			}
 
-			stream.on('end', () => clearInterval(checkCancellation));
-			stream.on('error', () => clearInterval(checkCancellation));
-		});
+			options.call?.({ content: '', done: true, usage: finalUsage });
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.call?.({ content: '', done: true, error: errorMessage });
+		}
 	}
 }
 

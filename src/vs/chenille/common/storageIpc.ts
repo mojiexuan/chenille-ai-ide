@@ -6,7 +6,7 @@
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
-import { AiModel, AiPrompt, AgentType, AiAgentConfig } from './types.js';
+import { AiModel, AiPrompt, AgentType, AiAgentConfig, McpServerConfig } from './types.js';
 
 // ============ Model Storage IPC ============
 
@@ -169,5 +169,68 @@ export class AgentStorageChannelClient implements IAiAgentStorageService {
 
 	save(config: AiAgentConfig): Promise<void> {
 		return this.channel.call('save', [config]);
+	}
+}
+
+
+// ============ MCP Server Storage IPC ============
+
+export const IMcpServerStorageService = createDecorator<IMcpServerStorageService>('mcpServerStorageService');
+
+export interface IMcpServerStorageService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeServers: Event<void>;
+	getAll(): Promise<McpServerConfig[]>;
+	get(name: string): Promise<McpServerConfig | undefined>;
+	save(server: McpServerConfig): Promise<void>;
+	delete(name: string): Promise<void>;
+}
+
+export const McpServerStorageChannelName = 'chenille.mcpServerStorage';
+
+export class McpServerStorageChannel implements IServerChannel {
+	constructor(private readonly service: IMcpServerStorageService) { }
+
+	listen<T>(_context: unknown, event: string): Event<T> {
+		switch (event) {
+			case 'onDidChangeServers': return this.service.onDidChangeServers as Event<T>;
+		}
+		throw new Error(`No event: ${event}`);
+	}
+
+	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
+		switch (command) {
+			case 'getAll': return this.service.getAll() as Promise<T>;
+			case 'get': return this.service.get(args?.[0] as string) as Promise<T>;
+			case 'save': return this.service.save(args?.[0] as McpServerConfig) as Promise<T>;
+			case 'delete': return this.service.delete(args?.[0] as string) as Promise<T>;
+		}
+		throw new Error(`Invalid command: ${command}`);
+	}
+}
+
+export class McpServerStorageChannelClient implements IMcpServerStorageService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeServers: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		this.onDidChangeServers = this.channel.listen<void>('onDidChangeServers');
+	}
+
+	getAll(): Promise<McpServerConfig[]> {
+		return this.channel.call('getAll');
+	}
+
+	get(name: string): Promise<McpServerConfig | undefined> {
+		return this.channel.call('get', [name]);
+	}
+
+	save(server: McpServerConfig): Promise<void> {
+		return this.channel.call('save', [server]);
+	}
+
+	delete(name: string): Promise<void> {
+		return this.channel.call('delete', [name]);
 	}
 }

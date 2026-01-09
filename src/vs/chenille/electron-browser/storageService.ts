@@ -7,6 +7,7 @@ import {
 	IAiModelStorageService, ModelStorageChannelClient, ModelStorageChannelName,
 	IAiPromptStorageService, PromptStorageChannelClient, PromptStorageChannelName,
 	IAiAgentStorageService, AgentStorageChannelClient, AgentStorageChannelName,
+	IMcpServerStorageService, McpServerStorageChannelClient, McpServerStorageChannelName,
 } from '../common/storageIpc.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
@@ -50,3 +51,17 @@ class ElectronAgentStorageService implements IAiAgentStorageService {
 registerSingleton(IAiModelStorageService, ElectronModelStorageService, InstantiationType.Delayed);
 registerSingleton(IAiPromptStorageService, ElectronPromptStorageService, InstantiationType.Delayed);
 registerSingleton(IAiAgentStorageService, ElectronAgentStorageService, InstantiationType.Delayed);
+
+/**
+ * MCP Server 存储服务（Browser 端 IPC 客户端）
+ */
+// @ts-expect-error: interface is implemented via proxy
+class ElectronMcpServerStorageService implements IMcpServerStorageService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+		return new McpServerStorageChannelClient(mainProcessService.getChannel(McpServerStorageChannelName));
+	}
+}
+
+registerSingleton(IMcpServerStorageService, ElectronMcpServerStorageService, InstantiationType.Delayed);

@@ -152,11 +152,7 @@ function toAnthropicTools(options: ChatCompletionOptions): AnthropicTool[] | und
 	return options.tools.map(t => ({
 		name: t.function.name,
 		description: t.function.description,
-		input_schema: {
-			type: 'object' as const,
-			properties: t.function.parameters.properties,
-			required: t.function.parameters.required,
-		},
+		input_schema: t.function.parameters as AnthropicTool['input_schema'],
 	}));
 }
 
@@ -267,13 +263,18 @@ export class AnthropicProviderFetch implements IAIProvider {
 					token: options.token,
 				},
 				(line) => {
-					// 解析 SSE 数据
-					if (!line.startsWith('data: ')) {
+					// Anthropic SSE 格式：event: xxx 和 data: xxx
+					// 跳过 event: 行，只处理 data: 行
+					if (line.startsWith('event:')) {
 						return;
 					}
 
-					const data = line.slice(6).trim();
-					if (!data) {
+					if (!line.startsWith('data:')) {
+						return;
+					}
+
+					const data = line.slice(5).trim();
+					if (!data || data === '[DONE]') {
 						return;
 					}
 

@@ -9,7 +9,7 @@ import { createDecorator, IInstantiationService } from '../../platform/instantia
 import { IFileService } from '../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { ISearchService } from '../../workbench/services/search/common/search.js';
-import { ToolCall } from '../common/types.js';
+import { ToolCall, parseMcpToolName } from '../common/types.js';
 
 // 导入文件工具
 import {
@@ -99,6 +99,13 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
  */
 export function isChenilleFileTool(toolName: string): boolean {
 	return CHENILLE_FILE_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * 检查是否为 MCP 工具
+ */
+export function isMcpTool(toolName: string): boolean {
+	return toolName.startsWith('mcp_');
 }
 
 /**
@@ -267,8 +274,16 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		try {
 			let result: IToolResult;
 
+			// 检查是否为 MCP 工具
+			if (isMcpTool(toolName)) {
+				result = await withTimeout(
+					this.dispatchMcpTool(toolName, toolCall),
+					TOOL_TIMEOUT,
+					toolName
+				);
+			}
 			// 检查是否为 Chenille 文件工具
-			if (isChenilleFileTool(toolName)) {
+			else if (isChenilleFileTool(toolName)) {
 				result = await withTimeout(
 					this.dispatchFileTools(toolName, toolCall),
 					TOOL_TIMEOUT,
@@ -573,6 +588,71 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		return {
 			success: true,
 			content: finalContent
+		};
+	}
+
+	/**
+	 * 调度 MCP 工具
+	 */
+	private async dispatchMcpTool(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
+		const parsed = parseMcpToolName(toolName);
+		if (!parsed) {
+			return {
+				success: false,
+				content: '',
+				error: `无效的 MCP 工具名称: ${toolName}`
+			};
+		}
+
+		// 动态导入 MCP 管理器（避免循环依赖）
+		const { getMcpManager } = await import('../node/mcp/mcpManager.js');
+		const mcpManager = getMcpManager();
+
+		// 解析参数
+		let args: Record<string, unknown> = {};
+		if (toolCall.function.arguments) {
+			try {
+				args = JSON.parse(toolCall.function.arguments);
+			} catch {
+				return {
+					success: false,
+					content: '',
+					error: '无法解析工具参数'
+				};
+			}
+		}
+
+		// 调用 MCP 工具
+		const result = await mcpManager.callTool({
+			serverName: parsed.serverName,
+			toolName: parsed.toolName,
+			arguments: args,
+		});
+
+		if (!result.success) {
+			return {
+				success: false,
+				content: '',
+				error: result.error || 'MCP 工具调用失败'
+			};
+		}
+
+		// 将 MCP 内容转换为字符串
+		const content = result.content
+			?.map(c => {
+				if (c.type === 'text') {
+					return c.text;
+				} else if (c.type === 'resource' && c.resource.text) {
+					return c.resource.text;
+				}
+				return '';
+			})
+			.filter(s => s)
+			.join('\n') || '';
+
+		return {
+			success: true,
+			content
 		};
 	}
 
