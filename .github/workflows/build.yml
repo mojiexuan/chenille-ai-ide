@@ -1,0 +1,294 @@
+name: Chenille AI IDE Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: '构建平台'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - linux
+          - darwin
+          - win32
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build-linux:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' || github.event_name == 'push' }}
+    name: Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libx11-dev libx11-xcb-dev \
+            libxkbfile-dev libsecret-1-dev libkrb5-dev libgbm-dev rpm fakeroot
+
+      - name: Install dependencies
+        run: |
+          for i in {1..5}; do
+            npm ci && break
+            echo "npm ci 第 $i 次失败，正在重试……"
+            sleep 2
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+      - name: Download Electron
+        run: npm run electron x64
+
+      - name: Download built-in extensions
+        run: node build/lib/builtInExtensions.ts
+
+      - name: Build
+        run: npm run gulp vscode-linux-x64-min
+
+      - name: Package deb
+        run: npm run gulp vscode-linux-x64-build-deb
+
+      - name: Package rpm
+        run: npm run gulp vscode-linux-x64-build-rpm
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp ../*.deb artifacts/ 2>/dev/null || true
+          cp ../*.rpm artifacts/ 2>/dev/null || true
+          ls -la artifacts/
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chenille-linux-x64
+          path: artifacts/
+          if-no-files-found: warn
+
+  build-macos-x64:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'darwin' || github.event_name == 'push' }}
+    name: macOS x64
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --break-system-packages setuptools
+          for i in {1..5}; do
+            npm ci && break
+            echo "npm ci 第 $i 次失败，正在重试……"
+            sleep 2
+          done
+        env:
+          npm_config_arch: x64
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GYP_DEFINES: "kerberos_use_rtld=false"
+
+      - name: Download Electron
+        run: npm run electron x64
+
+      - name: Download built-in extensions
+        run: node build/lib/builtInExtensions.ts
+
+      - name: Build
+        run: npm run gulp vscode-darwin-x64-min
+
+      - name: Package DMG
+        run: npm run gulp vscode-darwin-x64-build-dmg
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp ../*.dmg artifacts/ 2>/dev/null || true
+          ls -la artifacts/
+
+      - name: Upload macOS x64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chenille-darwin-x64
+          path: artifacts/
+          if-no-files-found: warn
+
+  build-macos-arm64:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'darwin' || github.event_name == 'push' }}
+    name: macOS arm64
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --break-system-packages setuptools
+          for i in {1..5}; do
+            npm ci && break
+            echo "npm ci 第 $i 次失败，正在重试……"
+            sleep 2
+          done
+        env:
+          npm_config_arch: arm64
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GYP_DEFINES: "kerberos_use_rtld=false"
+
+      - name: Download Electron
+        run: npm run electron arm64
+
+      - name: Download built-in extensions
+        run: node build/lib/builtInExtensions.ts
+
+      - name: Build
+        run: npm run gulp vscode-darwin-arm64-min
+
+      - name: Package DMG
+        run: npm run gulp vscode-darwin-arm64-build-dmg
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp ../*.dmg artifacts/ 2>/dev/null || true
+          ls -la artifacts/
+
+      - name: Upload macOS arm64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chenille-darwin-arm64
+          path: artifacts/
+          if-no-files-found: warn
+
+  build-windows:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'win32' || github.event_name == 'push' }}
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              npm ci
+              break
+            }
+            catch {
+              if ($i -eq 5) { throw }
+              Write-Host "npm ci 第 $i 次失败，正在重试……"
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          npm_config_arch: x64
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+      - name: Download Electron
+        run: npm run electron x64
+
+      - name: Download built-in extensions
+        run: node build/lib/builtInExtensions.ts
+
+      - name: Build
+        run: npm run gulp vscode-win32-x64-min
+
+      - name: Package Setup Installer (Inno Setup)
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-inno-updater
+
+      - name: Package System Installer
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-system-setup
+
+      - name: Package User Installer
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-user-setup
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts
+          Copy-Item ../*.exe artifacts/ -ErrorAction SilentlyContinue
+          Get-ChildItem artifacts/
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chenille-win32-x64
+          path: artifacts/
+          if-no-files-found: warn
+
+  # 发布到 GitHub Releases（仅在打 tag 时触发）
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-macos-x64, build-macos-arm64, build-windows]
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Chenille AI IDE ${{ github.ref_name }}
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
+          body: |
+            ## Chenille AI IDE ${{ github.ref_name }}
+
+            ### 下载
+            - **Windows**: 下载 `.exe` 安装包
+            - **macOS Intel**: 下载 `x64.dmg`
+            - **macOS Apple Silicon**: 下载 `arm64.dmg`
+            - **Linux**: 下载 `.deb` (Debian/Ubuntu) 或 `.rpm` (Fedora/RHEL)
+
+            ### 更新日志
+            请查看 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
