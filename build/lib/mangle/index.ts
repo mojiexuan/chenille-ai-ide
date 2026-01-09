@@ -338,6 +338,8 @@ const skippedExportMangledProjects = [
 
 	// External dependencies that should not be mangled
 	'node_modules/google-auth-library',
+	'node_modules/@anthropic-ai/sdk',
+	'node_modules/json-schema-to-ts',
 ];
 
 const skippedExportMangledSymbols = [

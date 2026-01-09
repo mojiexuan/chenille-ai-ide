@@ -77,7 +77,7 @@ export interface IChenilleToolDispatcher extends IDisposable {
 /**
  * Chenille 自实现的文件工具列表
  */
-const CHENILLE_FILE_TOOLS = new Set([
+const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'readFile',
 	'getFileInfo',
 	'checkFileExists',
@@ -93,6 +93,13 @@ const CHENILLE_FILE_TOOLS = new Set([
 	'renameFile',
 	'getOpenEditors'
 ]);
+
+/**
+ * 检查是否为 Chenille 自实现的文件工具
+ */
+export function isChenilleFileTool(toolName: string): boolean {
+	return CHENILLE_FILE_TOOL_NAMES.has(toolName);
+}
 
 /**
  * VS Code 内部工具 ID 映射
@@ -133,6 +140,20 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 	// 子代理
 	'runSubagent': 'runSubagent',
 };
+
+/**
+ * 获取内部工具 ID
+ */
+export function getInternalToolId(toolName: string): string | undefined {
+	return VSCODE_TOOL_ID_MAP[toolName];
+}
+
+/**
+ * 获取所有工具名称
+ */
+export function getAllToolNames(): string[] {
+	return [...CHENILLE_FILE_TOOL_NAMES, ...Object.keys(VSCODE_TOOL_ID_MAP)];
+}
 
 /**
  * 截断过长的内容
@@ -198,27 +219,6 @@ function parseToolArguments<T extends object>(toolCall: ToolCall, requiredFields
 			error: `工具 "${toolName}" 参数解析失败: ${parseError}。原始参数: ${argsString.substring(0, 200)}`
 		};
 	}
-}
-
-/**
- * 获取内部工具 ID
- */
-export function getInternalToolId(toolName: string): string | undefined {
-	return VSCODE_TOOL_ID_MAP[toolName];
-}
-
-/**
- * 检查是否为 Chenille 自实现的文件工具
- */
-export function isChenilleFileTool(toolName: string): boolean {
-	return CHENILLE_FILE_TOOLS.has(toolName);
-}
-
-/**
- * 获取所有工具名称
- */
-export function getAllToolNames(): string[] {
-	return [...CHENILLE_FILE_TOOLS, ...Object.keys(VSCODE_TOOL_ID_MAP)];
 }
 
 // ==================== 工具调度器实现 ====================
@@ -433,7 +433,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					return {
 						success: false,
 						content: '',
-						error: `未知的文件工具: ${toolName}。可用工具: ${[...CHENILLE_FILE_TOOLS].join(', ')}`
+						error: `未知的文件工具: ${toolName}。可用工具: ${[...CHENILLE_FILE_TOOL_NAMES].join(', ')}`
 					};
 			}
 
@@ -685,7 +685,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	 */
 	listAvailableTools(): string[] {
 		const vsCodeTools = [...this.toolsService.getTools()].map(t => t.id);
-		return [...CHENILLE_FILE_TOOLS, ...vsCodeTools];
+		return [...CHENILLE_FILE_TOOL_NAMES, ...vsCodeTools];
 	}
 
 	/**

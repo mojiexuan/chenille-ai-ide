@@ -1578,6 +1578,9 @@ export default tseslint.config(
 						'vs/chenille/~',
 						'vs/chenille/**',
 						'vs/workbench/services/*/~',
+						'vs/workbench/common/**',
+						'vs/workbench/contrib/chat/~',
+						'vs/workbench/contrib/chat/**',
 						'openai',
 						'openai/resources/index',
 						'openai/streaming',
@@ -1593,6 +1596,7 @@ export default tseslint.config(
 						'vs/platform/*/common/**',
 						'vs/chenille/**',
 						'vs/workbench/services/*/common/**',
+						'vs/workbench/common/**',
 						'vs/workbench/contrib/chat/common/**'
 					]
 				},

@@ -45,6 +45,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
@@ -1389,6 +1390,7 @@ registerAction2(class extends Action2 {
 		const scmService = accessor.get(ISCMService);
 		const notificationService = accessor.get(INotificationService);
 		const commitMessageService = accessor.get(ICommitMessageService);
+		const textModelService = accessor.get(ITextModelService);
 
 		// 找到对应的 repository
 		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === provider.toString());
@@ -1396,22 +1398,89 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		// 收集变更文件信息
-		const changes: string[] = [];
+		// 收集变更文件 URI
+		const resourceUris: URI[] = [];
 		for (const group of context) {
 			for (const resource of group.resources) {
-				changes.push(resource.fsPath);
+				resourceUris.push(resource);
 			}
 		}
 
-		if (changes.length === 0) {
+		if (resourceUris.length === 0) {
 			notificationService.info(localize('noDiff', "没有检测到代码变更"));
 			return;
 		}
 
 		try {
-			// 构建变更摘要作为 diff 信息
-			const diffSummary = `变更文件列表:\n${changes.map(f => `- ${f}`).join('\n')}`;
+			// 构建包含实际 diff 内容的变更摘要
+			const diffParts: string[] = [];
+
+			for (const resourceUri of resourceUris) {
+				const relativePath = repository.provider.rootUri
+					? resourceUri.fsPath.replace(repository.provider.rootUri.fsPath, '').replace(/^[/\\]/, '')
+					: resourceUri.fsPath;
+
+				try {
+					// 获取原始文件 URI
+					const originalUri = await repository.provider.getOriginalResource(resourceUri);
+
+					// 获取当前文件内容
+					let modifiedContent = '';
+					let modifiedExists = true;
+					try {
+						const modifiedRef = await textModelService.createModelReference(resourceUri);
+						modifiedContent = modifiedRef.object.textEditorModel.getValue();
+						modifiedRef.dispose();
+					} catch {
+						// 文件可能已被删除或无法读取
+						modifiedExists = false;
+					}
+
+					if (originalUri) {
+						// 获取原始文件内容
+						let originalContent = '';
+						try {
+							const originalRef = await textModelService.createModelReference(originalUri);
+							originalContent = originalRef.object.textEditorModel.getValue();
+							originalRef.dispose();
+						} catch {
+							// 原始文件可能不存在
+						}
+
+						if (!modifiedExists && originalContent) {
+							// 删除文件：有原始内容但当前文件不存在
+							const lines = originalContent.split('\n');
+							const preview = lines.slice(0, 50).map(l => `- ${l}`).join('\n');
+							const suffix = lines.length > 50 ? `\n... (还有 ${lines.length - 50} 行)` : '';
+							diffParts.push(`--- a/${relativePath}\n+++ /dev/null\n@@ -1,${lines.length} +0,0 @@\n${preview}${suffix}`);
+						} else if (originalContent || modifiedContent) {
+							// 修改文件：生成简化的 diff 格式
+							const diff = generateSimpleDiff(relativePath, originalContent, modifiedContent);
+							diffParts.push(diff);
+						} else {
+							// 无法获取内容，只显示文件路径
+							diffParts.push(`--- ${relativePath}\n+++ ${relativePath}\n(无法获取文件内容)`);
+						}
+					} else {
+						// 新文件：没有原始 URI
+						if (modifiedContent) {
+							const lines = modifiedContent.split('\n');
+							const preview = lines.slice(0, 50).map(l => `+ ${l}`).join('\n');
+							const suffix = lines.length > 50 ? `\n... (还有 ${lines.length - 50} 行)` : '';
+							diffParts.push(`--- /dev/null\n+++ b/${relativePath}\n@@ -0,0 +1,${lines.length} @@\n${preview}${suffix}`);
+						} else {
+							diffParts.push(`--- /dev/null\n+++ b/${relativePath}\n(新文件)`);
+						}
+					}
+				} catch {
+					// 获取 diff 失败，回退到只显示文件路径
+					diffParts.push(`--- ${relativePath}\n+++ ${relativePath}\n(获取差异失败)`);
+				}
+			}
+
+			const diffSummary = diffParts.length > 0
+				? `以下是代码变更的 diff 内容：\n\n${diffParts.join('\n\n')}`
+				: `变更文件列表:\n${resourceUris.map(f => `- ${f.fsPath}`).join('\n')}`;
 
 			// 清空当前输入
 			repository.input.setValue('', false);
@@ -1437,6 +1506,109 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+function generateSimpleDiff(filePath: string, original: string, modified: string): string {
+	const originalLines = original.split('\n');
+	const modifiedLines = modified.split('\n');
+
+	// 简单的行级别 diff
+	const diffLines: string[] = [`--- a/${filePath}`, `+++ b/${filePath}`];
+
+	// 使用简单的 LCS 算法找出差异
+	const changes: { type: 'add' | 'remove' | 'same'; line: string }[] = [];
+
+	let i = 0, j = 0;
+	while (i < originalLines.length || j < modifiedLines.length) {
+		if (i >= originalLines.length) {
+			// 剩余的都是新增
+			changes.push({ type: 'add', line: modifiedLines[j] });
+			j++;
+		} else if (j >= modifiedLines.length) {
+			// 剩余的都是删除
+			changes.push({ type: 'remove', line: originalLines[i] });
+			i++;
+		} else if (originalLines[i] === modifiedLines[j]) {
+			// 相同行
+			changes.push({ type: 'same', line: originalLines[i] });
+			i++;
+			j++;
+		} else {
+			// 查找是否在后面能匹配到
+			const lookAhead = 3;
+			let foundInOriginal = -1;
+			let foundInModified = -1;
+
+			for (let k = 1; k <= lookAhead && foundInOriginal === -1; k++) {
+				if (i + k < originalLines.length && originalLines[i + k] === modifiedLines[j]) {
+					foundInOriginal = k;
+				}
+			}
+			for (let k = 1; k <= lookAhead && foundInModified === -1; k++) {
+				if (j + k < modifiedLines.length && originalLines[i] === modifiedLines[j + k]) {
+					foundInModified = k;
+				}
+			}
+
+			if (foundInOriginal !== -1 && (foundInModified === -1 || foundInOriginal <= foundInModified)) {
+				// 删除行
+				for (let k = 0; k < foundInOriginal; k++) {
+					changes.push({ type: 'remove', line: originalLines[i + k] });
+				}
+				i += foundInOriginal;
+			} else if (foundInModified !== -1) {
+				// 新增行
+				for (let k = 0; k < foundInModified; k++) {
+					changes.push({ type: 'add', line: modifiedLines[j + k] });
+				}
+				j += foundInModified;
+			} else {
+				// 替换
+				changes.push({ type: 'remove', line: originalLines[i] });
+				changes.push({ type: 'add', line: modifiedLines[j] });
+				i++;
+				j++;
+			}
+		}
+	}
+
+	// 只输出有变化的部分（带上下文）
+	const contextLines = 3;
+	let lastOutputIndex = -contextLines - 1;
+	const outputChanges: string[] = [];
+
+	for (let idx = 0; idx < changes.length; idx++) {
+		const change = changes[idx];
+		if (change.type !== 'same') {
+			// 输出上下文
+			const contextStart = Math.max(lastOutputIndex + 1, idx - contextLines);
+			for (let c = contextStart; c < idx; c++) {
+				if (changes[c].type === 'same') {
+					outputChanges.push(` ${changes[c].line}`);
+				}
+			}
+			// 输出变化
+			outputChanges.push(change.type === 'add' ? `+${change.line}` : `-${change.line}`);
+			lastOutputIndex = idx;
+		} else if (idx - lastOutputIndex <= contextLines) {
+			// 输出后续上下文
+			outputChanges.push(` ${change.line}`);
+			lastOutputIndex = idx;
+		}
+	}
+
+	// 限制输出长度
+	const maxLines = 100;
+	if (outputChanges.length > maxLines) {
+		diffLines.push(...outputChanges.slice(0, maxLines));
+		diffLines.push(`... (省略 ${outputChanges.length - maxLines} 行)`);
+	} else if (outputChanges.length > 0) {
+		diffLines.push(...outputChanges);
+	} else {
+		diffLines.push('(无实质性变化)');
+	}
+
+	return diffLines.join('\n');
+}
 
 class SCMInputWidgetActionRunner extends ActionRunner {
 

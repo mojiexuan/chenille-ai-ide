@@ -40,6 +40,10 @@ export enum AiProvider {
 	OPENAI = 'openai',
 	GOOGLE = 'google',
 	ANTHROPIC = 'anthropic',
+	// Fetch 版本
+	OPENAI_FETCH = 'openai-fetch',
+	GOOGLE_FETCH = 'google-fetch',
+	ANTHROPIC_FETCH = 'anthropic-fetch',
 }
 
 /**
@@ -48,10 +52,13 @@ export enum AiProvider {
 export function getProviderEndpointPath(provider: AiProvider): string {
 	switch (provider) {
 		case AiProvider.OPENAI:
+		case AiProvider.OPENAI_FETCH:
 			return '/chat/completions';  // OpenAI SDK 的 baseURL 默认已包含 /v1
 		case AiProvider.ANTHROPIC:
+		case AiProvider.ANTHROPIC_FETCH:
 			return '/v1/messages';  // Anthropic SDK 会拼接 /v1/messages
 		case AiProvider.GOOGLE:
+		case AiProvider.GOOGLE_FETCH:
 			return '/v1beta/models/{model}:generateContent';
 		default:
 			return '';
@@ -66,10 +73,13 @@ export function getFullEndpointUrl(baseUrl: string, provider: AiProvider): strin
 		// 显示默认端点
 		switch (provider) {
 			case AiProvider.OPENAI:
+			case AiProvider.OPENAI_FETCH:
 				return 'https://api.openai.com/v1/chat/completions';
 			case AiProvider.ANTHROPIC:
+			case AiProvider.ANTHROPIC_FETCH:
 				return 'https://api.anthropic.com/v1/messages';
 			case AiProvider.GOOGLE:
+			case AiProvider.GOOGLE_FETCH:
 				return 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent';
 			default:
 				return '';

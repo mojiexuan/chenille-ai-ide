@@ -8,6 +8,9 @@ import { ChenilleError } from '../../common/errors.js';
 import { OpenAIProvider } from './openaiProvider.js';
 import { AnthropicProvider } from './anthropicProvider.js';
 import { GoogleProvider } from './googleProvider.js';
+import { OpenAIProviderFetch } from './openaiProviderFetch.js';
+import { AnthropicProviderFetch } from './anthropicProviderFetch.js';
+import { GoogleProviderFetch } from './googleProviderFetch.js';
 
 /**
  * Provider 注册表
@@ -32,10 +35,15 @@ function getProvider(provider: AiProvider): IAIProvider {
 	return instance;
 }
 
-// 注册内置 Provider
+// 注册内置 Provider（SDK 版本）
 registerProvider(AiProvider.OPENAI, new OpenAIProvider());
 registerProvider(AiProvider.ANTHROPIC, new AnthropicProvider());
 registerProvider(AiProvider.GOOGLE, new GoogleProvider());
+
+// 注册 Fetch 版本 Provider（不依赖 SDK，打包后更稳定）
+registerProvider(AiProvider.OPENAI_FETCH, new OpenAIProviderFetch());
+registerProvider(AiProvider.ANTHROPIC_FETCH, new AnthropicProviderFetch());
+registerProvider(AiProvider.GOOGLE_FETCH, new GoogleProviderFetch());
 
 /**
  * AI 客户端 - 统一入口

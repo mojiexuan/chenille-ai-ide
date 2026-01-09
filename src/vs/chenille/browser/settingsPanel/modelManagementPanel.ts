@@ -15,6 +15,9 @@ const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
 	{ value: AiProvider.OPENAI, label: 'OpenAI (兼容)' },
 	{ value: AiProvider.ANTHROPIC, label: 'Anthropic' },
 	{ value: AiProvider.GOOGLE, label: 'Google' },
+	{ value: AiProvider.OPENAI_FETCH, label: 'OpenAI Fetch (兼容)' },
+	{ value: AiProvider.ANTHROPIC_FETCH, label: 'Anthropic Fetch' },
+	{ value: AiProvider.GOOGLE_FETCH, label: 'Google Fetch' },
 ];
 
 interface FormInputs {
@@ -36,6 +39,8 @@ export class ModelManagementPanel extends Disposable {
 	private formContainer: HTMLElement | undefined;
 	private editingModel: AiModel | undefined;
 	private formInputs: FormInputs | undefined;
+	private addBtn: HTMLElement | undefined;
+	private headerActions: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -51,10 +56,13 @@ export class ModelManagementPanel extends Disposable {
 		const header = append(this.container, $('.chenille-panel-header'));
 		append(header, $('.chenille-panel-title')).textContent = localize('modelManagement', "模型管理");
 
-		const addBtn = append(header, $('button.chenille-btn.chenille-btn-primary'));
-		append(addBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
-		append(addBtn, document.createTextNode(localize('addModel', "添加模型")));
-		addBtn.addEventListener('click', () => this.showForm());
+		// 右侧操作区域
+		this.headerActions = append(header, $('.chenille-panel-header-actions'));
+
+		this.addBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-primary'));
+		append(this.addBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
+		append(this.addBtn, document.createTextNode(localize('addModel', "添加模型")));
+		this.addBtn.addEventListener('click', () => this.showForm());
 
 		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
@@ -102,13 +110,17 @@ export class ModelManagementPanel extends Disposable {
 	}
 
 	private showForm(model?: AiModel): void {
-		if (!this.formContainer || !this.listContainer) {
+		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn) {
 			return;
 		}
 
 		this.editingModel = model;
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
+
+		// 隐藏添加按钮，显示保存/取消按钮
+		this.addBtn.style.display = 'none';
+		this.renderHeaderActions();
 
 		clearNode(this.formContainer);
 
@@ -153,7 +165,7 @@ export class ModelManagementPanel extends Disposable {
 			// 所有供应商都支持自定义 baseURL
 			baseUrlInput.disabled = false;
 
-			if (provider === AiProvider.GOOGLE) {
+			if (provider === AiProvider.GOOGLE || provider === AiProvider.GOOGLE_FETCH) {
 				baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com';
 				const baseUrl = baseUrlInput.value.trim();
 				if (baseUrl) {
@@ -218,17 +230,33 @@ export class ModelManagementPanel extends Disposable {
 			temperature: temperatureInput,
 			supportsVision: visionInput,
 		};
+	}
 
-		// 操作
-		const actions = append(this.formContainer, $('.chenille-form-actions'));
+	private renderHeaderActions(): void {
+		if (!this.headerActions || !this.addBtn) {
+			return;
+		}
 
-		const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
-		saveBtn.textContent = localize('save', "保存");
-		saveBtn.addEventListener('click', () => this.saveModel());
+		// 清除除了addBtn之外的所有元素
+		const children = Array.from(this.headerActions.children);
+		for (const child of children) {
+			if (child !== this.addBtn) {
+				child.remove();
+			}
+		}
 
-		const cancelBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
-		cancelBtn.textContent = localize('cancel', "取消");
+		// 添加取消按钮
+		const cancelBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-secondary'));
+		append(cancelBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.close)}`));
+		append(cancelBtn, document.createTextNode(localize('cancel', "取消")));
+		cancelBtn.style.marginRight = '8px';
 		cancelBtn.addEventListener('click', () => this.hideForm());
+
+		// 添加保存按钮
+		const saveBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-primary'));
+		append(saveBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
+		append(saveBtn, document.createTextNode(localize('save', "保存")));
+		saveBtn.addEventListener('click', () => this.saveModel());
 	}
 
 	private createInputGroup(parent: HTMLElement, label: string, type: string, value: string): HTMLInputElement {
@@ -241,7 +269,7 @@ export class ModelManagementPanel extends Disposable {
 	}
 
 	private hideForm(): void {
-		if (!this.formContainer || !this.listContainer) {
+		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn) {
 			return;
 		}
 
@@ -249,6 +277,16 @@ export class ModelManagementPanel extends Disposable {
 		this.formInputs = undefined;
 		this.formContainer.style.display = 'none';
 		this.listContainer.style.display = 'flex';
+
+		// 恢复添加按钮，移除保存/取消按钮
+		this.addBtn.style.display = '';
+		const children = Array.from(this.headerActions.children);
+		for (const child of children) {
+			if (child !== this.addBtn) {
+				child.remove();
+			}
+		}
+
 		this.renderList();
 	}
 

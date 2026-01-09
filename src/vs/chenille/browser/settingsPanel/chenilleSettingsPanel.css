@@ -125,36 +125,10 @@
 /* 右侧内容区 */
 .chenille-settings-content {
 	flex: 1;
-	padding: 20px 24px;
-	overflow: auto;
+	overflow: hidden;
 	background: var(--vscode-editor-background);
-}
-
-/* 自定义滚动条 */
-.chenille-settings-content::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
-}
-
-.chenille-settings-content::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.chenille-settings-content::-webkit-scrollbar-thumb {
-	background: var(--vscode-scrollbarSlider-background);
-	border-radius: 5px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
-}
-
-.chenille-settings-content::-webkit-scrollbar-thumb:hover {
-	background: var(--vscode-scrollbarSlider-hoverBackground);
-	border: 2px solid transparent;
-	background-clip: padding-box;
-}
-
-.chenille-settings-content::-webkit-scrollbar-corner {
-	background: transparent;
+	display: flex;
+	flex-direction: column;
 }
 
 /* 内容面板样式 */
@@ -162,9 +136,10 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 20px;
-	padding-bottom: 12px;
+	padding: 16px 24px 12px 24px;
 	border-bottom: 1px solid var(--vscode-widget-border);
+	background: var(--vscode-editor-background);
+	flex-shrink: 0;
 }
 
 .chenille-panel-title {
@@ -178,6 +153,41 @@
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
+	padding: 20px 24px;
+	overflow: auto;
+	flex: 1;
+}
+
+/* 自定义滚动条 */
+.chenille-panel-list::-webkit-scrollbar,
+.chenille-form::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.chenille-panel-list::-webkit-scrollbar-track,
+.chenille-form::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chenille-panel-list::-webkit-scrollbar-thumb,
+.chenille-form::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.chenille-panel-list::-webkit-scrollbar-thumb:hover,
+.chenille-form::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.chenille-panel-list::-webkit-scrollbar-corner,
+.chenille-form::-webkit-scrollbar-corner {
+	background: transparent;
 }
 
 .chenille-list-item {
@@ -266,6 +276,12 @@
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
+	padding: 20px 24px;
+	overflow: auto;
+	flex: 1;
+}
+
+.chenille-form > .chenille-form-group {
 	max-width: 450px;
 }
 
