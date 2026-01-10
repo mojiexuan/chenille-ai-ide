@@ -11,9 +11,6 @@ const path = require('path');
 // 需要更新的所有 index.html 文件路径
 const indexPaths = [
 	'src/vs/workbench/contrib/webview/browser/pre/index.html',
-	'out/vs/workbench/contrib/webview/browser/pre/index.html',
-	'out-vscode/vs/workbench/contrib/webview/browser/pre/index.html',
-	'out-vscode-min/vs/workbench/contrib/webview/browser/pre/index.html',
 ].map(p => path.join(__dirname, '..', p));
 
 function calculateScriptHash(content) {

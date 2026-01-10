@@ -144,8 +144,8 @@ export class ActionButton {
 		if (this.state.isRebaseInProgress) {
 			return {
 				command: 'git.commit',
-				title: l10n.t('{0} Continue', '$(check)'),
-				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Rebase...') : l10n.t('Continue Rebase'),
+				title: l10n.t('{0} 继续', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('正在继续变基...') : l10n.t('继续变基'),
 				arguments: [this.repository.sourceControl, null]
 			};
 		}
@@ -154,8 +154,8 @@ export class ActionButton {
 		if (this.state.isMergeInProgress) {
 			return {
 				command: 'git.commit',
-				title: l10n.t('{0} Continue', '$(check)'),
-				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Merge...') : l10n.t('Continue Merge'),
+				title: l10n.t('{0} 继续', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('正在继续合并...') : l10n.t('继续合并'),
 				arguments: [this.repository.sourceControl, null]
 			};
 		}
@@ -164,8 +164,8 @@ export class ActionButton {
 		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
 			return {
 				command: 'git.commit',
-				title: l10n.t('{0} Commit', '$(check)'),
-				tooltip: this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes'),
+				title: l10n.t('{0} 提交', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('正在提交更改...') : l10n.t('提交更改'),
 				arguments: [this.repository.sourceControl, null]
 			};
 		}
@@ -214,14 +214,14 @@ export class ActionButton {
 		return {
 			command: {
 				command: 'git.publish',
-				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
+				title: l10n.t('{0} 发布 Branch', icon),
 				tooltip: this.state.isSyncInProgress ?
 					(this.state.HEAD?.name ?
-						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
+						l10n.t('正在发布 Branch "{0}"...', this.state.HEAD.name) :
+						l10n.t('正在发布 Branch...')) :
 					(this.repository.HEAD?.name ?
-						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
+						l10n.t('发布 Branch "{0}"', this.state.HEAD?.name) :
+						l10n.t('发布 Branch')),
 				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
@@ -243,10 +243,10 @@ export class ActionButton {
 		return {
 			command: {
 				command: 'git.sync',
-				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
+				title: l10n.t('{0} 同步更改{1}{2}', icon, behind, ahead),
 				shortTitle: `${icon}${behind}${ahead}`,
 				tooltip: this.state.isSyncInProgress ?
-					l10n.t('Synchronizing Changes...')
+					l10n.t('正在同步更改...')
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
