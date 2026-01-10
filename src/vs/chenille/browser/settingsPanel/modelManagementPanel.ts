@@ -15,9 +15,6 @@ const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
 	{ value: AiProvider.OPENAI, label: 'OpenAI (兼容)' },
 	{ value: AiProvider.ANTHROPIC, label: 'Anthropic' },
 	{ value: AiProvider.GOOGLE, label: 'Google' },
-	{ value: AiProvider.OPENAI_FETCH, label: 'OpenAI Fetch (兼容)' },
-	{ value: AiProvider.ANTHROPIC_FETCH, label: 'Anthropic Fetch' },
-	{ value: AiProvider.GOOGLE_FETCH, label: 'Google Fetch' },
 ];
 
 interface FormInputs {
@@ -165,7 +162,7 @@ export class ModelManagementPanel extends Disposable {
 			// 所有供应商都支持自定义 baseURL
 			baseUrlInput.disabled = false;
 
-			if (provider === AiProvider.GOOGLE || provider === AiProvider.GOOGLE_FETCH) {
+			if (provider === AiProvider.GOOGLE) {
 				baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com';
 				const baseUrl = baseUrlInput.value.trim();
 				if (baseUrl) {

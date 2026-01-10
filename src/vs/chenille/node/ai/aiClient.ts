@@ -6,11 +6,8 @@
 import { AiProvider, ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiTool, parseMcpToolName, McpServerConfig } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
 import { OpenAIProvider } from './openaiProvider.js';
-import { AnthropicProvider, getAnthropicSdkDebugLogs, clearAnthropicSdkDebugLogs } from './anthropicProvider.js';
+import { AnthropicProvider } from './anthropicProvider.js';
 import { GoogleProvider } from './googleProvider.js';
-import { OpenAIProviderFetch } from './openaiProviderFetch.js';
-import { AnthropicProviderFetch, getAnthropicFetchDebugLogs, clearAnthropicFetchDebugLogs } from './anthropicProviderFetch.js';
-import { GoogleProviderFetch } from './googleProviderFetch.js';
 import { getMcpManager } from '../mcp/mcpManager.js';
 
 /**
@@ -36,15 +33,10 @@ function getProvider(provider: AiProvider): IAIProvider {
 	return instance;
 }
 
-// 注册内置 Provider（SDK 版本）
+// 注册内置 Provider
 registerProvider(AiProvider.OPENAI, new OpenAIProvider());
 registerProvider(AiProvider.ANTHROPIC, new AnthropicProvider());
 registerProvider(AiProvider.GOOGLE, new GoogleProvider());
-
-// 注册 Fetch 版本 Provider（不依赖 SDK，打包后更稳定）
-registerProvider(AiProvider.OPENAI_FETCH, new OpenAIProviderFetch());
-registerProvider(AiProvider.ANTHROPIC_FETCH, new AnthropicProviderFetch());
-registerProvider(AiProvider.GOOGLE_FETCH, new GoogleProviderFetch());
 
 /**
  * 合并 MCP 工具到选项中
@@ -57,7 +49,6 @@ function mergeWithMcpTools(options: ChatCompletionOptions): ChatCompletionOption
 		return options;
 	}
 
-	// 合并工具列表
 	const mergedTools: AiTool[] = [...(options.tools || []), ...mcpTools];
 
 	return {
@@ -116,7 +107,6 @@ export class AIClient {
 			return { success: false, error: result.error };
 		}
 
-		// 将 MCP 内容转换为字符串
 		const content = result.content
 			?.map(c => {
 				if (c.type === 'text') {
@@ -151,24 +141,6 @@ export class AIClient {
 	 */
 	static register(provider: AiProvider, instance: IAIProvider): void {
 		registerProvider(provider, instance);
-	}
-
-	/**
-	 * 获取 Anthropic 调试日志
-	 */
-	static getDebugLogs(): { sdk: string[]; fetch: string[] } {
-		return {
-			sdk: getAnthropicSdkDebugLogs(),
-			fetch: getAnthropicFetchDebugLogs(),
-		};
-	}
-
-	/**
-	 * 清除 Anthropic 调试日志
-	 */
-	static clearDebugLogs(): void {
-		clearAnthropicSdkDebugLogs();
-		clearAnthropicFetchDebugLogs();
 	}
 }
 

@@ -123,12 +123,4 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 			});
 		}
 	}
-
-	async getDebugLogs(): Promise<{ sdk: string[]; fetch: string[] }> {
-		return AIClient.getDebugLogs();
-	}
-
-	async clearDebugLogs(): Promise<void> {
-		AIClient.clearDebugLogs();
-	}
 }
