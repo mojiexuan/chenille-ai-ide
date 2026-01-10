@@ -16,17 +16,17 @@
 	"win32DirName": "Chenille AI",
 	"win32NameVersion": "Chenille AI",
 	"win32RegValueName": "ChenilleAI",
-	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
-	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
-	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
+	"win32x64AppId": "{{A7F3E2D1-B8C4-4A56-9D0E-1F2B3C4D5E6A}",
+	"win32arm64AppId": "{{B8D4F3E2-C9A5-4B67-AE1F-203B4C5D6E7F}",
+	"win32x64UserAppId": "{{C9E5A4B3-D0B6-4C78-BF20-314B5C6D7E8A}",
+	"win32arm64UserAppId": "{{D0F6B5C4-E1C7-4D89-CA31-425C6D7E8F9B}",
 	"win32AppUserModelId": "Chenille.AI",
 	"win32ShellNameShort": "Chenille",
 	"win32TunnelServiceMutex": "chenille-tunnelservice",
 	"win32TunnelMutex": "chenille-tunnel",
 	"darwinBundleIdentifier": "com.chenjiabao.chenille",
-	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
-	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
+	"darwinProfileUUID": "E1A7B3C5-D9F2-4E86-A1B3-5C7D9E0F2A4B",
+	"darwinProfilePayloadUUID": "F2B8C4D6-E0A3-4F97-B2C4-6D8E0F1A3B5C",
 	"linuxIconName": "chenille-ai",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/mojiexuan/chenille-ai-ide/issues/new",
@@ -124,9 +124,18 @@
 		},
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
-			["read:user", "user:email", "repo", "workflow"],
-			["user:email"],
-			["read:user"]
+			[
+				"read:user",
+				"user:email",
+				"repo",
+				"workflow"
+			],
+			[
+				"user:email"
+			],
+			[
+				"read:user"
+			]
 		],
 		"entitlementUrl": "https://api.github.com/copilot_internal/user",
 		"entitlementSignupLimitedUrl": "https://api.github.com/copilot_internal/subscribe_limited_user",
