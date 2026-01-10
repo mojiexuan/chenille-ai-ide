@@ -7,6 +7,7 @@ import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { AiToolCall, TokenUsage, AiMessageContent } from './types.js';
+import { URI } from '../../base/common/uri.js';
 
 /**
  * Chenille Chat 响应块
@@ -45,6 +46,16 @@ export interface IChenilleChatMessage {
 }
 
 /**
+ * 会话上下文（用于工具确认）
+ */
+export interface IChenilleSessionContext {
+	/** 会话资源 URI */
+	sessionResource: URI;
+	/** 请求 ID */
+	requestId: string;
+}
+
+/**
  * Chenille Chat 请求
  */
 export interface IChenilleChatRequest {
@@ -56,6 +67,8 @@ export interface IChenilleChatRequest {
 	history: IChenilleChatMessage[];
 	/** 是否启用工具 */
 	enableTools?: boolean;
+	/** 会话上下文（用于工具内联确认） */
+	sessionContext?: IChenilleSessionContext;
 }
 
 /**

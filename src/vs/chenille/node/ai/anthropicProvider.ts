@@ -138,6 +138,16 @@ function toAnthropicTools(options: ChatCompletionOptions): Tool[] | undefined {
 }
 
 /**
+ * 检查是否为 thinking 模型
+ */
+function isThinkingModel(modelName: string): boolean {
+	return modelName.includes('thinking') ||
+		modelName.includes('claude-3-7') ||
+		modelName.includes('claude-opus-4') ||
+		modelName.includes('claude-4');
+}
+
+/**
  * Anthropic Provider 实现
  */
 export class AnthropicProvider implements IAIProvider {
@@ -153,19 +163,42 @@ export class AnthropicProvider implements IAIProvider {
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
 		const client = this.createClient(options);
 		const { model } = options.agent;
-		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
 		const messages = toAnthropicMessages(options.messages);
 		const tools = toAnthropicTools(options);
+		const isThinking = isThinkingModel(model.model);
 
-		const response = await client.messages.create({
+		// thinking 模型不支持 temperature 参数
+		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
+
+		// 构建请求参数
+		const requestParams: Anthropic.MessageCreateParams = {
 			model: model.model,
 			messages,
 			system: extractSystemPrompt(options.messages),
-			temperature,
-			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
+			max_tokens: model.maxTokens > 0 ? model.maxTokens : (isThinking ? 16000 : 4096),
 			tools,
-		});
+		};
+
+		// 只有非 thinking 模型才设置 temperature
+		if (temperature !== undefined) {
+			requestParams.temperature = temperature;
+		}
+
+		// thinking 模型需要添加 thinking 参数
+		if (isThinking) {
+			(requestParams as Anthropic.MessageCreateParams & { thinking?: { type: string; budget_tokens: number } }).thinking = {
+				type: 'enabled',
+				budget_tokens: 10000, // 默认 10000 tokens 用于思考
+			};
+		}
+
+		const response = await client.messages.create(requestParams);
+
+		// 提取 thinking 内容
+		const thinkingBlocks = response.content.filter((block): block is ThinkingBlock => block.type === 'thinking');
+		const reasoning = thinkingBlocks.map(block => block.thinking).join('');
+		const reasoningSignature = thinkingBlocks.length > 0 ? (thinkingBlocks[thinkingBlocks.length - 1] as ThinkingBlock & { signature?: string }).signature : undefined;
 
 		const content = response.content
 			.filter((block): block is TextBlock => block.type === 'text')
@@ -177,6 +210,8 @@ export class AnthropicProvider implements IAIProvider {
 
 		const result: ChatCompletionResult = {
 			content,
+			reasoning: reasoning || undefined,
+			reasoning_signature: reasoningSignature,
 			tool_calls: toolUse.length > 0 ? toolUse.map(t => ({
 				id: t.id || generateToolCallId(),
 				type: 'function' as const,
@@ -200,10 +235,13 @@ export class AnthropicProvider implements IAIProvider {
 	async stream(options: ChatCompletionOptions): Promise<void> {
 		const client = this.createClient(options);
 		const { model } = options.agent;
-		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
 		const messages = toAnthropicMessages(options.messages);
 		const tools = toAnthropicTools(options);
+		const isThinking = isThinkingModel(model.model);
+
+		// thinking 模型不支持 temperature 参数
+		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
 
 		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
 		let currentToolIndex = -1;
@@ -213,20 +251,38 @@ export class AnthropicProvider implements IAIProvider {
 		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
 		try {
-			const stream = await client.messages.create({
+			// 构建请求参数
+			const requestParams: Anthropic.MessageCreateParamsStreaming = {
 				model: model.model,
 				messages,
 				system: extractSystemPrompt(options.messages),
-				temperature,
-				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
+				max_tokens: model.maxTokens > 0 ? model.maxTokens : (isThinking ? 16000 : 4096),
 				tools,
 				stream: true,
-			});
+			};
+
+			// 只有非 thinking 模型才设置 temperature
+			if (temperature !== undefined) {
+				requestParams.temperature = temperature;
+			}
+
+			// thinking 模型需要添加 thinking 参数
+			if (isThinking) {
+				(requestParams as Anthropic.MessageCreateParamsStreaming & { thinking?: { type: string; budget_tokens: number } }).thinking = {
+					type: 'enabled',
+					budget_tokens: 10000, // 默认 10000 tokens 用于思考
+				};
+			}
+
+			const stream = await client.messages.create(requestParams);
 
 			for await (const event of stream) {
 				if (options.token?.isCancellationRequested) {
 					break;
 				}
+
+				// 调试：记录收到的事件类型
+				// console.log('Anthropic stream event:', event.type);
 
 				switch (event.type) {
 					case 'message_start':

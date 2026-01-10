@@ -1575,6 +1575,8 @@ export default tseslint.config(
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/**',
 						'vs/chenille/~',
 						'vs/chenille/**',
 						'vs/workbench/services/*/~',
@@ -1594,6 +1596,7 @@ export default tseslint.config(
 					'restrictions': [
 						'vs/base/common/**',
 						'vs/platform/*/common/**',
+						'vs/editor/common/**',
 						'vs/chenille/**',
 						'vs/workbench/services/*/common/**',
 						'vs/workbench/common/**',

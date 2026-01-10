@@ -97,10 +97,19 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
 		const requestId = request.requestId;
 
+		// 确定使用的系统提示（自定义或默认）
+		const systemPromptContent = request.systemPrompt ?? agent.prompt.content;
+
+		// 构建消息列表，确保系统提示在最前面
+		const messages = [
+			{ role: 'system' as const, content: systemPromptContent },
+			...request.messages.filter(m => m.role !== 'system'), // 过滤掉已有的 system 消息
+		];
+
 		try {
 			await AIClient.stream({
 				agent,
-				messages: request.messages,
+				messages,
 				tools: request.tools,
 				token,
 				call: (result) => {

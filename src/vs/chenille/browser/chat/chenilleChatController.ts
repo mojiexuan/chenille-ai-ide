@@ -17,6 +17,7 @@ import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js'
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
+import { IChenilleSessionContext } from '../../common/chatProvider.js';
 
 /** 最大工具调用轮次（设置为较大值，实际上不限制） */
 const MAX_TOOL_ROUNDS = 1000;
@@ -62,6 +63,8 @@ export interface IChenilleChatRequest {
 	systemPrompt?: string;
 	/** 是否启用工具 */
 	enableTools?: boolean;
+	/** 会话上下文（用于工具内联确认） */
+	sessionContext?: IChenilleSessionContext;
 }
 
 /**
@@ -236,7 +239,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					return fullResponse;
 				}
 
-				const roundResult = await this.executeOneRound(messages, tools, cts.token);
+				const roundResult = await this.executeOneRound(messages, tools, cts.token, request.systemPrompt);
 
 				fullResponse += roundResult.content;
 
@@ -267,7 +270,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 				// 执行工具调用（仅智能体模式）
 				toolRound++;
-				await this.executeToolCalls(roundResult.toolCalls, messages, cts.token);
+				await this.executeToolCalls(roundResult.toolCalls, messages, cts.token, request.sessionContext);
 			}
 
 			// 超过最大轮次
@@ -291,7 +294,8 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	private async executeOneRound(
 		messages: AiModelMessage[],
 		tools: typeof CHENILLE_TOOLS | undefined,
-		token: CancellationToken
+		token: CancellationToken,
+		systemPrompt?: string
 	): Promise<{ content: string; reasoning?: string; reasoning_signature?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
 		let content = '';
 		let reasoning = '';
@@ -364,7 +368,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 		// 发起请求并等待完成
 		try {
-			await this.aiService.streamChat({ requestId, messages, tools }, token);
+			await this.aiService.streamChat({ requestId, messages, tools, systemPrompt }, token);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			this._onChunk.fire({ done: true, error: errorMessage });
@@ -388,7 +392,8 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	private async executeToolCalls(
 		toolCalls: AiToolCall[],
 		messages: AiModelMessage[],
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext?: IChenilleSessionContext
 	): Promise<void> {
 		// 执行每个工具
 		for (const toolCall of toolCalls) {
@@ -410,7 +415,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					type: 'function' as const,
 					function: toolCall.function,
 				};
-				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token);
+				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token, sessionContext);
 
 				// 发送工具结果事件
 				this._onChunk.fire({
