@@ -3,13 +3,13 @@ name: Chenille AI IDE Build
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       platform:
-        description: '构建平台'
+        description: "构建平台"
         required: true
-        default: 'all'
+        default: "all"
         type: choice
         options:
           - all
@@ -30,10 +30,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
@@ -90,13 +90,13 @@ jobs:
   build-macos-x64:
     if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'darwin' || github.event_name == 'push' }}
     name: macOS x64
-    runs-on: macos-13
+    runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
@@ -146,13 +146,13 @@ jobs:
   build-macos-arm64:
     if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'darwin' || github.event_name == 'push' }}
     name: macOS arm64
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
@@ -205,10 +205,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
 
