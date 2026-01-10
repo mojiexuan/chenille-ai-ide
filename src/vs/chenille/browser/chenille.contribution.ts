@@ -15,6 +15,9 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/
 import { ChenilleAgentContribution } from './chat/chenilleAgentContribution.js';
 import { IChenilleDiffSessionService, ChenilleDiffSessionService } from './diffSession/index.js';
 
+// 导入 diff actions（自动注册）
+import './diffSession/chenilleDiffActions.js';
+
 // 导入 CSS 样式
 import './diffSession/chenilleDiffSession.css';
 

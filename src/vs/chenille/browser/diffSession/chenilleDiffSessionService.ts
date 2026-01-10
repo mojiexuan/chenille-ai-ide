@@ -141,6 +141,28 @@ export class ChenilleDiffSessionService extends Disposable implements IChenilleD
 		}
 	}
 
+	async acceptAllSessions(): Promise<void> {
+		const sessions = this.getAllSessions();
+		for (const session of sessions) {
+			await session.acceptAll();
+		}
+	}
+
+	async rejectAllSessions(): Promise<void> {
+		const sessions = this.getAllSessions();
+		for (const session of sessions) {
+			await session.rejectAll();
+		}
+	}
+
+	getTotalPendingCount(): number {
+		let total = 0;
+		for (const session of this.getAllSessions()) {
+			total += session.getPendingCount();
+		}
+		return total;
+	}
+
 	override dispose(): void {
 		for (const [uri] of this._sessions) {
 			this._endSession(uri);

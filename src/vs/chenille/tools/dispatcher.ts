@@ -15,6 +15,7 @@ import { EditOperation } from '../../editor/common/core/editOperation.js';
 import { Range } from '../../editor/common/core/range.js';
 import { Position } from '../../editor/common/core/position.js';
 import { IChenilleSessionContext } from '../common/chatProvider.js';
+import { VSBuffer } from '../../base/common/buffer.js';
 
 // 导入文件工具
 import {
@@ -466,6 +467,10 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					const parsed = parseToolArguments<CreateFileParams>(toolCall, ['path']);
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
+					}
+					// 如果启用 diff 模式，使用 diff session
+					if (this.diffModeEnabled && parsed.data.content) {
+						return await this.dispatchCreateWithDiff(parsed.data);
 					}
 					result = await createFile(parsed.data, this.fileService, this.workspaceService);
 					break;
@@ -1069,6 +1074,69 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				success: false,
 				content: '',
 				error: `删除失败: ${errorMessage}`
+			};
+		}
+	}
+
+	/**
+	 * 使用 diff session 执行创建文件操作
+	 */
+	private async dispatchCreateWithDiff(params: CreateFileParams): Promise<IToolResult> {
+		try {
+			const uri = resolveFilePath(params.path, this.workspaceService);
+
+			// 检查文件是否已存在
+			try {
+				await this.fileService.stat(uri);
+				// 文件已存在，不使用 diff 模式，直接返回错误
+				return {
+					success: false,
+					content: '',
+					error: `文件已存在: ${params.path}。如需覆盖，请先删除或使用 replaceInFile。`
+				};
+			} catch {
+				// 文件不存在，继续创建
+			}
+
+			// 创建空文件
+			const content = params.content ?? '';
+			await this.fileService.writeFile(uri, VSBuffer.fromString(''));
+
+			// 创建 diff session
+			const session = await this.diffSessionService.createSession(uri);
+
+			// 监听 session 结束事件，如果用户撤销，则删除文件
+			const disposable = session.onDidEnd(async (e) => {
+				disposable.dispose();
+				if (!e.accepted) {
+					// 用户撤销，删除文件
+					try {
+						await this.fileService.del(uri);
+					} catch {
+						// 忽略删除失败
+					}
+				}
+			});
+
+			// 应用内容作为编辑
+			const lines = content.split('\n');
+			const edit = EditOperation.insert(new Position(1, 1), content);
+			await session.applyEdits([edit]);
+
+			const pendingCount = session.getPendingCount();
+			return {
+				success: true,
+				content: `文件创建成功: ${params.path}，共 ${lines.length} 行。\n` +
+					`[Diff 模式] 新文件内容已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。\n` +
+					`提示: 如果撤销此变更，文件将被删除。`
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `创建文件失败: ${errorMessage}`
 			};
 		}
 	}

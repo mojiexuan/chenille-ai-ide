@@ -12,6 +12,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { nullExtensionDescription } from '../../../workbench/services/extensions/common/extensions.js';
 import { URI } from '../../../base/common/uri.js';
+import { FileAccess } from '../../../base/common/network.js';
 import { FileType } from '../../../platform/files/common/files.js';
 import {
 	IChatAgentData,
@@ -60,10 +61,13 @@ export const CHENILLE_AGENT_ID = 'chenille.agent';
  * Chenille Agent 数据
  */
 function createChenilleAgentData(): IChatAgentData {
+	// 使用 Chenille 自定义图标
+	const iconUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/media/chenille-icon.png');
+
 	return {
 		id: CHENILLE_AGENT_ID,
 		name: 'Chenille',
-		fullName: 'Chenille AI Assistant',
+		fullName: 'Chenille',
 		description: localize('chenille.agent.description', 'Chenille AI 编程助手'),
 		isDefault: true,
 		isCore: true,
@@ -72,7 +76,7 @@ function createChenilleAgentData(): IChatAgentData {
 		disambiguation: [],
 		locations: [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline],
 		metadata: {
-			themeIcon: Codicon.sparkle,
+			icon: iconUri,
 			helpTextPrefix: new MarkdownString(localize('chenille.agent.help', '我是 Chenille AI 助手，可以帮助你编写代码、回答问题、执行任务。')),
 		},
 		extensionId: nullExtensionDescription.identifier,
