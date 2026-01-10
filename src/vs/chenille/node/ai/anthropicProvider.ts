@@ -4,20 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages';
+import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam, ThinkingBlock } from '@anthropic-ai/sdk/resources/messages';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 
 /**
  * 将多模态内容转换为 Anthropic 格式
  */
 function toAnthropicContent(msg: AiModelMessage): string | ContentBlockParam[] {
-	// 如果有多模态内容，转换为 Anthropic 格式
 	if (msg.multiContent?.length) {
 		return msg.multiContent.map(part => {
 			if (part.type === 'text') {
 				return { type: 'text' as const, text: part.text };
 			} else {
-				// 图片内容
 				const imageBlock: ImageBlockParam = {
 					type: 'image',
 					source: {
@@ -30,43 +28,57 @@ function toAnthropicContent(msg: AiModelMessage): string | ContentBlockParam[] {
 			}
 		});
 	}
-	// 否则返回纯文本
 	return msg.content;
 }
 
 /**
  * 将统一消息格式转换为 Anthropic 格式
+ * 注意：Anthropic 要求消息必须交替出现（user/assistant），
+ * 且多个 tool_result 必须合并到同一个 user 消息中
  */
 function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 	const result: MessageParam[] = [];
+	let pendingToolResults: ToolResultBlockParam[] = [];
+
+	const flushToolResults = () => {
+		if (pendingToolResults.length > 0) {
+			result.push({
+				role: 'user',
+				content: pendingToolResults,
+			});
+			pendingToolResults = [];
+		}
+	};
 
 	for (const msg of messages) {
-		// 跳过 system 消息（单独处理）
 		if (msg.role === 'system') {
 			continue;
 		}
 
-		// 工具结果消息 -> Anthropic 的 tool_result
 		if (msg.role === 'tool' && msg.tool_call_id) {
-			const toolResultBlock: ToolResultBlockParam = {
+			pendingToolResults.push({
 				type: 'tool_result',
 				tool_use_id: msg.tool_call_id,
 				content: msg.content,
-			};
-			result.push({
-				role: 'user',
-				content: [toolResultBlock],
 			});
 			continue;
 		}
 
-		// assistant 消息（可能包含工具调用）
+		flushToolResults();
+
 		if (msg.role === 'assistant') {
 			if (msg.tool_calls?.length) {
-				// 有工具调用时，构建包含 text 和 tool_use 的 content
-				const content: (TextBlock | ToolUseBlock)[] = [];
+				const content: (ThinkingBlock | TextBlock | ToolUseBlock)[] = [];
 
-				// 如果有文本内容，添加 text block
+				// thinking block 必须放在最前面（包含 signature）
+				if (msg.reasoning_content) {
+					content.push({
+						type: 'thinking',
+						thinking: msg.reasoning_content,
+						signature: msg.reasoning_signature,
+					} as ThinkingBlock);
+				}
+
 				if (msg.content) {
 					const textBlock: TextBlock = {
 						type: 'text',
@@ -76,7 +88,6 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 					content.push(textBlock);
 				}
 
-				// 添加 tool_use blocks
 				for (const tc of msg.tool_calls) {
 					const toolUseBlock: ToolUseBlock = {
 						type: 'tool_use',
@@ -87,27 +98,20 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 					content.push(toolUseBlock);
 				}
 
-				result.push({
-					role: 'assistant',
-					content,
-				});
+				result.push({ role: 'assistant', content });
 			} else {
-				// 普通 assistant 消息
-				result.push({
-					role: 'assistant',
-					content: msg.content,
-				});
+				result.push({ role: 'assistant', content: msg.content });
 			}
 			continue;
 		}
 
-		// user 消息（支持图片）
 		result.push({
 			role: 'user',
 			content: toAnthropicContent(msg),
 		});
 	}
 
+	flushToolResults();
 	return result;
 }
 
@@ -129,12 +133,18 @@ function toAnthropicTools(options: ChatCompletionOptions): Tool[] | undefined {
 	return options.tools.map(t => ({
 		name: t.function.name,
 		description: t.function.description,
-		input_schema: {
-			type: 'object' as const,
-			properties: t.function.parameters.properties,
-			required: t.function.parameters.required,
-		},
+		input_schema: t.function.parameters as Tool['input_schema'],
 	}));
+}
+
+/**
+ * 检查是否为 thinking 模型
+ */
+function isThinkingModel(modelName: string): boolean {
+	return modelName.includes('thinking') ||
+		modelName.includes('claude-3-7') ||
+		modelName.includes('claude-opus-4') ||
+		modelName.includes('claude-4');
 }
 
 /**
@@ -153,16 +163,42 @@ export class AnthropicProvider implements IAIProvider {
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
 		const client = this.createClient(options);
 		const { model } = options.agent;
-		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		const response = await client.messages.create({
+		const messages = toAnthropicMessages(options.messages);
+		const tools = toAnthropicTools(options);
+		const isThinking = isThinkingModel(model.model);
+
+		// thinking 模型不支持 temperature 参数
+		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
+
+		// 构建请求参数
+		const requestParams: Anthropic.MessageCreateParams = {
 			model: model.model,
-			messages: toAnthropicMessages(options.messages),
+			messages,
 			system: extractSystemPrompt(options.messages),
-			temperature,
-			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-			tools: toAnthropicTools(options),
-		});
+			max_tokens: model.maxTokens > 0 ? model.maxTokens : (isThinking ? 16000 : 4096),
+			tools,
+		};
+
+		// 只有非 thinking 模型才设置 temperature
+		if (temperature !== undefined) {
+			requestParams.temperature = temperature;
+		}
+
+		// thinking 模型需要添加 thinking 参数
+		if (isThinking) {
+			(requestParams as Anthropic.MessageCreateParams & { thinking?: { type: string; budget_tokens: number } }).thinking = {
+				type: 'enabled',
+				budget_tokens: 10000, // 默认 10000 tokens 用于思考
+			};
+		}
+
+		const response = await client.messages.create(requestParams);
+
+		// 提取 thinking 内容
+		const thinkingBlocks = response.content.filter((block): block is ThinkingBlock => block.type === 'thinking');
+		const reasoning = thinkingBlocks.map(block => block.thinking).join('');
+		const reasoningSignature = thinkingBlocks.length > 0 ? (thinkingBlocks[thinkingBlocks.length - 1] as ThinkingBlock & { signature?: string }).signature : undefined;
 
 		const content = response.content
 			.filter((block): block is TextBlock => block.type === 'text')
@@ -174,6 +210,8 @@ export class AnthropicProvider implements IAIProvider {
 
 		const result: ChatCompletionResult = {
 			content,
+			reasoning: reasoning || undefined,
+			reasoning_signature: reasoningSignature,
 			tool_calls: toolUse.length > 0 ? toolUse.map(t => ({
 				id: t.id || generateToolCallId(),
 				type: 'function' as const,
@@ -197,125 +235,150 @@ export class AnthropicProvider implements IAIProvider {
 	async stream(options: ChatCompletionOptions): Promise<void> {
 		const client = this.createClient(options);
 		const { model } = options.agent;
-		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
-		return new Promise<void>((resolve) => {
-			const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
-			let currentToolIndex = -1;
-			let hasReceivedContent = false;
-			let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+		const messages = toAnthropicMessages(options.messages);
+		const tools = toAnthropicTools(options);
+		const isThinking = isThinkingModel(model.model);
 
-			const streamParams = {
+		// thinking 模型不支持 temperature 参数
+		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
+
+		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+		let currentToolIndex = -1;
+		let accumulatedThinking = '';
+		let accumulatedSignature = '';
+		let hasReceivedContent = false;
+		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+
+		try {
+			// 构建请求参数
+			const requestParams: Anthropic.MessageCreateParamsStreaming = {
 				model: model.model,
-				messages: toAnthropicMessages(options.messages),
+				messages,
 				system: extractSystemPrompt(options.messages),
-				temperature,
-				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-				tools: toAnthropicTools(options),
+				max_tokens: model.maxTokens > 0 ? model.maxTokens : (isThinking ? 16000 : 4096),
+				tools,
+				stream: true,
 			};
 
-			let stream: ReturnType<typeof client.messages.stream>;
-			try {
-				stream = client.messages.stream(streamParams);
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: `Stream creation failed: ${errorMessage}` });
-				resolve();
+			// 只有非 thinking 模型才设置 temperature
+			if (temperature !== undefined) {
+				requestParams.temperature = temperature;
+			}
+
+			// thinking 模型需要添加 thinking 参数
+			if (isThinking) {
+				(requestParams as Anthropic.MessageCreateParamsStreaming & { thinking?: { type: string; budget_tokens: number } }).thinking = {
+					type: 'enabled',
+					budget_tokens: 10000, // 默认 10000 tokens 用于思考
+				};
+			}
+
+			const stream = await client.messages.create(requestParams);
+
+			for await (const event of stream) {
+				if (options.token?.isCancellationRequested) {
+					break;
+				}
+
+				// 调试：记录收到的事件类型
+				// console.log('Anthropic stream event:', event.type);
+
+				switch (event.type) {
+					case 'message_start':
+						hasReceivedContent = true;
+						if (event.message?.usage) {
+							finalUsage = {
+								promptTokens: event.message.usage.input_tokens,
+								completionTokens: event.message.usage.output_tokens,
+								totalTokens: event.message.usage.input_tokens + event.message.usage.output_tokens,
+							};
+						}
+						break;
+
+					case 'content_block_start':
+						hasReceivedContent = true;
+						if (event.content_block?.type === 'tool_use') {
+							currentToolIndex++;
+							accumulatedToolCalls.set(currentToolIndex, {
+								id: event.content_block.id || generateToolCallId(),
+								name: event.content_block.name || '',
+								arguments: '',
+							});
+						}
+						break;
+
+					case 'content_block_delta':
+						hasReceivedContent = true;
+						if (event.delta?.type === 'text_delta' && event.delta.text) {
+							options.call?.({ content: event.delta.text, done: false });
+						} else if (event.delta?.type === 'thinking_delta' && (event.delta as { thinking?: string }).thinking) {
+							const thinkingText = (event.delta as { thinking?: string }).thinking || '';
+							accumulatedThinking += thinkingText;
+							options.call?.({ content: '', reasoning: thinkingText, done: false });
+						} else if (event.delta?.type === 'signature_delta' && (event.delta as { signature?: string }).signature) {
+							accumulatedSignature += (event.delta as { signature?: string }).signature || '';
+						} else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
+							const tc = accumulatedToolCalls.get(currentToolIndex);
+							if (tc) {
+								tc.arguments += event.delta.partial_json;
+							}
+						}
+						break;
+
+					case 'message_delta':
+						if (event.usage) {
+							finalUsage = {
+								promptTokens: finalUsage?.promptTokens || 0,
+								completionTokens: event.usage.output_tokens || 0,
+								totalTokens: (finalUsage?.promptTokens || 0) + (event.usage.output_tokens || 0),
+							};
+						}
+						break;
+				}
+			}
+
+			if (options.token?.isCancellationRequested) {
 				return;
 			}
 
-			stream.on('text', (text) => {
-				if (options.token?.isCancellationRequested) {
-					return;
-				}
-				hasReceivedContent = true;
-				options.call?.({ content: text, done: false });
-			});
+			if (!hasReceivedContent) {
+				options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
+				return;
+			}
 
-			stream.on('contentBlock', (block) => {
-				if (options.token?.isCancellationRequested) {
-					return;
-				}
-				hasReceivedContent = true;
-				if (block.type === 'tool_use') {
-					currentToolIndex++;
-					accumulatedToolCalls.set(currentToolIndex, {
-						id: block.id || generateToolCallId(),
-						name: block.name,
-						arguments: JSON.stringify(block.input),
-					});
-				}
-			});
-
-			stream.on('message', (message) => {
-				hasReceivedContent = true;
-				if (message.usage) {
-					finalUsage = {
-						promptTokens: message.usage.input_tokens,
-						completionTokens: message.usage.output_tokens,
-						totalTokens: message.usage.input_tokens + message.usage.output_tokens,
-					};
-				}
-			});
-
-			stream.on('error', (error) => {
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				options.call?.({ content: '', done: true, error: errorMessage });
-				resolve();
-			});
-
-			stream.on('end', () => {
-				if (options.token?.isCancellationRequested) {
-					resolve();
-					return;
-				}
-
-				if (!hasReceivedContent) {
-					options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
-					resolve();
-					return;
-				}
-
-				// 流结束后，发送累积的工具调用
-				if (accumulatedToolCalls.size > 0) {
-					const toolCalls: AiToolCall[] = [];
-					for (const [, tc] of accumulatedToolCalls) {
-						if (tc.name) {
-							toolCalls.push({
-								id: tc.id || generateToolCallId(),
-								type: 'function' as const,
-								function: {
-									name: tc.name,
-									arguments: tc.arguments,
-								},
-							});
-						}
-					}
-
-					if (toolCalls.length > 0) {
-						options.call?.({
-							content: '',
-							tool_calls: toolCalls,
-							done: false,
+			if (accumulatedToolCalls.size > 0) {
+				const toolCalls: AiToolCall[] = [];
+				for (const [, tc] of accumulatedToolCalls) {
+					if (tc.name) {
+						toolCalls.push({
+							id: tc.id || generateToolCallId(),
+							type: 'function' as const,
+							function: {
+								name: tc.name,
+								arguments: tc.arguments,
+							},
 						});
 					}
 				}
 
-				options.call?.({ content: '', done: true, usage: finalUsage });
-				resolve();
-			});
-
-			// 处理取消
-			const checkCancellation = setInterval(() => {
-				if (options.token?.isCancellationRequested) {
-					clearInterval(checkCancellation);
-					stream.controller.abort();
+				if (toolCalls.length > 0) {
+					options.call?.({
+						content: '',
+						tool_calls: toolCalls,
+						reasoning: accumulatedThinking || undefined,
+						reasoning_signature: accumulatedSignature || undefined,
+						done: false,
+					});
 				}
-			}, 100);
+			}
 
-			stream.on('end', () => clearInterval(checkCancellation));
-			stream.on('error', () => clearInterval(checkCancellation));
-		});
+			options.call?.({ content: '', done: true, usage: finalUsage });
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.call?.({ content: '', done: true, error: errorMessage });
+		}
 	}
 }
 

@@ -64,11 +64,11 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 registerEditorContribution(QuickDiffEditorController.ID,
 	QuickDiffEditorController, EditorContributionInstantiation.AfterFirstRender);
 
-const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
+const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', '源代码管理视图的图标。'));
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize2('source control', 'Source Control'),
+	title: localize2('source control', '源代码管理'),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
 	icon: sourceControlViewIcon,
@@ -78,33 +78,33 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-const containerTitle = localize('source control view', "Source Control");
+const containerTitle = localize('source control view', "源代码管理");
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
-	content: localize('no open repo', "No source control providers registered."),
+	content: localize('no open repo', "没有注册源代码管理提供程序。"),
 	when: 'default'
 });
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
-	content: localize('no open repo in an untrusted workspace', "None of the registered source control providers work in Restricted Mode."),
+	content: localize('no open repo in an untrusted workspace', "没有任何已注册的源代码管理提供程序可在受限模式下工作。"),
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('scm.providerCount', 0), WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
 });
 
 viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
-	content: `[${localize('manageWorkspaceTrustAction', "Manage Workspace Trust")}](command:${MANAGE_TRUST_COMMAND_ID})`,
+	content: `[${localize('manageWorkspaceTrustAction', "管理工作区信任")}](command:${MANAGE_TRUST_COMMAND_ID})`,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('scm.providerCount', 0), WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
 });
 
 viewsRegistry.registerViewWelcomeContent(HISTORY_VIEW_PANE_ID, {
-	content: localize('no history items', "The selected source control provider does not have any source control history items."),
+	content: localize('no history items', "所选的源代码管理提供程序没有任何源代码管理历史记录项。"),
 	when: ContextKeys.SCMHistoryItemCount.isEqualTo(0)
 });
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
 	containerTitle,
-	name: localize2('scmRepositories', "Repositories"),
-	singleViewPaneContainerTitle: localize('source control repositories', "Source Control Repositories"),
+	name: localize2('scmRepositories', "存储库"),
+	singleViewPaneContainerTitle: localize('source control repositories', "源代码管理存储库"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -119,7 +119,7 @@ viewsRegistry.registerViews([{
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
 	containerTitle,
-	name: localize2('scmChanges', 'Changes'),
+	name: localize2('scmChanges', '更改'),
 	singleViewPaneContainerTitle: containerTitle,
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
@@ -129,7 +129,7 @@ viewsRegistry.registerViews([{
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
 		id: viewContainer.id,
-		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "Source &&Control"),
+		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "源代码管理(&&G)"),
 		keybindings: {
 			primary: 0,
 			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
@@ -143,8 +143,8 @@ viewsRegistry.registerViews([{
 viewsRegistry.registerViews([{
 	id: HISTORY_VIEW_PANE_ID,
 	containerTitle,
-	name: localize2('scmGraph', "Graph"),
-	singleViewPaneContainerTitle: localize('source control graph', "Source Control Graph"),
+	name: localize2('scmGraph', "图形"),
+	singleViewPaneContainerTitle: localize('source control graph', "源代码管理图形"),
 	ctorDescriptor: new SyncDescriptor(SCMHistoryViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -178,7 +178,7 @@ registerWorkbenchContribution2(
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
 	order: 5,
-	title: localize('scmConfigurationTitle', "Source Control"),
+	title: localize('scmConfigurationTitle', "源代码管理"),
 	type: 'object',
 	scope: ConfigurationScope.RESOURCE,
 	properties: {
@@ -186,53 +186,53 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'minimap', 'none'],
 			enumDescriptions: [
-				localize('scm.diffDecorations.all', "Show the diff decorations in all available locations."),
-				localize('scm.diffDecorations.gutter', "Show the diff decorations only in the editor gutter."),
-				localize('scm.diffDecorations.overviewRuler', "Show the diff decorations only in the overview ruler."),
-				localize('scm.diffDecorations.minimap', "Show the diff decorations only in the minimap."),
-				localize('scm.diffDecorations.none', "Do not show the diff decorations.")
+				localize('scm.diffDecorations.all', "在所有可用位置显示差异修饰。"),
+				localize('scm.diffDecorations.gutter', "仅在编辑器边距中显示差异修饰。"),
+				localize('scm.diffDecorations.overviewRuler', "仅在概览标尺中显示差异修饰。"),
+				localize('scm.diffDecorations.minimap', "仅在小地图中显示差异修饰。"),
+				localize('scm.diffDecorations.none', "不显示差异修饰。")
 			],
 			default: 'all',
-			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+			description: localize('diffDecorations', "控制编辑器中的差异修饰。")
 		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
-			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+			description: localize('diffGutterWidth', "控制边距中差异修饰的宽度(像素)(已添加和已修改)。")
 		},
 		'scm.diffDecorationsGutterVisibility': {
 			type: 'string',
 			enum: ['always', 'hover'],
 			enumDescriptions: [
-				localize('scm.diffDecorationsGutterVisibility.always', "Show the diff decorator in the gutter at all times."),
-				localize('scm.diffDecorationsGutterVisibility.hover', "Show the diff decorator in the gutter only on hover.")
+				localize('scm.diffDecorationsGutterVisibility.always', "始终在边距中显示差异修饰器。"),
+				localize('scm.diffDecorationsGutterVisibility.hover', "仅在悬停时在边距中显示差异修饰器。")
 			],
-			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
+			description: localize('scm.diffDecorationsGutterVisibility', "控制边距中源代码管理差异修饰器的可见性。"),
 			default: 'always'
 		},
 		'scm.diffDecorationsGutterAction': {
 			type: 'string',
 			enum: ['diff', 'none'],
 			enumDescriptions: [
-				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff Peek view on click."),
-				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
+				localize('scm.diffDecorationsGutterAction.diff', "单击时显示内联差异速览视图。"),
+				localize('scm.diffDecorationsGutterAction.none', "不执行任何操作。")
 			],
-			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
+			description: localize('scm.diffDecorationsGutterAction', "控制源代码管理差异边距修饰的行为。"),
 			default: 'diff'
 		},
 		'scm.diffDecorationsGutterPattern': {
 			type: 'object',
-			description: localize('diffGutterPattern', "Controls whether a pattern is used for the diff decorations in gutter."),
+			description: localize('diffGutterPattern', "控制是否对边距中的差异修饰使用图案。"),
 			additionalProperties: false,
 			properties: {
 				'added': {
 					type: 'boolean',
-					description: localize('diffGutterPatternAdded', "Use pattern for the diff decorations in gutter for added lines."),
+					description: localize('diffGutterPatternAdded', "对已添加行的边距差异修饰使用图案。"),
 				},
 				'modified': {
 					type: 'boolean',
-					description: localize('diffGutterPatternModifed', "Use pattern for the diff decorations in gutter for modified lines."),
+					description: localize('diffGutterPatternModifed', "对已修改行的边距差异修饰使用图案。"),
 				},
 			},
 			default: {
@@ -244,165 +244,165 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['true', 'false', 'inherit'],
 			enumDescriptions: [
-				localize('scm.diffDecorationsIgnoreTrimWhitespace.true', "Ignore leading and trailing whitespace."),
-				localize('scm.diffDecorationsIgnoreTrimWhitespace.false', "Do not ignore leading and trailing whitespace."),
-				localize('scm.diffDecorationsIgnoreTrimWhitespace.inherit', "Inherit from `diffEditor.ignoreTrimWhitespace`.")
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.true', "忽略前导和尾随空格。"),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.false', "不忽略前导和尾随空格。"),
+				localize('scm.diffDecorationsIgnoreTrimWhitespace.inherit', "继承自 `diffEditor.ignoreTrimWhitespace`。")
 			],
-			description: localize('diffDecorationsIgnoreTrimWhitespace', "Controls whether leading and trailing whitespace is ignored in Source Control diff gutter decorations."),
+			description: localize('diffDecorationsIgnoreTrimWhitespace', "控制源代码管理差异边距修饰中是否忽略前导和尾随空格。"),
 			default: 'false'
 		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
-			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
+			description: localize('alwaysShowActions', "控制内联操作是否始终在源代码管理视图中可见。"),
 			default: false
 		},
 		'scm.countBadge': {
 			type: 'string',
 			enum: ['all', 'focused', 'off'],
 			enumDescriptions: [
-				localize('scm.countBadge.all', "Show the sum of all Source Control Provider count badges."),
-				localize('scm.countBadge.focused', "Show the count badge of the focused Source Control Provider."),
-				localize('scm.countBadge.off', "Disable the Source Control count badge.")
+				localize('scm.countBadge.all', "显示所有源代码管理提供程序计数徽章的总和。"),
+				localize('scm.countBadge.focused', "显示聚焦的源代码管理提供程序的计数徽章。"),
+				localize('scm.countBadge.off', "禁用源代码管理计数徽章。")
 			],
-			description: localize('scm.countBadge', "Controls the count badge on the Source Control icon on the Activity Bar."),
+			description: localize('scm.countBadge', "控制活动栏上源代码管理图标的计数徽章。"),
 			default: 'all'
 		},
 		'scm.providerCountBadge': {
 			type: 'string',
 			enum: ['hidden', 'auto', 'visible'],
 			enumDescriptions: [
-				localize('scm.providerCountBadge.hidden', "Hide Source Control Provider count badges."),
-				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
-				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
+				localize('scm.providerCountBadge.hidden', "隐藏源代码管理提供程序计数徽章。"),
+				localize('scm.providerCountBadge.auto', "仅在非零时显示源代码管理提供程序的计数徽章。"),
+				localize('scm.providerCountBadge.visible', "显示源代码管理提供程序计数徽章。")
 			],
-			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the Source Control view when there is more than one provider or when the {0} setting is enabled, and in the Source Control Repositories view.", '\`#scm.alwaysShowRepositories#\`'),
+			markdownDescription: localize('scm.providerCountBadge', "控制源代码管理提供程序标题上的计数徽章。当有多个提供程序或启用了 {0} 设置时，这些标题会显示在源代码管理视图中，也会显示在源代码管理存储库视图中。", '\`#scm.alwaysShowRepositories#\`'),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
 			type: 'string',
 			enum: ['tree', 'list'],
 			enumDescriptions: [
-				localize('scm.defaultViewMode.tree', "Show the repository changes as a tree."),
-				localize('scm.defaultViewMode.list', "Show the repository changes as a list.")
+				localize('scm.defaultViewMode.tree', "以树形式显示存储库更改。"),
+				localize('scm.defaultViewMode.list', "以列表形式显示存储库更改。")
 			],
-			description: localize('scm.defaultViewMode', "Controls the default Source Control repository view mode."),
+			description: localize('scm.defaultViewMode', "控制默认的源代码管理存储库视图模式。"),
 			default: 'list'
 		},
 		'scm.defaultViewSortKey': {
 			type: 'string',
 			enum: ['name', 'path', 'status'],
 			enumDescriptions: [
-				localize('scm.defaultViewSortKey.name', "Sort the repository changes by file name."),
-				localize('scm.defaultViewSortKey.path', "Sort the repository changes by path."),
-				localize('scm.defaultViewSortKey.status', "Sort the repository changes by Source Control status.")
+				localize('scm.defaultViewSortKey.name', "按文件名对存储库更改进行排序。"),
+				localize('scm.defaultViewSortKey.path', "按路径对存储库更改进行排序。"),
+				localize('scm.defaultViewSortKey.status', "按源代码管理状态对存储库更改进行排序。")
 			],
-			description: localize('scm.defaultViewSortKey', "Controls the default Source Control repository changes sort order when viewed as a list."),
+			description: localize('scm.defaultViewSortKey', "控制以列表形式查看时默认的源代码管理存储库更改排序顺序。"),
 			default: 'path'
 		},
 		'scm.autoReveal': {
 			type: 'boolean',
-			description: localize('autoReveal', "Controls whether the Source Control view should automatically reveal and select files when opening them."),
+			description: localize('autoReveal', "控制源代码管理视图是否应在打开文件时自动显示并选择文件。"),
 			default: true
 		},
 		'scm.inputFontFamily': {
 			type: 'string',
-			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
+			markdownDescription: localize('inputFontFamily', "控制输入消息的字体。使用 `default` 表示工作台用户界面字体系列，使用 `editor` 表示 `#editor.fontFamily#` 的值，或者使用自定义字体系列。"),
 			default: 'default'
 		},
 		'scm.inputFontSize': {
 			type: 'number',
-			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
+			markdownDescription: localize('inputFontSize', "控制输入消息的字体大小(以像素为单位)。"),
 			default: 13
 		},
 		'scm.inputMaxLineCount': {
 			type: 'number',
-			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			markdownDescription: localize('inputMaxLines', "控制输入框自动增长到的最大行数。"),
 			minimum: 1,
 			maximum: 50,
 			default: 10
 		},
 		'scm.inputMinLineCount': {
 			type: 'number',
-			markdownDescription: localize('inputMinLines', "Controls the minimum number of lines that the input will auto-grow from."),
+			markdownDescription: localize('inputMinLines', "控制输入框自动增长的最小行数。"),
 			minimum: 1,
 			maximum: 50,
 			default: 1
 		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
-			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
+			markdownDescription: localize('alwaysShowRepository', "控制存储库是否应始终在源代码管理视图中可见。"),
 			default: false
 		},
 		'scm.repositories.sortOrder': {
 			type: 'string',
 			enum: ['discovery time', 'name', 'path'],
 			enumDescriptions: [
-				localize('scm.repositoriesSortOrder.discoveryTime', "Repositories in the Source Control Repositories view are sorted by discovery time. Repositories in the Source Control view are sorted in the order that they were selected."),
-				localize('scm.repositoriesSortOrder.name', "Repositories in the Source Control Repositories and Source Control views are sorted by repository name."),
-				localize('scm.repositoriesSortOrder.path', "Repositories in the Source Control Repositories and Source Control views are sorted by repository path.")
+				localize('scm.repositoriesSortOrder.discoveryTime', "源代码管理存储库视图中的存储库按发现时间排序。源代码管理视图中的存储库按选择顺序排序。"),
+				localize('scm.repositoriesSortOrder.name', "源代码管理存储库和源代码管理视图中的存储库按存储库名称排序。"),
+				localize('scm.repositoriesSortOrder.path', "源代码管理存储库和源代码管理视图中的存储库按存储库路径排序。")
 			],
-			description: localize('repositoriesSortOrder', "Controls the sort order of the repositories in the source control repositories view."),
+			description: localize('repositoriesSortOrder', "控制源代码管理存储库视图中存储库的排序顺序。"),
 			default: 'discovery time'
 		},
 		'scm.repositories.visible': {
 			type: 'number',
-			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to 0, to be able to manually resize the view."),
+			description: localize('providersVisible', "控制源代码管理存储库部分中显示的存储库数量。设置为 0 可手动调整视图大小。"),
 			default: 10
 		},
 		'scm.repositories.selectionMode': {
 			type: 'string',
 			enum: ['multiple', 'single'],
 			enumDescriptions: [
-				localize('scm.repositories.selectionMode.multiple', "Multiple repositories can be selected at the same time."),
-				localize('scm.repositories.selectionMode.single', "Only one repository can be selected at a time.")
+				localize('scm.repositories.selectionMode.multiple', "可以同时选择多个存储库。"),
+				localize('scm.repositories.selectionMode.single', "一次只能选择一个存储库。")
 			],
-			description: localize('scm.repositories.selectionMode', "Controls the selection mode of the repositories in the Source Control Repositories view."),
+			description: localize('scm.repositories.selectionMode', "控制源代码管理存储库视图中存储库的选择模式。"),
 			default: 'multiple'
 		},
 		'scm.repositories.explorer': {
 			type: 'boolean',
-			markdownDescription: localize('scm.repositories.explorer', "Controls whether to show repository artifacts in the Source Control Repositories view. This feature is experimental and only works when {0} is set to `{1}`.", '\`#scm.repositories.selectionMode#\`', 'single'),
+			markdownDescription: localize('scm.repositories.explorer', "控制是否在源代码管理存储库视图中显示存储库项目。此功能是实验性的，仅在 {0} 设置为 `{1}` 时有效。", '\`#scm.repositories.selectionMode#\`', 'single'),
 			default: false,
 			tags: ['experimental']
 		},
 		'scm.showActionButton': {
 			type: 'boolean',
-			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
+			markdownDescription: localize('showActionButton', "控制是否可以在源代码管理视图中显示操作按钮。"),
 			default: true
 		},
 		'scm.showInputActionButton': {
 			type: 'boolean',
-			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
+			markdownDescription: localize('showInputActionButton', "控制是否可以在源代码管理输入框中显示操作按钮。"),
 			default: true
 		},
 		'scm.workingSets.enabled': {
 			type: 'boolean',
-			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
+			description: localize('scm.workingSets.enabled', "控制在源代码管理历史记录项组之间切换时是否存储编辑器工作集。"),
 			default: false
 		},
 		'scm.workingSets.default': {
 			type: 'string',
 			enum: ['empty', 'current'],
 			enumDescriptions: [
-				localize('scm.workingSets.default.empty', "Use an empty working set when switching to a source control history item group that does not have a working set."),
-				localize('scm.workingSets.default.current', "Use the current working set when switching to a source control history item group that does not have a working set.")
+				localize('scm.workingSets.default.empty', "切换到没有工作集的源代码管理历史记录项组时使用空工作集。"),
+				localize('scm.workingSets.default.current', "切换到没有工作集的源代码管理历史记录项组时使用当前工作集。")
 			],
-			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
+			description: localize('scm.workingSets.default', "控制切换到没有工作集的源代码管理历史记录项组时使用的默认工作集。"),
 			default: 'current'
 		},
 		'scm.compactFolders': {
 			type: 'boolean',
-			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
+			description: localize('scm.compactFolders', "控制源代码管理视图是否应以紧凑形式呈现文件夹。在这种形式下，单个子文件夹将被压缩到一个组合的树元素中。"),
 			default: true
 		},
 		'scm.graph.pageOnScroll': {
 			type: 'boolean',
-			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),
+			description: localize('scm.graph.pageOnScroll', "控制当滚动到列表末尾时，源代码管理图形视图是否加载下一页项目。"),
 			default: true
 		},
 		'scm.graph.pageSize': {
 			type: 'number',
-			description: localize('scm.graph.pageSize', "The number of items to show in the Source Control Graph view by default and when loading more items."),
+			description: localize('scm.graph.pageSize', "源代码管理图形视图中默认显示的项目数以及加载更多项目时的数量。"),
 			minimum: 1,
 			maximum: 1000,
 			default: 50
@@ -411,20 +411,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['all', 'filter'],
 			enumDescriptions: [
-				localize('scm.graph.badges.all', "Show badges of all history item groups in the Source Control Graph view."),
-				localize('scm.graph.badges.filter', "Show only the badges of history item groups used as a filter in the Source Control Graph view.")
+				localize('scm.graph.badges.all', "在源代码管理图形视图中显示所有历史记录项组的徽章。"),
+				localize('scm.graph.badges.filter', "仅显示在源代码管理图形视图中用作筛选器的历史记录项组的徽章。")
 			],
-			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
+			description: localize('scm.graph.badges', "控制在源代码管理图形视图中显示哪些徽章。徽章显示在图形右侧，指示历史记录项组的名称。"),
 			default: 'filter'
 		},
 		'scm.graph.showIncomingChanges': {
 			type: 'boolean',
-			description: localize('scm.graph.showIncomingChanges', "Controls whether to show incoming changes in the Source Control Graph view."),
+			description: localize('scm.graph.showIncomingChanges', "控制是否在源代码管理图形视图中显示传入更改。"),
 			default: true
 		},
 		'scm.graph.showOutgoingChanges': {
 			type: 'boolean',
-			description: localize('scm.graph.showOutgoingChanges', "Controls whether to show outgoing changes in the Source Control Graph view."),
+			description: localize('scm.graph.showOutgoingChanges', "控制是否在源代码管理图形视图中显示传出更改。"),
 			default: true
 		}
 	}
@@ -432,7 +432,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.acceptInput',
-	metadata: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
+	metadata: { description: localize('scm accept', "源代码管理: 接受输入"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -477,7 +477,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 const viewNextCommitCommand = {
-	description: { description: localize('scm view next commit', "Source Control: View Next Commit"), args: [] },
+	description: { description: localize('scm view next commit', "源代码管理: 查看下一个提交"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -490,7 +490,7 @@ const viewNextCommitCommand = {
 };
 
 const viewPreviousCommitCommand = {
-	description: { description: localize('scm view previous commit', "Source Control: View Previous Commit"), args: [] },
+	description: { description: localize('scm view previous commit', "源代码管理: 查看上一个提交"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -575,8 +575,8 @@ CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
 	const instantiationService = accessor.get(IInstantiationService);
 	const scmViewService = accessor.get(ISCMViewService);
 
-	const placeHolder = localize('scmActiveRepositoryPlaceHolder', "Select the active repository, type to filter all repositories");
-	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "The active repository is updated based on active editor");
+	const placeHolder = localize('scmActiveRepositoryPlaceHolder', "选择活动存储库，键入以筛选所有存储库");
+	const autoQuickItemDescription = localize('scmActiveRepositoryAutoDescription', "活动存储库根据活动编辑器更新");
 	const repositoryPicker = instantiationService.createInstance(RepositoryPicker, placeHolder, autoQuickItemDescription);
 
 	const result = await repositoryPicker.pickRepository();
@@ -590,7 +590,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	group: '99_terminal',
 	command: {
 		id: 'scm.openInTerminal',
-		title: localize('open in external terminal', "Open in External Terminal")
+		title: localize('open in external terminal', "在外部终端中打开")
 	},
 	when: ContextKeyExpr.and(
 		RemoteNameContext.isEqualTo(''),
@@ -604,7 +604,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	group: '99_terminal',
 	command: {
 		id: 'scm.openInIntegratedTerminal',
-		title: localize('open in integrated terminal', "Open in Integrated Terminal")
+		title: localize('open in integrated terminal', "在集成终端中打开")
 	},
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.equals('scmProviderHasRootUri', true),
@@ -664,7 +664,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorLineNumberContext, {
-	title: localize('quickDiffDecoration', "Diff Decorations"),
+	title: localize('quickDiffDecoration', "差异修饰"),
 	submenu: MenuId.SCMQuickDiffDecorations,
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.equals('config.scm.diffDecorations', 'all'),
@@ -676,7 +676,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'scm.editor.triggerSetup',
-			title: localize('scmEditorResolveMergeConflict', "Resolve Conflicts with AI"),
+			title: localize('scmEditorResolveMergeConflict', "使用 AI 解决冲突"),
 			icon: Codicon.chatSparkle,
 			f1: false,
 			menu: {

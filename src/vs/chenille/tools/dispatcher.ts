@@ -10,6 +10,11 @@ import { IFileService } from '../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { ISearchService } from '../../workbench/services/search/common/search.js';
 import { ToolCall } from '../common/types.js';
+import { IMcpRuntimeService } from '../common/storageIpc.js';
+import { EditOperation } from '../../editor/common/core/editOperation.js';
+import { Range } from '../../editor/common/core/range.js';
+import { Position } from '../../editor/common/core/position.js';
+import { IChenilleSessionContext } from '../common/chatProvider.js';
 
 // 导入文件工具
 import {
@@ -44,7 +49,13 @@ import {
 	RenameFileParams,
 	GetOpenEditorsParams
 } from './fileTools/index.js';
+import {
+	resolveFilePath,
+	findMultilineText,
+	countLines
+} from './fileTools/fileUtils.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
+import { IChenilleDiffSessionService } from '../browser/diffSession/index.js';
 
 /**
  * 工具执行结果
@@ -64,14 +75,20 @@ export interface IChenilleToolDispatcher extends IDisposable {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * 执行单个工具调用
+	 * 是否启用 diff 模式（显示变更而不是直接写入）
 	 */
-	dispatch(toolCall: ToolCall, token?: CancellationToken): Promise<IToolResult>;
+	diffModeEnabled: boolean;
+
+	/**
+	 * 执行单个工具调用
+	 * @param sessionContext 会话上下文（用于工具内联确认）
+	 */
+	dispatch(toolCall: ToolCall, token?: CancellationToken, sessionContext?: IChenilleSessionContext): Promise<IToolResult>;
 
 	/**
 	 * 批量执行工具调用
 	 */
-	dispatchAll(toolCalls: ToolCall[], token?: CancellationToken): Promise<IToolResult[]>;
+	dispatchAll(toolCalls: ToolCall[], token?: CancellationToken, sessionContext?: IChenilleSessionContext): Promise<IToolResult[]>;
 }
 
 /**
@@ -99,6 +116,13 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
  */
 export function isChenilleFileTool(toolName: string): boolean {
 	return CHENILLE_FILE_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * 检查是否为 MCP 工具
+ */
+export function isMcpTool(toolName: string): boolean {
+	return toolName.startsWith('mcp_');
 }
 
 /**
@@ -229,6 +253,11 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	readonly _serviceBrand: undefined;
 
 	private _toolsService: ILanguageModelToolsService | undefined;
+	private _mcpRuntimeService: IMcpRuntimeService | undefined;
+	private _diffSessionService: IChenilleDiffSessionService | undefined;
+
+	/** 是否启用 diff 模式 */
+	diffModeEnabled: boolean = true;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -251,9 +280,29 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	}
 
 	/**
+	 * 延迟获取 IMcpRuntimeService 以避免循环依赖
+	 */
+	private get mcpRuntimeService(): IMcpRuntimeService {
+		if (!this._mcpRuntimeService) {
+			this._mcpRuntimeService = this.instantiationService.invokeFunction(accessor => accessor.get(IMcpRuntimeService));
+		}
+		return this._mcpRuntimeService;
+	}
+
+	/**
+	 * 延迟获取 IChenilleDiffSessionService 以避免循环依赖
+	 */
+	private get diffSessionService(): IChenilleDiffSessionService {
+		if (!this._diffSessionService) {
+			this._diffSessionService = this.instantiationService.invokeFunction(accessor => accessor.get(IChenilleDiffSessionService));
+		}
+		return this._diffSessionService;
+	}
+
+	/**
 	 * 执行单个工具调用
 	 */
-	async dispatch(toolCall: ToolCall, token: CancellationToken = CancellationToken.None): Promise<IToolResult> {
+	async dispatch(toolCall: ToolCall, token: CancellationToken = CancellationToken.None, sessionContext?: IChenilleSessionContext): Promise<IToolResult> {
 		const toolName = toolCall.function.name;
 
 		if (!toolName) {
@@ -267,8 +316,16 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		try {
 			let result: IToolResult;
 
+			// 检查是否为 MCP 工具
+			if (isMcpTool(toolName)) {
+				result = await withTimeout(
+					this.dispatchMcpTool(toolName, toolCall),
+					TOOL_TIMEOUT,
+					toolName
+				);
+			}
 			// 检查是否为 Chenille 文件工具
-			if (isChenilleFileTool(toolName)) {
+			else if (isChenilleFileTool(toolName)) {
 				result = await withTimeout(
 					this.dispatchFileTools(toolName, toolCall),
 					TOOL_TIMEOUT,
@@ -277,7 +334,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			} else {
 				// 否则调用 VS Code 内部工具
 				result = await withTimeout(
-					this.dispatchVSCodeTool(toolName, toolCall, token),
+					this.dispatchVSCodeTool(toolName, toolCall, token, sessionContext),
 					TOOL_TIMEOUT,
 					toolName
 				);
@@ -371,6 +428,10 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
 					}
+					// 如果启用 diff 模式，使用 diff session
+					if (this.diffModeEnabled) {
+						return await this.dispatchReplaceWithDiff(parsed.data);
+					}
 					result = await replaceInFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
@@ -380,6 +441,10 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
 					}
+					// 如果启用 diff 模式，使用 diff session
+					if (this.diffModeEnabled) {
+						return await this.dispatchInsertWithDiff(parsed.data);
+					}
 					result = await insertInFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
@@ -388,6 +453,10 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					const parsed = parseToolArguments<DeleteLinesParams>(toolCall, ['path', 'startLine', 'endLine']);
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
+					}
+					// 如果启用 diff 模式，使用 diff session
+					if (this.diffModeEnabled) {
+						return await this.dispatchDeleteWithDiff(parsed.data);
 					}
 					result = await deleteLines(parsed.data, this.fileService, this.workspaceService);
 					break;
@@ -577,12 +646,70 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	}
 
 	/**
+	 * 调度 MCP 工具
+	 * 通过 IPC 在主进程中执行 MCP 工具调用
+	 */
+	private async dispatchMcpTool(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
+		try {
+			// 解析参数
+			const parsed = parseToolArguments<Record<string, unknown>>(toolCall);
+			const args = parsed.success ? parsed.data : {};
+
+			// 通过 IPC 调用主进程的 MCP Runtime 服务
+			const result = await this.mcpRuntimeService.callToolByFullName(toolName, args);
+
+			if (result.success) {
+				// 格式化成功结果 - 将 MCP 内容转换为字符串
+				let content = '';
+				if (result.content && Array.isArray(result.content)) {
+					content = result.content
+						.map(c => {
+							if (c.type === 'text') {
+								return c.text;
+							} else if (c.type === 'resource' && c.resource?.text) {
+								return c.resource.text;
+							} else if (c.type === 'image') {
+								return `[图片: ${c.mimeType}]`;
+							}
+							return '';
+						})
+						.filter(s => s)
+						.join('\n');
+				}
+
+				if (!content) {
+					content = '工具执行成功';
+				}
+
+				return {
+					success: true,
+					content: truncateContent(content, 50000)
+				};
+			} else {
+				return {
+					success: false,
+					content: '',
+					error: result.error ?? '未知错误'
+				};
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `MCP 工具调用失败: ${errorMessage}`
+			};
+		}
+	}
+
+	/**
 	 * 调度 VS Code 内部工具
 	 */
 	private async dispatchVSCodeTool(
 		toolName: string,
 		toolCall: ToolCall,
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext?: IChenilleSessionContext
 	): Promise<IToolResult> {
 		// 获取内部工具 ID
 		const internalToolId = getInternalToolId(toolName);
@@ -611,14 +738,17 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		const parameters = parsed.success ? parsed.data : {};
 
 		try {
-			// 构建调用上下文
+			// 构建调用上下文（包含会话信息以启用内联确认）
 			const invocation: IToolInvocation = {
 				callId: `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
 				toolId: internalToolId,
 				parameters,
 				tokenBudget: undefined,
-				context: undefined,
-				chatRequestId: undefined,
+				context: sessionContext ? {
+					sessionId: sessionContext.requestId,
+					sessionResource: sessionContext.sessionResource,
+				} : undefined,
+				chatRequestId: sessionContext?.requestId,
 				modelId: undefined,
 				userSelectedTools: undefined,
 			};
@@ -660,7 +790,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	/**
 	 * 批量执行工具调用（顺序执行）
 	 */
-	async dispatchAll(toolCalls: ToolCall[], token: CancellationToken = CancellationToken.None): Promise<IToolResult[]> {
+	async dispatchAll(toolCalls: ToolCall[], token: CancellationToken = CancellationToken.None, sessionContext?: IChenilleSessionContext): Promise<IToolResult[]> {
 		const results: IToolResult[] = [];
 
 		for (const toolCall of toolCalls) {
@@ -673,7 +803,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				continue;
 			}
 
-			const result = await this.dispatch(toolCall, token);
+			const result = await this.dispatch(toolCall, token, sessionContext);
 			results.push(result);
 		}
 
@@ -705,5 +835,253 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 		const tools = this.toolsService.getTools();
 		return [...tools].some(t => t.id === internalToolId);
+	}
+
+	// ==================== Diff 模式实现 ====================
+
+	/**
+	 * 使用 diff session 执行替换操作
+	 */
+	private async dispatchReplaceWithDiff(params: ReplaceInFileParams): Promise<IToolResult> {
+		try {
+			const uri = resolveFilePath(params.path, this.workspaceService);
+			const expectedOccurrences = params.expectedOccurrences ?? 1;
+
+			// 获取或创建 diff session
+			let session = this.diffSessionService.getSession(uri);
+			if (!session) {
+				session = await this.diffSessionService.createSession(uri);
+			}
+
+			// 在修改后的模型中查找要替换的文本
+			const content = session.modifiedModel.getValue();
+			const locations = findMultilineText(content, params.oldText, true);
+
+			// 检查匹配数量
+			if (locations.length === 0) {
+				const caseInsensitiveLocations = findMultilineText(content, params.oldText, false);
+				let suggestion = '未找到要替换的文本。';
+				if (caseInsensitiveLocations.length > 0) {
+					suggestion += ` 找到 ${caseInsensitiveLocations.length} 个大小写不同的匹配。请检查大小写是否正确。`;
+				}
+				return {
+					success: false,
+					content: '',
+					error: `未找到要替换的文本。${suggestion}`
+				};
+			}
+
+			if (locations.length > 1 && expectedOccurrences === 1) {
+				return {
+					success: false,
+					content: JSON.stringify({
+						foundCount: locations.length,
+						locations: locations.map(loc => ({
+							line: loc.startLine,
+							preview: loc.preview
+						}))
+					}, null, 2),
+					error: `找到 ${locations.length} 个匹配，无法确定要替换哪一个。请提供更多上下文。`
+				};
+			}
+
+			// 构建编辑操作
+			const edits = locations.map(loc => {
+				const startPos = session!.modifiedModel.getPositionAt(
+					this.getOffsetFromLineColumn(content, loc.startLine, loc.startColumn)
+				);
+				const endPos = session!.modifiedModel.getPositionAt(
+					this.getOffsetFromLineColumn(content, loc.startLine, loc.startColumn) + params.oldText.length
+				);
+				return EditOperation.replace(
+					new Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+					params.newText
+				);
+			});
+
+			// 应用编辑并更新 diff
+			await session.applyEdits(edits);
+
+			const pendingCount = session.getPendingCount();
+			return {
+				success: true,
+				content: `替换成功: 共替换 ${locations.length} 处，位于第 ${locations.map(l => l.startLine).join(', ')} 行。\n` +
+					`[Diff 模式] 变更已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。`
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `替换失败: ${errorMessage}`
+			};
+		}
+	}
+
+	/**
+	 * 使用 diff session 执行插入操作
+	 */
+	private async dispatchInsertWithDiff(params: InsertInFileParams): Promise<IToolResult> {
+		try {
+			const uri = resolveFilePath(params.path, this.workspaceService);
+
+			// 获取或创建 diff session
+			let session = this.diffSessionService.getSession(uri);
+			if (!session) {
+				session = await this.diffSessionService.createSession(uri);
+			}
+
+			const content = session.modifiedModel.getValue();
+			const totalLines = countLines(content);
+
+			// 验证行号
+			if (params.line < 0) {
+				return {
+					success: false,
+					content: '',
+					error: '行号不能为负数'
+				};
+			}
+
+			if (params.line > totalLines) {
+				return {
+					success: false,
+					content: '',
+					error: `行号 ${params.line} 超出文件范围（文件共 ${totalLines} 行）`
+				};
+			}
+
+			// 构建编辑操作
+			let edit;
+			if (params.line <= 0) {
+				// 在文件开头插入
+				edit = EditOperation.insert(new Position(1, 1), params.content + '\n');
+			} else if (params.line >= totalLines) {
+				// 在文件末尾插入
+				const lastLine = session.modifiedModel.getLineCount();
+				const lastColumn = session.modifiedModel.getLineMaxColumn(lastLine);
+				edit = EditOperation.insert(new Position(lastLine, lastColumn), '\n' + params.content);
+			} else {
+				// 在指定行后插入
+				const lineContent = session.modifiedModel.getLineContent(params.line);
+				edit = EditOperation.insert(
+					new Position(params.line, lineContent.length + 1),
+					'\n' + params.content
+				);
+			}
+
+			// 应用编辑并更新 diff
+			await session.applyEdits([edit]);
+
+			const newLineCount = session.modifiedModel.getLineCount();
+			const pendingCount = session.getPendingCount();
+
+			return {
+				success: true,
+				content: `插入成功: 内容已插入到第 ${params.line + 1} 行，文件现有 ${newLineCount} 行。\n` +
+					`[Diff 模式] 变更已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。`
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `插入失败: ${errorMessage}`
+			};
+		}
+	}
+
+	/**
+	 * 使用 diff session 执行删除操作
+	 */
+	private async dispatchDeleteWithDiff(params: DeleteLinesParams): Promise<IToolResult> {
+		try {
+			const uri = resolveFilePath(params.path, this.workspaceService);
+
+			// 获取或创建 diff session
+			let session = this.diffSessionService.getSession(uri);
+			if (!session) {
+				session = await this.diffSessionService.createSession(uri);
+			}
+
+			const totalLines = session.modifiedModel.getLineCount();
+
+			// 验证行号
+			if (params.startLine < 1 || params.startLine > totalLines) {
+				return {
+					success: false,
+					content: '',
+					error: `起始行号 ${params.startLine} 超出范围（文件共 ${totalLines} 行）`
+				};
+			}
+
+			if (params.endLine < params.startLine) {
+				return {
+					success: false,
+					content: '',
+					error: `结束行号 ${params.endLine} 不能小于起始行号 ${params.startLine}`
+				};
+			}
+
+			// 构建删除范围
+			const actualEndLine = Math.min(params.endLine, totalLines);
+			const endColumn = session.modifiedModel.getLineMaxColumn(actualEndLine);
+
+			// 如果删除到文件末尾，需要包含前一行的换行符
+			let range: Range;
+			if (params.startLine === 1) {
+				// 从第一行开始删除
+				if (actualEndLine < totalLines) {
+					range = new Range(1, 1, actualEndLine + 1, 1);
+				} else {
+					range = new Range(1, 1, actualEndLine, endColumn);
+				}
+			} else {
+				// 从中间开始删除，包含前一行的换行符
+				const prevLineEndColumn = session.modifiedModel.getLineMaxColumn(params.startLine - 1);
+				if (actualEndLine < totalLines) {
+					range = new Range(params.startLine - 1, prevLineEndColumn, actualEndLine, endColumn);
+				} else {
+					range = new Range(params.startLine - 1, prevLineEndColumn, actualEndLine, endColumn);
+				}
+			}
+
+			const edit = EditOperation.delete(range);
+
+			// 应用编辑并更新 diff
+			await session.applyEdits([edit]);
+
+			const deletedLineCount = actualEndLine - params.startLine + 1;
+			const newLineCount = session.modifiedModel.getLineCount();
+			const pendingCount = session.getPendingCount();
+
+			return {
+				success: true,
+				content: `删除成功: 已删除 ${deletedLineCount} 行（第 ${params.startLine}-${actualEndLine} 行），文件现有 ${newLineCount} 行。\n` +
+					`[Diff 模式] 变更已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。`
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `删除失败: ${errorMessage}`
+			};
+		}
+	}
+
+	/**
+	 * 根据行号和列号计算字符偏移量
+	 */
+	private getOffsetFromLineColumn(content: string, line: number, column: number): number {
+		const lines = content.split('\n');
+		let offset = 0;
+		for (let i = 0; i < line - 1 && i < lines.length; i++) {
+			offset += lines[i].length + 1; // +1 for newline
+		}
+		return offset + column - 1;
 	}
 }

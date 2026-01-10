@@ -222,7 +222,7 @@ class LoadMoreCommand {
 	}
 
 	get label() {
-		return this.loading ? localize('timeline.loadingMore', "Loading...") : localize('timeline.loadMore', "Load more");
+		return this.loading ? localize('timeline.loadingMore', "正在加载...") : localize('timeline.loadMore', "加载更多");
 	}
 
 	get themeIcon(): ThemeIcon | undefined {
@@ -239,7 +239,7 @@ interface IPendingRequest extends IDisposable {
 }
 
 export class TimelinePane extends ViewPane {
-	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
+	static readonly TITLE: ILocalizedString = localize2('timeline', "时间线");
 
 	private $container!: HTMLElement;
 	private $message!: HTMLDivElement;
@@ -826,7 +826,7 @@ export class TimelinePane extends ViewPane {
 
 		if (this.uri === undefined) {
 			this.updateFilename(undefined);
-			this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
+			this.message = localize('timeline.editorCannotProvideTimeline', "活动编辑器无法提供时间线信息。");
 		} else if (this._isEmpty) {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
@@ -834,18 +834,18 @@ export class TimelinePane extends ViewPane {
 				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 				const scmProviderCount = this.contextKeyService.getContextKeyValue<number>('scm.providerCount');
 				if (this.timelineService.getSources().filter(({ id }) => !this.excludedSources.has(id)).length === 0) {
-					this.message = localize('timeline.noTimelineSourcesEnabled', "All timeline sources have been filtered out.");
+					this.message = localize('timeline.noTimelineSourcesEnabled', "所有时间线源都已被筛选掉。");
 				} else {
 					if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
-						this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
+						this.message = localize('timeline.noLocalHistoryYet', "本地历史记录将在您保存时跟踪最近的更改，除非文件已被排除或太大。");
 					} else if (this.excludedSources.size > 0) {
-						this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
+						this.message = localize('timeline.noTimelineInfoFromEnabledSources', "未提供筛选后的时间线信息。");
 					} else {
-						this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
+						this.message = localize('timeline.noTimelineInfo', "未提供时间线信息。");
 					}
 				}
 				if (!scmProviderCount || scmProviderCount === 0) {
-					this.message += ' ' + localize('timeline.noSCM', "Source Control has not been configured.");
+					this.message += ' ' + localize('timeline.noSCM', "尚未配置源代码管理。");
 				}
 			}
 		} else {
@@ -919,7 +919,7 @@ export class TimelinePane extends ViewPane {
 		this.$message = DOM.append(this.$container, DOM.$('.message'));
 		this.$message.classList.add('timeline-subtle');
 
-		this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
+		this.message = localize('timeline.editorCannotProvideTimeline', "活动编辑器无法提供时间线信息。");
 
 		this.$tree = document.createElement('div');
 		this.$tree.classList.add('customview-tree', 'file-icon-themable-tree', 'hide-arrows');
@@ -950,7 +950,7 @@ export class TimelinePane extends ViewPane {
 					return element.accessibilityInformation && element.accessibilityInformation.role ? element.accessibilityInformation.role : 'treeitem';
 				},
 				getWidgetAriaLabel(): string {
-					return localize('timeline', "Timeline");
+					return localize('timeline', "时间线");
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
@@ -1028,7 +1028,7 @@ export class TimelinePane extends ViewPane {
 	setLoadingUriMessage() {
 		const file = this.uri && this.labelService.getUriBasenameLabel(this.uri);
 		this.updateFilename(file);
-		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
+		this.message = file ? localize('timeline.loading', "正在加载 {0} 的时间线...", file) : '';
 	}
 
 	private onContextMenu(commands: TimelinePaneCommands, treeEvent: ITreeContextMenuEvent<TreeElement | null>): void {
@@ -1257,9 +1257,9 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 }
 
 
-const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', 'Icon for the refresh timeline action.'));
-const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
-const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
+const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', '刷新时间线操作的图标。'));
+const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', '固定时间线操作的图标。'));
+const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', '取消固定时间线操作的图标。'));
 
 class TimelinePaneCommands extends Disposable {
 	private readonly sourceDisposables: DisposableStore;
@@ -1279,9 +1279,9 @@ class TimelinePaneCommands extends Disposable {
 			constructor() {
 				super({
 					id: 'timeline.refresh',
-					title: localize2('refresh', "Refresh"),
+					title: localize2('refresh', "刷新"),
 					icon: timelineRefresh,
-					category: localize2('timeline', "Timeline"),
+					category: localize2('timeline', "时间线"),
 					menu: {
 						id: MenuId.TimelineTitle,
 						group: 'navigation',
@@ -1301,9 +1301,9 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: localize2('timeline.toggleFollowActiveEditorCommand.follow', 'Pin the Current Timeline'),
+				title: localize2('timeline.toggleFollowActiveEditorCommand.follow', '固定当前时间线'),
 				icon: timelinePin,
-				category: localize2('timeline', "Timeline"),
+				category: localize2('timeline', "时间线"),
 			},
 			group: 'navigation',
 			order: 98,
@@ -1313,9 +1313,9 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: localize2('timeline.toggleFollowActiveEditorCommand.unfollow', 'Unpin the Current Timeline'),
+				title: localize2('timeline.toggleFollowActiveEditorCommand.unfollow', '取消固定当前时间线'),
 				icon: timelineUnpin,
-				category: localize2('timeline', "Timeline"),
+				category: localize2('timeline', "时间线"),
 			},
 			group: 'navigation',
 			order: 98,

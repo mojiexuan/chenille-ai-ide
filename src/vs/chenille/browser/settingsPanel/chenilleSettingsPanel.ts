@@ -11,8 +11,9 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ModelManagementPanel } from './modelManagementPanel.js';
 import { PromptManagementPanel } from './promptManagementPanel.js';
 import { AgentManagementPanel } from './agentManagementPanel.js';
+import { McpManagementPanel } from './mcpManagementPanel.js';
 
-export type PanelType = 'model' | 'prompt' | 'agent';
+export type PanelType = 'model' | 'prompt' | 'agent' | 'mcp';
 
 interface MenuItem {
 	id: PanelType;
@@ -32,6 +33,7 @@ export class ChenilleSettingsPanel extends Disposable {
 		{ id: 'model', label: localize('modelManagement', "模型管理"), icon: 'codicon-server' },
 		{ id: 'prompt', label: localize('promptManagement', "提示词管理"), icon: 'codicon-note' },
 		{ id: 'agent', label: localize('agentManagement', "智能体管理"), icon: 'codicon-hubot' },
+		{ id: 'mcp', label: localize('mcpManagement', "MCP 服务器"), icon: 'codicon-plug' },
 	];
 
 	constructor(
@@ -96,6 +98,11 @@ export class ChenilleSettingsPanel extends Disposable {
 			case 'agent':
 				this.panelDisposables.add(
 					this.instantiationService.createInstance(AgentManagementPanel, this.contentContainer)
+				);
+				break;
+			case 'mcp':
+				this.panelDisposables.add(
+					this.instantiationService.createInstance(McpManagementPanel, this.contentContainer)
 				);
 				break;
 		}

@@ -17,6 +17,7 @@ import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js'
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
+import { IChenilleSessionContext } from '../../common/chatProvider.js';
 
 /** 最大工具调用轮次（设置为较大值，实际上不限制） */
 const MAX_TOOL_ROUNDS = 1000;
@@ -62,6 +63,8 @@ export interface IChenilleChatRequest {
 	systemPrompt?: string;
 	/** 是否启用工具 */
 	enableTools?: boolean;
+	/** 会话上下文（用于工具内联确认） */
+	sessionContext?: IChenilleSessionContext;
 }
 
 /**
@@ -236,7 +239,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					return fullResponse;
 				}
 
-				const roundResult = await this.executeOneRound(messages, tools, cts.token);
+				const roundResult = await this.executeOneRound(messages, tools, cts.token, request.systemPrompt);
 
 				fullResponse += roundResult.content;
 
@@ -256,16 +259,18 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 				// 有工具调用时，需要添加 assistant 消息来保持对话顺序
 				// 包含 tool_calls 数组，这是 OpenAI API 要求的格式
 				// 包含 reasoning_content，这是 DeepSeek 等模型要求的格式
+				// 包含 reasoning_signature，这是 Anthropic thinking 模型要求的格式
 				messages.push({
 					role: 'assistant',
 					content: roundResult.content || '',
 					tool_calls: roundResult.toolCalls,
 					reasoning_content: roundResult.reasoning,
+					reasoning_signature: roundResult.reasoning_signature,
 				});
 
 				// 执行工具调用（仅智能体模式）
 				toolRound++;
-				await this.executeToolCalls(roundResult.toolCalls, messages, cts.token);
+				await this.executeToolCalls(roundResult.toolCalls, messages, cts.token, request.sessionContext);
 			}
 
 			// 超过最大轮次
@@ -289,10 +294,12 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	private async executeOneRound(
 		messages: AiModelMessage[],
 		tools: typeof CHENILLE_TOOLS | undefined,
-		token: CancellationToken
-	): Promise<{ content: string; reasoning?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
+		token: CancellationToken,
+		systemPrompt?: string
+	): Promise<{ content: string; reasoning?: string; reasoning_signature?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
 		let content = '';
 		let reasoning = '';
+		let reasoning_signature = '';
 		let toolCalls: AiToolCall[] | undefined;
 		let usage: TokenUsage | undefined;
 		let streamError: Error | undefined;
@@ -324,12 +331,15 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					this._onChunk.fire({ reasoning: chunk.reasoning, done: false });
 				}
 
-				// 工具调用（可能同时包含累积的 reasoning）
+				// 工具调用（可能同时包含累积的 reasoning 和 signature）
 				if (chunk.tool_calls?.length) {
 					toolCalls = chunk.tool_calls;
-					// 工具调用 chunk 可能包含累积的 reasoning（DeepSeek 等模型）
+					// 工具调用 chunk 可能包含累积的 reasoning（DeepSeek 等模型）和 signature（Anthropic）
 					if (chunk.reasoning && !reasoning) {
 						reasoning = chunk.reasoning;
+					}
+					if (chunk.reasoning_signature) {
+						reasoning_signature = chunk.reasoning_signature;
 					}
 					this._onChunk.fire({ toolCalls, done: false });
 				}
@@ -358,7 +368,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 		// 发起请求并等待完成
 		try {
-			await this.aiService.streamChat({ requestId, messages, tools }, token);
+			await this.aiService.streamChat({ requestId, messages, tools, systemPrompt }, token);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			this._onChunk.fire({ done: true, error: errorMessage });
@@ -373,7 +383,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			throw error;
 		}
 
-		return { content, reasoning: reasoning || undefined, toolCalls, usage };
+		return { content, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined, toolCalls, usage };
 	}
 
 	/**
@@ -382,7 +392,8 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	private async executeToolCalls(
 		toolCalls: AiToolCall[],
 		messages: AiModelMessage[],
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext?: IChenilleSessionContext
 	): Promise<void> {
 		// 执行每个工具
 		for (const toolCall of toolCalls) {
@@ -404,7 +415,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					type: 'function' as const,
 					function: toolCall.function,
 				};
-				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token);
+				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token, sessionContext);
 
 				// 发送工具结果事件
 				this._onChunk.fire({

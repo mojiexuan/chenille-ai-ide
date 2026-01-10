@@ -40,10 +40,6 @@ export enum AiProvider {
 	OPENAI = 'openai',
 	GOOGLE = 'google',
 	ANTHROPIC = 'anthropic',
-	// Fetch 版本
-	OPENAI_FETCH = 'openai-fetch',
-	GOOGLE_FETCH = 'google-fetch',
-	ANTHROPIC_FETCH = 'anthropic-fetch',
 }
 
 /**
@@ -52,13 +48,10 @@ export enum AiProvider {
 export function getProviderEndpointPath(provider: AiProvider): string {
 	switch (provider) {
 		case AiProvider.OPENAI:
-		case AiProvider.OPENAI_FETCH:
-			return '/chat/completions';  // OpenAI SDK 的 baseURL 默认已包含 /v1
+			return '/chat/completions';
 		case AiProvider.ANTHROPIC:
-		case AiProvider.ANTHROPIC_FETCH:
-			return '/v1/messages';  // Anthropic SDK 会拼接 /v1/messages
+			return '/v1/messages';
 		case AiProvider.GOOGLE:
-		case AiProvider.GOOGLE_FETCH:
 			return '/v1beta/models/{model}:generateContent';
 		default:
 			return '';
@@ -70,22 +63,17 @@ export function getProviderEndpointPath(provider: AiProvider): string {
  */
 export function getFullEndpointUrl(baseUrl: string, provider: AiProvider): string {
 	if (!baseUrl) {
-		// 显示默认端点
 		switch (provider) {
 			case AiProvider.OPENAI:
-			case AiProvider.OPENAI_FETCH:
 				return 'https://api.openai.com/v1/chat/completions';
 			case AiProvider.ANTHROPIC:
-			case AiProvider.ANTHROPIC_FETCH:
 				return 'https://api.anthropic.com/v1/messages';
 			case AiProvider.GOOGLE:
-			case AiProvider.GOOGLE_FETCH:
 				return 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent';
 			default:
 				return '';
 		}
 	}
-	// 移除末尾斜杠
 	const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
 	return cleanBaseUrl + getProviderEndpointPath(provider);
 }
@@ -105,6 +93,8 @@ export interface AiToolCall {
 		name: string;
 		arguments: string;
 	};
+	/** Google Gemini thoughtSignature（必须原样传回） */
+	thoughtSignature?: string;
 }
 
 /**
@@ -146,6 +136,8 @@ export interface AiModelMessage {
 	tool_call_id?: string;
 	/** DeepSeek 等模型的推理内容 */
 	reasoning_content?: string;
+	/** Anthropic thinking block 的签名（必须原样传回） */
+	reasoning_signature?: string;
 }
 
 /**
@@ -154,6 +146,8 @@ export interface AiModelMessage {
 export interface ChatCompletionResult {
 	content: string;
 	reasoning?: string;
+	/** Anthropic thinking block 的签名（必须原样传回） */
+	reasoning_signature?: string;
 	/** 工具调用列表（带 ID） */
 	tool_calls?: AiToolCall[];
 	done: boolean;
@@ -314,4 +308,215 @@ export interface IAIProvider {
 	chat(options: ChatCompletionOptions): Promise<ChatCompletionResult>;
 	/** 流式对话 */
 	stream(options: ChatCompletionOptions): Promise<void>;
+}
+
+
+// ============================================================================
+// MCP (Model Context Protocol) 类型定义
+// ============================================================================
+
+/**
+ * MCP 服务器传输类型
+ */
+export type McpTransportType = 'stdio' | 'sse';
+
+/**
+ * MCP 服务器配置
+ */
+export interface McpServerConfig {
+	/** 服务器唯一名称 */
+	name: string;
+	/** 显示名称 */
+	displayName?: string;
+	/** 描述 */
+	description?: string;
+	/** 传输类型 */
+	transport: McpTransportType;
+	/** stdio 传输配置 */
+	command?: string;
+	args?: string[];
+	env?: Record<string, string>;
+	/** SSE 传输配置 */
+	url?: string;
+	/** 是否启用 */
+	enabled: boolean;
+	/** 自动批准的工具列表（无需用户确认） */
+	autoApprove?: string[];
+}
+
+/**
+ * MCP 工具定义（从服务器获取）
+ */
+export interface McpToolDefinition {
+	/** 工具名称 */
+	name: string;
+	/** 工具描述 */
+	description?: string;
+	/** 输入参数 JSON Schema */
+	inputSchema: {
+		type: 'object';
+		properties?: Record<string, unknown>;
+		required?: string[];
+	};
+}
+
+/**
+ * MCP 资源定义
+ */
+export interface McpResourceDefinition {
+	/** 资源 URI */
+	uri: string;
+	/** 资源名称 */
+	name: string;
+	/** 资源描述 */
+	description?: string;
+	/** MIME 类型 */
+	mimeType?: string;
+}
+
+/**
+ * MCP 提示词定义
+ */
+export interface McpPromptDefinition {
+	/** 提示词名称 */
+	name: string;
+	/** 提示词描述 */
+	description?: string;
+	/** 参数定义 */
+	arguments?: McpPromptArgument[];
+}
+
+/**
+ * MCP 提示词参数
+ */
+export interface McpPromptArgument {
+	/** 参数名称 */
+	name: string;
+	/** 参数描述 */
+	description?: string;
+	/** 是否必需 */
+	required?: boolean;
+}
+
+/**
+ * MCP 服务器能力
+ */
+export interface McpServerCapabilities {
+	/** 支持的工具 */
+	tools?: McpToolDefinition[];
+	/** 支持的资源 */
+	resources?: McpResourceDefinition[];
+	/** 支持的提示词 */
+	prompts?: McpPromptDefinition[];
+}
+
+/**
+ * MCP 服务器状态
+ */
+export enum McpServerStatus {
+	/** 已断开 */
+	DISCONNECTED = 'disconnected',
+	/** 连接中 */
+	CONNECTING = 'connecting',
+	/** 已连接 */
+	CONNECTED = 'connected',
+	/** 错误 */
+	ERROR = 'error',
+}
+
+/**
+ * MCP 服务器运行时信息
+ */
+export interface McpServerInfo {
+	/** 服务器配置 */
+	config: McpServerConfig;
+	/** 当前状态 */
+	status: McpServerStatus;
+	/** 错误信息 */
+	error?: string;
+	/** 服务器能力（连接后获取） */
+	capabilities?: McpServerCapabilities;
+}
+
+/**
+ * MCP 工具调用请求
+ */
+export interface McpToolCallRequest {
+	/** 服务器名称 */
+	serverName: string;
+	/** 工具名称 */
+	toolName: string;
+	/** 工具参数 */
+	arguments: Record<string, unknown>;
+}
+
+/**
+ * MCP 工具调用结果
+ */
+export interface McpToolCallResult {
+	/** 是否成功 */
+	success: boolean;
+	/** 结果内容 */
+	content?: McpContent[];
+	/** 错误信息 */
+	error?: string;
+}
+
+/**
+ * MCP 内容类型
+ */
+export interface McpTextContent {
+	type: 'text';
+	text: string;
+}
+
+export interface McpImageContent {
+	type: 'image';
+	data: string;
+	mimeType: string;
+}
+
+export interface McpResourceContent {
+	type: 'resource';
+	resource: {
+		uri: string;
+		text?: string;
+		blob?: string;
+		mimeType?: string;
+	};
+}
+
+export type McpContent = McpTextContent | McpImageContent | McpResourceContent;
+
+/**
+ * 将 MCP 工具转换为 AI 工具格式
+ */
+export function mcpToolToAiTool(serverName: string, tool: McpToolDefinition): AiTool {
+	return {
+		type: 'function',
+		function: {
+			// 使用 serverName__toolName 格式避免冲突
+			name: `mcp_${serverName}__${tool.name}`,
+			description: tool.description || tool.name,
+			parameters: {
+				type: tool.inputSchema.type,
+				properties: (tool.inputSchema.properties || {}) as AiFunctionDefinitionParameterProperty,
+				required: tool.inputSchema.required || [],
+			},
+		},
+	};
+}
+
+/**
+ * 解析 MCP 工具名称
+ */
+export function parseMcpToolName(fullName: string): { serverName: string; toolName: string } | null {
+	if (!fullName.startsWith('mcp_')) {
+		return null;
+	}
+	const parts = fullName.slice(4).split('__');
+	if (parts.length !== 2) {
+		return null;
+	}
+	return { serverName: parts[0], toolName: parts[1] };
 }

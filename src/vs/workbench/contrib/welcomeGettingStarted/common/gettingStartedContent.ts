@@ -28,7 +28,7 @@ const defaultChat = {
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
-export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot 可能会显示[公共代码]({1})建议并使用您的数据来改进产品。您可以随时更改这些[设置]({2})。", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+export const copilotSettingsMessage = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Chenille AI 可能会显示[公共代码]({1})建议并使用您的数据来改进产品。您可以随时更改这些[设置]({2})。", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
 
 class GettingStartedContentProviderRegistry {
 
@@ -224,9 +224,9 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
-const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "免费使用 Copilot AI 功能");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "您可以使用 [Copilot]({0}) 跨多个文件生成代码、修复错误、询问有关代码的问题，以及使用自然语言完成更多操作。", defaultChat.documentationUrl ?? '');
-const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "继续使用 {0} Copilot，即表示您同意 {1} 的[条款]({2})和[隐私声明]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "免费使用 Chenille AI 功能");
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "您可以使用 [Chenille AI]({0}) 跨多个文件生成代码、修复错误、询问有关代码的问题，以及使用自然语言完成更多操作。", defaultChat.documentationUrl ?? '');
+const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "继续使用 {0} Chenille AI，即表示您同意 {1} 的[条款]({2})和[隐私声明]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 const CopilotAnonymousButton = Button(localize('setupCopilotButton.setup', "使用 AI 功能"), `command:workbench.action.chat.triggerSetupAnonymousWithoutDialog`);
 const CopilotSignedOutButton = Button(localize('setupCopilotButton.setup', "使用 AI 功能"), `command:workbench.action.chat.triggerSetup`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "使用 AI 功能"), `command:workbench.action.chat.triggerSetup`);

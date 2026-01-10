@@ -19,6 +19,8 @@ export interface IAiCallRequest {
 	messages: AiModelMessage[];
 	/** 工具定义 */
 	tools?: AiTool[];
+	/** 自定义系统提示（覆盖 agent 默认的系统提示） */
+	systemPrompt?: string;
 }
 
 /**

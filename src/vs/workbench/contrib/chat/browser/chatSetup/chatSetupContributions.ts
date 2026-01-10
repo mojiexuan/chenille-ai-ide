@@ -178,7 +178,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		class ChatSetupTriggerAction extends Action2 {
 
-			static CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "免费使用 Copilot 的 AI 功能...");
+			static CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "免费使用 Chenille AI 功能...");
 
 			constructor() {
 				super({

@@ -1118,6 +1118,10 @@ export class ChatService extends Disposable implements IChatService {
 					multiContent,
 					history,
 					enableTools: true,
+					sessionContext: {
+						sessionResource: model.sessionResource,
+						requestId: request.id,
+					},
 				}, token);
 
 				// 更新 token 统计

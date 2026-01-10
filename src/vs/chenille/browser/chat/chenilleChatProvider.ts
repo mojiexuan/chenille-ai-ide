@@ -163,6 +163,7 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 				multiContent: request.multiContent,
 				history: aiHistory,
 				enableTools: request.enableTools ?? true,
+				sessionContext: request.sessionContext,
 			}, cts.token);
 
 			return {

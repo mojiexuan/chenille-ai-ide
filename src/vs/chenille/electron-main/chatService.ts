@@ -10,6 +10,7 @@ import { IChenilleAiService, IAiCallRequest, IStreamChunkWithId } from '../commo
 import { AIClient } from '../node/ai/aiClient.js';
 import { AgentType } from '../common/types.js';
 import { IAiAgentMainService } from './agentService.js';
+import { IMcpServerStorageService } from '../common/storageIpc.js';
 import { ChenilleError } from '../common/errors.js';
 
 /**
@@ -23,11 +24,31 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 	readonly onStreamChunk: Event<IStreamChunkWithId> = this._onStreamChunk.event;
 
 	private _lastConfigError: string | undefined;
+	private _mcpInitialized = false;
 
 	constructor(
 		@IAiAgentMainService private readonly agentService: IAiAgentMainService,
+		@IMcpServerStorageService private readonly mcpStorage: IMcpServerStorageService,
 	) {
 		super();
+
+		// 监听 MCP 配置变化，重新初始化
+		this._register(this.mcpStorage.onDidChangeServers(() => {
+			this.initializeMcp();
+		}));
+	}
+
+	/**
+	 * 初始化 MCP 服务器
+	 */
+	private async initializeMcp(): Promise<void> {
+		try {
+			const configs = await this.mcpStorage.getAll();
+			await AIClient.initializeMcp(configs);
+			this._mcpInitialized = true;
+		} catch {
+			// MCP 初始化失败不影响主流程
+		}
 	}
 
 	async isAgentConfigured(): Promise<boolean> {
@@ -68,13 +89,27 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 	}
 
 	async streamChat(request: IAiCallRequest, token?: CancellationToken): Promise<void> {
+		// 确保 MCP 已初始化
+		if (!this._mcpInitialized) {
+			await this.initializeMcp();
+		}
+
 		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
 		const requestId = request.requestId;
+
+		// 确定使用的系统提示（自定义或默认）
+		const systemPromptContent = request.systemPrompt ?? agent.prompt.content;
+
+		// 构建消息列表，确保系统提示在最前面
+		const messages = [
+			{ role: 'system' as const, content: systemPromptContent },
+			...request.messages.filter(m => m.role !== 'system'), // 过滤掉已有的 system 消息
+		];
 
 		try {
 			await AIClient.stream({
 				agent,
-				messages: request.messages,
+				messages,
 				tools: request.tools,
 				token,
 				call: (result) => {

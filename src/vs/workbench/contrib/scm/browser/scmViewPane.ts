@@ -34,7 +34,7 @@ import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { FuzzyScore, createMatches, IMatch } from '../../../../base/common/filters.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -45,7 +45,6 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
@@ -1390,7 +1389,7 @@ registerAction2(class extends Action2 {
 		const scmService = accessor.get(ISCMService);
 		const notificationService = accessor.get(INotificationService);
 		const commitMessageService = accessor.get(ICommitMessageService);
-		const textModelService = accessor.get(ITextModelService);
+		const fileService = accessor.get(IFileService);
 
 		// 找到对应的 repository
 		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === provider.toString());
@@ -1421,30 +1420,28 @@ registerAction2(class extends Action2 {
 					: resourceUri.fsPath;
 
 				try {
-					// 获取原始文件 URI
+					// 获取原始文件 URI (git scheme)
 					const originalUri = await repository.provider.getOriginalResource(resourceUri);
 
 					// 获取当前文件内容
 					let modifiedContent = '';
 					let modifiedExists = true;
 					try {
-						const modifiedRef = await textModelService.createModelReference(resourceUri);
-						modifiedContent = modifiedRef.object.textEditorModel.getValue();
-						modifiedRef.dispose();
+						const content = await fileService.readFile(resourceUri);
+						modifiedContent = content.value.toString();
 					} catch {
 						// 文件可能已被删除或无法读取
 						modifiedExists = false;
 					}
 
 					if (originalUri) {
-						// 获取原始文件内容
+						// 获取原始文件内容 (从 git)
 						let originalContent = '';
 						try {
-							const originalRef = await textModelService.createModelReference(originalUri);
-							originalContent = originalRef.object.textEditorModel.getValue();
-							originalRef.dispose();
+							const content = await fileService.readFile(originalUri);
+							originalContent = content.value.toString();
 						} catch {
-							// 原始文件可能不存在
+							// 原始文件可能不存在（新文件）
 						}
 
 						if (!modifiedExists && originalContent) {

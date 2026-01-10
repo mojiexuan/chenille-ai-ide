@@ -31,7 +31,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
 import { AiModelMessage, AiToolCall, AiTool } from '../../common/types.js';
-import { CHENILLE_FILE_TOOLS, VSCODE_TOOL_DEFINITIONS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
+import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, isChenilleFileTool, getInternalToolId } from '../../tools/dispatcher.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
@@ -117,8 +117,14 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		const isAgentMode = this.modeService.isAgentMode();
 		const messages = this.buildMessages(request, history);
 
+		// 保存会话上下文，用于工具调用时的内联确认
+		const sessionContext = {
+			sessionResource: request.sessionResource,
+			requestId: request.requestId,
+		};
+
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -172,7 +178,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		messages: AiModelMessage[],
 		enableTools: boolean,
 		progress: (parts: IChatProgress[]) => void,
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext: { sessionResource: URI; requestId: string }
 	): Promise<IChatAgentResult> {
 		const tools = enableTools ? this.getAvailableTools() : undefined;
 		let toolRound = 0;
@@ -194,11 +201,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				role: 'assistant',
 				content: roundResult.content || '',
 				tool_calls: roundResult.toolCalls,
+				reasoning_content: roundResult.reasoning,
+				reasoning_signature: roundResult.reasoning_signature,
 			});
 
 			// 执行工具调用
 			toolRound++;
-			await this.executeToolCalls(roundResult.toolCalls, messages, progress, token);
+			await this.executeToolCalls(roundResult.toolCalls, messages, progress, token, sessionContext);
 		}
 
 		progress([{
@@ -217,10 +226,12 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		tools: AiTool[] | undefined,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken
-	): Promise<{ content: string; toolCalls?: AiToolCall[] }> {
+	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
 		const requestId = generateUuid();
 		let content = '';
 		let toolCalls: AiToolCall[] | undefined;
+		let reasoning = '';
+		let reasoning_signature = '';
 
 		return new Promise((resolve, reject) => {
 			let resolved = false;
@@ -230,7 +241,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				if (!resolved) {
 					resolved = true;
 					disposable.dispose();
-					resolve({ content, toolCalls });
+					resolve({ content, toolCalls, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined });
 				}
 			}, 300000);
 
@@ -254,6 +265,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 				// 推理内容
 				if (chunk.reasoning) {
+					reasoning += chunk.reasoning;
 					progress([{
 						kind: 'thinking',
 						value: chunk.reasoning,
@@ -263,6 +275,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				// 工具调用
 				if (chunk.tool_calls?.length) {
 					toolCalls = chunk.tool_calls;
+					// 工具调用 chunk 可能包含累积的 reasoning 和 signature
+					if (chunk.reasoning && !reasoning) {
+						reasoning = chunk.reasoning;
+					}
+					if (chunk.reasoning_signature) {
+						reasoning_signature = chunk.reasoning_signature;
+					}
 				}
 
 				// 错误
@@ -282,7 +301,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 					if (!resolved) {
 						resolved = true;
 						disposable.dispose();
-						resolve({ content, toolCalls });
+						resolve({ content, toolCalls, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined });
 					}
 				}
 			});
@@ -305,7 +324,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		toolCalls: AiToolCall[],
 		messages: AiModelMessage[],
 		progress: (parts: IChatProgress[]) => void,
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext: { sessionResource: URI; requestId: string }
 	): Promise<void> {
 		for (const toolCall of toolCalls) {
 			if (token.isCancellationRequested) {
@@ -339,21 +359,15 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 				// 判断是 Chenille 文件工具还是 VS Code 内置工具
 				if (isChenilleFileTool(toolName)) {
-					// Chenille 文件工具 - 使用 dispatcher
-					const dispatchToolCall = {
-						type: 'function' as const,
-						function: toolCall.function,
-					};
-					const result = await this.toolDispatcher.dispatch(dispatchToolCall, token);
-					resultContent = result.success
-						? (result.content || `工具 "${toolName}" 执行成功`)
-						: `错误: ${result.error}`;
+					// Chenille 文件工具 - 使用 toolsService.invokeTool 以获得内联确认
+					resultContent = await this.invokeChenilleFileTool(toolName, toolCall, token, sessionContext);
 
 					// 为文件工具添加丰富的 UI 反馈
-					this.emitFileToolProgress(toolName, parameters, result.success, result.content, progress);
+					const success = !resultContent.startsWith('错误:') && !resultContent.includes('执行异常');
+					this.emitFileToolProgress(toolName, parameters, success, resultContent, progress);
 				} else {
-					// VS Code 内置工具 - 直接调用 toolsService
-					resultContent = await this.invokeVSCodeTool(toolName, toolCall, token);
+					// VS Code 内置工具 - 使用 toolsService.invokeTool
+					resultContent = await this.invokeVSCodeTool(toolName, toolCall, token, sessionContext);
 				}
 
 				// 添加工具结果
@@ -365,6 +379,16 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
+
+				// 用户跳过工具调用不算错误
+				if (errorMessage.includes('用户已跳过') || errorMessage.includes('user chose to skip')) {
+					messages.push({
+						role: 'tool',
+						tool_call_id: toolCall.id,
+						content: `[用户已跳过工具 "${toolName}" 的执行]`,
+					});
+					continue;
+				}
 
 				// 显示警告
 				progress([{
@@ -711,12 +735,84 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 	}
 
 	/**
+	 * 调用 Chenille 文件工具（通过 toolsService 以获得内联确认）
+	 */
+	private async invokeChenilleFileTool(
+		toolName: string,
+		toolCall: AiToolCall,
+		token: CancellationToken,
+		sessionContext: { sessionResource: URI; requestId: string }
+	): Promise<string> {
+		// Chenille 文件工具的内部 ID
+		const internalToolId = `chenille.${toolName}`;
+
+		// 检查工具是否已注册
+		const toolData = this.toolsService.getTool(internalToolId);
+		if (!toolData) {
+			// 如果工具未注册，回退到直接调用 dispatcher
+			const dispatchToolCall = {
+				type: 'function' as const,
+				function: toolCall.function,
+			};
+			const result = await this.toolDispatcher.dispatch(dispatchToolCall, token);
+			return result.success
+				? (result.content || `工具 "${toolName}" 执行成功`)
+				: `错误: ${result.error}`;
+		}
+
+		// 解析参数
+		let parameters: Record<string, unknown> = {};
+		try {
+			if (toolCall.function.arguments) {
+				parameters = JSON.parse(toolCall.function.arguments);
+			}
+		} catch {
+			return `参数解析失败: ${toolCall.function.arguments}`;
+		}
+
+		// 构建调用上下文（包含会话信息以启用内联确认）
+		const invocation: IToolInvocation = {
+			callId: toolCall.id || `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+			toolId: internalToolId,
+			parameters,
+			tokenBudget: undefined,
+			context: {
+				sessionId: sessionContext.requestId,
+				sessionResource: sessionContext.sessionResource,
+			},
+			chatRequestId: sessionContext.requestId,
+			modelId: undefined,
+			userSelectedTools: undefined,
+		};
+
+		// 调用工具（会自动处理内联确认）
+		const result = await this.toolsService.invokeTool(
+			invocation,
+			async () => 0, // countTokens callback
+			token
+		);
+
+		// 提取结果内容
+		return result.content
+			.map((part) => {
+				if (part.kind === 'text') {
+					return part.value;
+				} else if (part.kind === 'data') {
+					return `[二进制数据: ${part.value.mimeType}]`;
+				}
+				return JSON.stringify(part);
+			})
+			.join('\n');
+	}
+
+	/**
 	 * 调用 VS Code 内置工具
 	 */
 	private async invokeVSCodeTool(
 		toolName: string,
 		toolCall: AiToolCall,
-		token: CancellationToken
+		token: CancellationToken,
+		sessionContext: { sessionResource: URI; requestId: string }
 	): Promise<string> {
 		// 获取内部工具 ID
 		const internalToolId = getInternalToolId(toolName);
@@ -740,19 +836,22 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			return `参数解析失败: ${toolCall.function.arguments}`;
 		}
 
-		// 构建调用上下文
+		// 构建调用上下文（包含会话信息以启用内联确认）
 		const invocation: IToolInvocation = {
-			callId: `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+			callId: toolCall.id || `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
 			toolId: internalToolId,
 			parameters,
 			tokenBudget: undefined,
-			context: undefined,
-			chatRequestId: undefined,
+			context: {
+				sessionId: sessionContext.requestId,
+				sessionResource: sessionContext.sessionResource,
+			},
+			chatRequestId: sessionContext.requestId,
 			modelId: undefined,
 			userSelectedTools: undefined,
 		};
 
-		// 调用工具
+		// 调用工具（会自动处理内联确认）
 		const result = await this.toolsService.invokeTool(
 			invocation,
 			async () => 0, // countTokens callback
@@ -871,12 +970,10 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChenilleToolDispatcher private readonly toolDispatcher: IChenilleToolDispatcher,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.registerAgent();
 		this.registerChenilleFileTools();
-		this.logAvailableVSCodeTools();
 	}
 
 	/**
@@ -891,8 +988,6 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 		// 注册 Agent 实现
 		const agentImpl = this._register(this.instantiationService.createInstance(ChenilleAgentImpl));
 		this._register(this.chatAgentService.registerAgentImplementation(agentData.id, agentImpl));
-
-		this.logService.info('[Chenille] Agent registered:', agentData.id);
 	}
 
 	/**
@@ -915,22 +1010,6 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 
 			const toolImpl = new ChenilleFileToolWrapper(toolDef, this.toolDispatcher);
 			this._register(this.toolsService.registerTool(toolData, toolImpl));
-
-			this.logService.debug('[Chenille] File tool registered:', toolData.id);
 		}
-
-		this.logService.info(`[Chenille] Registered ${CHENILLE_FILE_TOOLS.length} file tools`);
-	}
-
-	/**
-	 * 记录可用的 VS Code 内置工具
-	 */
-	private logAvailableVSCodeTools(): void {
-		const vsCodeTools = [...this.toolsService.getTools()];
-		const vsCodeToolNames = VSCODE_TOOL_DEFINITIONS.map(t => t.chenilleName);
-
-		this.logService.info(`[Chenille] VS Code tools available: ${vsCodeTools.length}`);
-		this.logService.debug('[Chenille] VS Code tool IDs:', vsCodeTools.map(t => t.id).join(', '));
-		this.logService.info(`[Chenille] Chenille will use these VS Code tools: ${vsCodeToolNames.join(', ')}`);
 	}
 }

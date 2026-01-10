@@ -72,15 +72,19 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          cp ../*.deb artifacts/ 2>/dev/null || true
-          cp ../*.rpm artifacts/ 2>/dev/null || true
+          echo "=== .build directory structure ==="
+          find .build -type f -name "*.deb" -o -name "*.rpm" 2>/dev/null || true
+          cp .build/linux/deb/amd64/deb/*.deb artifacts/ 2>/dev/null || true
+          cp .build/linux/rpm/x86_64/*.rpm artifacts/ 2>/dev/null || true
           ls -la artifacts/
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: chenille-linux-x64
-          path: artifacts/
+          path: |
+            .build/linux/deb/**/*.deb
+            .build/linux/rpm/**/*.rpm
           if-no-files-found: warn
 
   build-macos-x64:
@@ -125,14 +129,18 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          cp ../*.dmg artifacts/ 2>/dev/null || true
+          echo "=== Looking for DMG files ==="
+          find .. -name "*.dmg" -type f 2>/dev/null || true
+          find .build -name "*.dmg" -type f 2>/dev/null || true
           ls -la artifacts/
 
       - name: Upload macOS x64 artifacts
         uses: actions/upload-artifact@v4
         with:
           name: chenille-darwin-x64
-          path: artifacts/
+          path: |
+            ../*.dmg
+            .build/**/*.dmg
           if-no-files-found: warn
 
   build-macos-arm64:
@@ -177,14 +185,18 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          cp ../*.dmg artifacts/ 2>/dev/null || true
+          echo "=== Looking for DMG files ==="
+          find .. -name "*.dmg" -type f 2>/dev/null || true
+          find .build -name "*.dmg" -type f 2>/dev/null || true
           ls -la artifacts/
 
       - name: Upload macOS arm64 artifacts
         uses: actions/upload-artifact@v4
         with:
           name: chenille-darwin-arm64
-          path: artifacts/
+          path: |
+            ../*.dmg
+            .build/**/*.dmg
           if-no-files-found: warn
 
   build-windows:
@@ -245,14 +257,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts
-          Copy-Item ../*.exe artifacts/ -ErrorAction SilentlyContinue
+          # 安装包在 .build/win32-x64/xxx-setup/ 目录下
+          Get-ChildItem -Path .build/win32-x64 -Recurse -Filter *.exe | Copy-Item -Destination artifacts/ -ErrorAction SilentlyContinue
+          Write-Host "=== Artifacts ==="
           Get-ChildItem artifacts/
+          Write-Host "=== .build directory structure ==="
+          Get-ChildItem -Path .build -Recurse -Depth 3 | Select-Object FullName
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: chenille-win32-x64
-          path: artifacts/
+          path: .build/win32-x64/**/*.exe
           if-no-files-found: warn
 
   # 发布到 GitHub Releases（仅在打 tag 时触发）

@@ -25,7 +25,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
+const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "在文件资源管理器中显示") : isMacintosh ? nls.localize2('revealInMac', "在 Finder 中显示") : nls.localize2('openContainer', "打开所在文件夹");
 const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -73,7 +73,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	when: REVEAL_IN_OS_WHEN_CONTEXT
 });
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContextShare, {
-	title: nls.localize('miShare', "Share"),
+	title: nls.localize('miShare', "共享"),
 	submenu: MenuId.MenubarShare,
 	group: 'share',
 	order: 3,
@@ -90,7 +90,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 
 // Command Palette
 
-const category = nls.localize2('filesCategory', "File");
+const category = nls.localize2('filesCategory', "文件");
 appendToCommandPalette({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	title: REVEAL_IN_OS_LABEL,

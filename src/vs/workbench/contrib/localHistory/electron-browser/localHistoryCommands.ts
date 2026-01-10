@@ -21,7 +21,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.revealInOS',
-			title: isWindows ? localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? localize2('revealInMac', "Reveal in Finder") : localize2('openContainer', "Open Containing Folder"),
+			title: isWindows ? localize2('revealInWindows', "在文件资源管理器中显示") : isMacintosh ? localize2('revealInMac', "在 Finder 中显示") : localize2('openContainer', "打开所在文件夹"),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '4_reveal',
