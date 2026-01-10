@@ -62,6 +62,9 @@ jobs:
 
       - name: Build
         run: npm run gulp vscode-linux-x64-min
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+          JOBS: 2
 
       - name: Package deb
         run: npm run gulp vscode-linux-x64-build-deb
