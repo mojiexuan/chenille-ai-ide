@@ -41,7 +41,7 @@ interface AnthropicMessage {
 }
 
 interface AnthropicContentBlock {
-	type: 'text' | 'image' | 'tool_use' | 'tool_result';
+	type: 'text' | 'image' | 'tool_use' | 'tool_result' | 'thinking';
 	text?: string;
 	source?: {
 		type: 'base64';
@@ -53,6 +53,9 @@ interface AnthropicContentBlock {
 	input?: unknown;
 	tool_use_id?: string;
 	content?: string;
+	// thinking block 特有字段
+	thinking?: string;
+	signature?: string;
 }
 
 interface AnthropicTool {
@@ -156,6 +159,16 @@ function toAnthropicMessages(messages: AiModelMessage[]): AnthropicMessage[] {
 			if (msg.tool_calls?.length) {
 				debugLog('toAnthropicMessages', 'assistant 消息带工具调用:', msg.tool_calls.length);
 				const content: AnthropicContentBlock[] = [];
+
+				// 如果有 thinking/reasoning 内容，必须放在最前面
+				if (msg.reasoning_content) {
+					debugLog('toAnthropicMessages', '添加 thinking block, signature:', msg.reasoning_signature ? '有' : '无');
+					content.push({
+						type: 'thinking',
+						thinking: msg.reasoning_content,
+						signature: msg.reasoning_signature,
+					});
+				}
 
 				if (msg.content) {
 					content.push({ type: 'text', text: msg.content });
@@ -326,6 +339,9 @@ export class AnthropicProviderFetch implements IAIProvider {
 
 		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
 		let currentToolIndex = -1;
+		let currentBlockType: string | null = null;
+		let accumulatedThinking = '';  // 累积 thinking 内容
+		let accumulatedSignature = ''; // 累积 signature
 		let hasContent = false;
 		let lineCount = 0;
 		let eventCount = 0;
@@ -370,7 +386,8 @@ export class AnthropicProviderFetch implements IAIProvider {
 						switch (event.type) {
 							case 'content_block_start':
 								hasContent = true;
-								debugLog('stream', 'content_block_start:', event.content_block?.type);
+								currentBlockType = event.content_block?.type || null;
+								debugLog('stream', 'content_block_start:', currentBlockType);
 								if (event.content_block?.type === 'tool_use') {
 									currentToolIndex++;
 									accumulatedToolCalls.set(currentToolIndex, {
@@ -379,6 +396,8 @@ export class AnthropicProviderFetch implements IAIProvider {
 										arguments: '',
 									});
 									debugLog('stream', '工具调用开始:', event.content_block.name);
+								} else if (event.content_block?.type === 'thinking') {
+									debugLog('stream', 'thinking block 开始');
 								}
 								break;
 
@@ -387,6 +406,15 @@ export class AnthropicProviderFetch implements IAIProvider {
 								if (event.delta?.type === 'text_delta' && event.delta.text) {
 									debugLog('stream', 'text_delta 长度:', event.delta.text.length);
 									options.call?.({ content: event.delta.text, done: false });
+								} else if (event.delta?.type === 'thinking_delta' && event.delta.thinking) {
+									// 累积 thinking 内容
+									accumulatedThinking += event.delta.thinking;
+									// 也可以作为 reasoning 发送给前端
+									options.call?.({ content: '', reasoning: event.delta.thinking, done: false });
+								} else if (event.delta?.type === 'signature_delta' && event.delta.signature) {
+									// 累积 signature（Anthropic thinking block 必需）
+									accumulatedSignature += event.delta.signature;
+									debugLog('stream', 'signature_delta 长度:', event.delta.signature.length);
 								} else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
 									const tc = accumulatedToolCalls.get(currentToolIndex);
 									if (tc) {
@@ -442,8 +470,15 @@ export class AnthropicProviderFetch implements IAIProvider {
 					debugLog('stream', '累积工具调用数:', accumulatedToolCalls.size);
 
 					if (!hasContent) {
+						// 把调试信息附加到错误消息中
+						const debugInfo = [
+							`lineCount=${lineCount}`,
+							`eventCount=${eventCount}`,
+							`msgCount=${(requestBody.messages as unknown[]).length}`,
+							`roles=${(requestBody.messages as AnthropicMessage[]).map(m => m.role).join('->')}`,
+						].join(', ');
 						debugLog('stream', 'ERROR: 没有收到任何内容!');
-						options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
+						options.call?.({ content: '', done: true, error: `request ended without sending any chunks [${debugInfo}]` });
 						resolve();
 						return;
 					}
@@ -465,7 +500,16 @@ export class AnthropicProviderFetch implements IAIProvider {
 						}
 						if (toolCalls.length > 0) {
 							debugLog('stream', '发送工具调用:', toolCalls.map(t => t.function.name));
-							options.call?.({ content: '', tool_calls: toolCalls, done: false });
+							debugLog('stream', '附带 thinking 长度:', accumulatedThinking.length);
+							debugLog('stream', '附带 signature 长度:', accumulatedSignature.length);
+							// 把 thinking 和 signature 一起发送
+							options.call?.({
+								content: '',
+								tool_calls: toolCalls,
+								reasoning: accumulatedThinking || undefined,
+								reasoning_signature: accumulatedSignature || undefined,
+								done: false
+							});
 						}
 					}
 

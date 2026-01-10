@@ -22,6 +22,8 @@ interface GooglePart {
 		name: string;
 		response: unknown;
 	};
+	/** Gemini 3/2.5 thinking 模型的 thought signature */
+	thoughtSignature?: string;
 }
 
 interface GoogleContent {
@@ -113,12 +115,17 @@ function toGoogleContents(messages: AiModelMessage[]): GoogleContent[] {
 				}
 
 				for (const tc of msg.tool_calls) {
-					parts.push({
+					const part: GooglePart = {
 						functionCall: {
 							name: tc.function.name,
 							args: JSON.parse(tc.function.arguments || '{}'),
 						},
-					});
+					};
+					// 保留 thoughtSignature（Gemini 3 必需）
+					if (tc.thoughtSignature) {
+						part.thoughtSignature = tc.thoughtSignature;
+					}
+					parts.push(part);
 				}
 
 				result.push({ role: 'model', parts });
@@ -260,6 +267,8 @@ export class GoogleProviderFetch implements IAIProvider {
 					name: p.functionCall!.name,
 					arguments: JSON.stringify(p.functionCall!.args),
 				},
+				// 保留 thoughtSignature（Gemini 3 必需）
+				thoughtSignature: p.thoughtSignature,
 			})) : undefined,
 			done: true,
 			usage: response.usageMetadata ? {
@@ -338,6 +347,8 @@ export class GoogleProviderFetch implements IAIProvider {
 										name: part.functionCall.name,
 										arguments: JSON.stringify(part.functionCall.args),
 									},
+									// 保留 thoughtSignature（Gemini 3 必需）
+									thoughtSignature: part.thoughtSignature,
 								});
 							}
 						}

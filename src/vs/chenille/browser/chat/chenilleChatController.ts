@@ -256,11 +256,13 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 				// 有工具调用时，需要添加 assistant 消息来保持对话顺序
 				// 包含 tool_calls 数组，这是 OpenAI API 要求的格式
 				// 包含 reasoning_content，这是 DeepSeek 等模型要求的格式
+				// 包含 reasoning_signature，这是 Anthropic thinking 模型要求的格式
 				messages.push({
 					role: 'assistant',
 					content: roundResult.content || '',
 					tool_calls: roundResult.toolCalls,
 					reasoning_content: roundResult.reasoning,
+					reasoning_signature: roundResult.reasoning_signature,
 				});
 
 				// 执行工具调用（仅智能体模式）
@@ -290,9 +292,10 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		messages: AiModelMessage[],
 		tools: typeof CHENILLE_TOOLS | undefined,
 		token: CancellationToken
-	): Promise<{ content: string; reasoning?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
+	): Promise<{ content: string; reasoning?: string; reasoning_signature?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {
 		let content = '';
 		let reasoning = '';
+		let reasoning_signature = '';
 		let toolCalls: AiToolCall[] | undefined;
 		let usage: TokenUsage | undefined;
 		let streamError: Error | undefined;
@@ -324,12 +327,15 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 					this._onChunk.fire({ reasoning: chunk.reasoning, done: false });
 				}
 
-				// 工具调用（可能同时包含累积的 reasoning）
+				// 工具调用（可能同时包含累积的 reasoning 和 signature）
 				if (chunk.tool_calls?.length) {
 					toolCalls = chunk.tool_calls;
-					// 工具调用 chunk 可能包含累积的 reasoning（DeepSeek 等模型）
+					// 工具调用 chunk 可能包含累积的 reasoning（DeepSeek 等模型）和 signature（Anthropic）
 					if (chunk.reasoning && !reasoning) {
 						reasoning = chunk.reasoning;
+					}
+					if (chunk.reasoning_signature) {
+						reasoning_signature = chunk.reasoning_signature;
 					}
 					this._onChunk.fire({ toolCalls, done: false });
 				}
@@ -373,7 +379,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			throw error;
 		}
 
-		return { content, reasoning: reasoning || undefined, toolCalls, usage };
+		return { content, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined, toolCalls, usage };
 	}
 
 	/**

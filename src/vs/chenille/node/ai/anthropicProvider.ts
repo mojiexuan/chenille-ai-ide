@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages';
+import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam, ThinkingBlock } from '@anthropic-ai/sdk/resources/messages';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 
 // ========== 调试日志 ==========
@@ -115,8 +115,18 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 		if (msg.role === 'assistant') {
 			if (msg.tool_calls?.length) {
 				debugLog('toAnthropicMessages', 'assistant 消息带工具调用:', msg.tool_calls.length);
-				// 有工具调用时，构建包含 text 和 tool_use 的 content
-				const content: (TextBlock | ToolUseBlock)[] = [];
+				// 有工具调用时，构建包含 thinking、text 和 tool_use 的 content
+				const content: (ThinkingBlock | TextBlock | ToolUseBlock)[] = [];
+
+				// 如果有 thinking/reasoning 内容，必须放在最前面
+				if (msg.reasoning_content) {
+					debugLog('toAnthropicMessages', '添加 thinking block, signature:', msg.reasoning_signature ? '有' : '无');
+					content.push({
+						type: 'thinking',
+						thinking: msg.reasoning_content,
+						signature: msg.reasoning_signature,
+					} as ThinkingBlock);
+				}
 
 				// 如果有文本内容，添加 text block
 				if (msg.content) {
@@ -275,6 +285,9 @@ export class AnthropicProvider implements IAIProvider {
 
 		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
 		let currentToolIndex = -1;
+		let currentBlockType: string | null = null;
+		let accumulatedThinking = '';  // 累积 thinking 内容
+		let accumulatedSignature = ''; // 累积 signature
 		let hasReceivedContent = false;
 		let eventCount = 0;
 		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
@@ -293,6 +306,14 @@ export class AnthropicProvider implements IAIProvider {
 			});
 
 			debugLog('stream', '流创建成功，开始迭代...');
+			debugLog('stream', 'stream 类型:', typeof stream);
+			debugLog('stream', 'stream 是否为 AsyncIterable:', Symbol.asyncIterator in stream);
+
+			// 检查 stream 是否有 response 属性（可能包含错误信息）
+			if ('response' in stream) {
+				const response = (stream as unknown as { response: { status: number; statusText: string } }).response;
+				debugLog('stream', 'response status:', response?.status, response?.statusText);
+			}
 
 			for await (const event of stream) {
 				eventCount++;
@@ -318,7 +339,8 @@ export class AnthropicProvider implements IAIProvider {
 
 					case 'content_block_start':
 						hasReceivedContent = true;
-						debugLog('stream', 'content_block_start:', event.content_block?.type);
+						currentBlockType = event.content_block?.type || null;
+						debugLog('stream', 'content_block_start:', currentBlockType);
 						if (event.content_block?.type === 'tool_use') {
 							currentToolIndex++;
 							accumulatedToolCalls.set(currentToolIndex, {
@@ -327,6 +349,8 @@ export class AnthropicProvider implements IAIProvider {
 								arguments: '',
 							});
 							debugLog('stream', '工具调用开始:', event.content_block.name);
+						} else if (event.content_block?.type === 'thinking') {
+							debugLog('stream', 'thinking block 开始');
 						}
 						break;
 
@@ -335,6 +359,17 @@ export class AnthropicProvider implements IAIProvider {
 						if (event.delta?.type === 'text_delta' && event.delta.text) {
 							debugLog('stream', 'text_delta 长度:', event.delta.text.length);
 							options.call?.({ content: event.delta.text, done: false });
+						} else if (event.delta?.type === 'thinking_delta' && (event.delta as { thinking?: string }).thinking) {
+							// 累积 thinking 内容
+							const thinkingText = (event.delta as { thinking?: string }).thinking || '';
+							accumulatedThinking += thinkingText;
+							// 也可以作为 reasoning 发送给前端
+							options.call?.({ content: '', reasoning: thinkingText, done: false });
+						} else if (event.delta?.type === 'signature_delta' && (event.delta as { signature?: string }).signature) {
+							// 累积 signature（Anthropic thinking block 必需）
+							const signatureText = (event.delta as { signature?: string }).signature || '';
+							accumulatedSignature += signatureText;
+							debugLog('stream', 'signature_delta 长度:', signatureText.length);
 						} else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
 							const tc = accumulatedToolCalls.get(currentToolIndex);
 							if (tc) {
@@ -374,8 +409,14 @@ export class AnthropicProvider implements IAIProvider {
 			}
 
 			if (!hasReceivedContent) {
+				// 把调试信息附加到错误消息中
+				const debugInfo = [
+					`eventCount=${eventCount}`,
+					`msgCount=${messages.length}`,
+					`roles=${messages.map(m => m.role).join('->')}`,
+				].join(', ');
 				debugLog('stream', 'ERROR: 没有收到任何内容!');
-				options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
+				options.call?.({ content: '', done: true, error: `request ended without sending any chunks [${debugInfo}]` });
 				return;
 			}
 
@@ -397,9 +438,13 @@ export class AnthropicProvider implements IAIProvider {
 
 				if (toolCalls.length > 0) {
 					debugLog('stream', '发送工具调用:', toolCalls.map(t => t.function.name));
+					debugLog('stream', '附带 thinking 长度:', accumulatedThinking.length);
+					debugLog('stream', '附带 signature 长度:', accumulatedSignature.length);
 					options.call?.({
 						content: '',
 						tool_calls: toolCalls,
+						reasoning: accumulatedThinking || undefined,
+						reasoning_signature: accumulatedSignature || undefined,
 						done: false,
 					});
 				}
@@ -410,9 +455,13 @@ export class AnthropicProvider implements IAIProvider {
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			const errorStack = error instanceof Error ? error.stack : 'N/A';
+			const errorName = error instanceof Error ? error.name : 'Unknown';
 			debugLog('stream', 'ERROR:', errorMessage);
-			debugLog('stream', 'Error stack:', error instanceof Error ? error.stack : 'N/A');
-			options.call?.({ content: '', done: true, error: errorMessage });
+			debugLog('stream', 'Error name:', errorName);
+			debugLog('stream', 'Error stack:', errorStack);
+			debugLog('stream', 'eventCount at error:', eventCount);
+			options.call?.({ content: '', done: true, error: `${errorName}: ${errorMessage}` });
 		}
 	}
 }

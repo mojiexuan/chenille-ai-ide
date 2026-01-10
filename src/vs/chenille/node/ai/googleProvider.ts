@@ -37,10 +37,52 @@ function toGoogleParts(msg: AiModelMessage): Part[] {
 function toGoogleContents(messages: AiModelMessage[]): Content[] {
 	return messages
 		.filter(msg => msg.role !== 'system')
-		.map(msg => ({
-			role: msg.role === 'assistant' ? 'model' : 'user',
-			parts: toGoogleParts(msg),
-		}));
+		.map(msg => {
+			// 工具结果消息
+			if (msg.role === 'tool' && msg.tool_call_id) {
+				return {
+					role: 'user' as const,
+					parts: [{
+						functionResponse: {
+							name: msg.tool_call_id,
+							response: JSON.parse(msg.content || '{}'),
+						},
+					}],
+				};
+			}
+
+			// assistant 消息（可能包含工具调用）
+			if (msg.role === 'assistant') {
+				if (msg.tool_calls?.length) {
+					const parts: Part[] = [];
+
+					if (msg.content) {
+						parts.push({ text: msg.content });
+					}
+
+					for (const tc of msg.tool_calls) {
+						const part: Part = {
+							functionCall: {
+								name: tc.function.name,
+								args: JSON.parse(tc.function.arguments || '{}'),
+							},
+						};
+						// 保留 thoughtSignature（Gemini 3 必需）
+						if (tc.thoughtSignature) {
+							(part as Part & { thoughtSignature?: string }).thoughtSignature = tc.thoughtSignature;
+						}
+						parts.push(part);
+					}
+
+					return { role: 'model' as const, parts };
+				}
+			}
+
+			return {
+				role: msg.role === 'assistant' ? 'model' as const : 'user' as const,
+				parts: toGoogleParts(msg),
+			};
+		});
 }
 
 /**
@@ -154,7 +196,7 @@ export class GoogleProvider implements IAIProvider {
 		const textParts = parts.filter((p): p is { text: string } => typeof (p as { text?: string }).text === 'string');
 		const content = textParts.map(p => p.text).join('');
 
-		const functionCalls = parts.filter((p): p is { functionCall: { name?: string; args?: Record<string, unknown> } } =>
+		const functionCalls = parts.filter((p): p is { functionCall: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string } =>
 			typeof (p as { functionCall?: unknown }).functionCall === 'object');
 		const toolCalls: AiToolCall[] | undefined = functionCalls.length > 0 ? functionCalls
 			.filter(p => p.functionCall?.name) // 过滤掉没有 name 的
@@ -165,6 +207,8 @@ export class GoogleProvider implements IAIProvider {
 					name: p.functionCall.name!,
 					arguments: JSON.stringify(p.functionCall?.args ?? {}),
 				},
+				// 保留 thoughtSignature（Gemini 3 必需）
+				thoughtSignature: p.thoughtSignature,
 			})) : undefined;
 
 		const result: ChatCompletionResult = {
@@ -199,7 +243,7 @@ export class GoogleProvider implements IAIProvider {
 		});
 
 		// 累积工具调用
-		const accumulatedToolCalls: { name: string; arguments: string }[] = [];
+		const accumulatedToolCalls: { name: string; arguments: string; thoughtSignature?: string }[] = [];
 		// 累积 usage
 		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
@@ -222,7 +266,7 @@ export class GoogleProvider implements IAIProvider {
 
 			for (const part of parts) {
 				const textPart = part as { text?: string };
-				const funcPart = part as { functionCall?: { name?: string; args?: Record<string, unknown> } };
+				const funcPart = part as { functionCall?: { name?: string; args?: Record<string, unknown> }; thoughtSignature?: string };
 
 				if (typeof textPart.text === 'string' && textPart.text) {
 					const result: ChatCompletionResult = {
@@ -235,6 +279,7 @@ export class GoogleProvider implements IAIProvider {
 					accumulatedToolCalls.push({
 						name: funcPart.functionCall.name ?? '',
 						arguments: JSON.stringify(funcPart.functionCall.args ?? {}),
+						thoughtSignature: funcPart.thoughtSignature,
 					});
 				}
 			}
@@ -256,6 +301,8 @@ export class GoogleProvider implements IAIProvider {
 						name: tc.name,
 						arguments: tc.arguments,
 					},
+					// 保留 thoughtSignature（Gemini 3 必需）
+					thoughtSignature: tc.thoughtSignature,
 				}));
 
 			if (toolCalls.length > 0) {

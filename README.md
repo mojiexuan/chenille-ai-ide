@@ -261,7 +261,7 @@ npm run gulp vscode-linux-arm64-build-rpm
 例如：
 
 ```bash
-.\Chenille.exe --open-devtools
+.\Chenille.exe --open-devtools --log trace
 ```
 
 ## License

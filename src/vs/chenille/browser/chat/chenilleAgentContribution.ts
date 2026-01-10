@@ -194,6 +194,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				role: 'assistant',
 				content: roundResult.content || '',
 				tool_calls: roundResult.toolCalls,
+				reasoning_content: roundResult.reasoning,
+				reasoning_signature: roundResult.reasoning_signature,
 			});
 
 			// 执行工具调用
@@ -217,10 +219,12 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		tools: AiTool[] | undefined,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken
-	): Promise<{ content: string; toolCalls?: AiToolCall[] }> {
+	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
 		const requestId = generateUuid();
 		let content = '';
 		let toolCalls: AiToolCall[] | undefined;
+		let reasoning = '';
+		let reasoning_signature = '';
 
 		return new Promise((resolve, reject) => {
 			let resolved = false;
@@ -230,7 +234,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				if (!resolved) {
 					resolved = true;
 					disposable.dispose();
-					resolve({ content, toolCalls });
+					resolve({ content, toolCalls, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined });
 				}
 			}, 300000);
 
@@ -254,6 +258,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 				// 推理内容
 				if (chunk.reasoning) {
+					reasoning += chunk.reasoning;
 					progress([{
 						kind: 'thinking',
 						value: chunk.reasoning,
@@ -263,6 +268,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				// 工具调用
 				if (chunk.tool_calls?.length) {
 					toolCalls = chunk.tool_calls;
+					// 工具调用 chunk 可能包含累积的 reasoning 和 signature
+					if (chunk.reasoning && !reasoning) {
+						reasoning = chunk.reasoning;
+					}
+					if (chunk.reasoning_signature) {
+						reasoning_signature = chunk.reasoning_signature;
+					}
 				}
 
 				// 错误
@@ -282,7 +294,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 					if (!resolved) {
 						resolved = true;
 						disposable.dispose();
-						resolve({ content, toolCalls });
+						resolve({ content, toolCalls, reasoning: reasoning || undefined, reasoning_signature: reasoning_signature || undefined });
 					}
 				}
 			});

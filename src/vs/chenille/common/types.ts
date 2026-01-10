@@ -105,6 +105,8 @@ export interface AiToolCall {
 		name: string;
 		arguments: string;
 	};
+	/** Google Gemini thoughtSignature（必须原样传回） */
+	thoughtSignature?: string;
 }
 
 /**
@@ -146,6 +148,8 @@ export interface AiModelMessage {
 	tool_call_id?: string;
 	/** DeepSeek 等模型的推理内容 */
 	reasoning_content?: string;
+	/** Anthropic thinking block 的签名（必须原样传回） */
+	reasoning_signature?: string;
 }
 
 /**
@@ -154,6 +158,8 @@ export interface AiModelMessage {
 export interface ChatCompletionResult {
 	content: string;
 	reasoning?: string;
+	/** Anthropic thinking block 的签名（必须原样传回） */
+	reasoning_signature?: string;
 	/** 工具调用列表（带 ID） */
 	tool_calls?: AiToolCall[];
 	done: boolean;

@@ -13,6 +13,7 @@ interface OpenAIMessage {
 	content: string | OpenAIContentPart[];
 	tool_calls?: OpenAIToolCall[];
 	tool_call_id?: string;
+	reasoning_content?: string;
 }
 
 interface OpenAIContentPart {
@@ -106,19 +107,29 @@ function toOpenAIMessages(options: ChatCompletionOptions): OpenAIMessage[] {
 			};
 		}
 
-		if (msg.role === 'assistant' && msg.tool_calls?.length) {
-			return {
+		if (msg.role === 'assistant') {
+			const assistantMsg: OpenAIMessage = {
 				role: 'assistant' as const,
 				content: msg.content || '',
-				tool_calls: msg.tool_calls.map(tc => ({
+			};
+
+			// DeepSeek 等模型需要 reasoning_content
+			if (msg.reasoning_content) {
+				assistantMsg.reasoning_content = msg.reasoning_content;
+			}
+
+			if (msg.tool_calls?.length) {
+				assistantMsg.tool_calls = msg.tool_calls.map(tc => ({
 					id: tc.id,
 					type: 'function' as const,
 					function: {
 						name: tc.function.name,
 						arguments: tc.function.arguments,
 					},
-				})),
-			};
+				}));
+			}
+
+			return assistantMsg;
 		}
 
 		return {
@@ -214,6 +225,7 @@ export class OpenAIProviderFetch implements IAIProvider {
 		};
 
 		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+		let accumulatedReasoning = '';
 		let hasContent = false;
 
 		return new Promise<void>((resolve) => {
@@ -254,6 +266,7 @@ export class OpenAIProviderFetch implements IAIProvider {
 						// 处理推理内容
 						if (delta.reasoning_content) {
 							hasContent = true;
+							accumulatedReasoning += delta.reasoning_content;
 							options.call?.({ content: '', reasoning: delta.reasoning_content, done: false });
 						}
 
@@ -303,7 +316,7 @@ export class OpenAIProviderFetch implements IAIProvider {
 							}
 						}
 						if (toolCalls.length > 0) {
-							options.call?.({ content: '', tool_calls: toolCalls, done: false });
+							options.call?.({ content: '', tool_calls: toolCalls, reasoning: accumulatedReasoning || undefined, done: false });
 						}
 					}
 
