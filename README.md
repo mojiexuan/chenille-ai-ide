@@ -143,6 +143,8 @@ npm run watch
 
 ## 构建
 
+> 推荐使用 GitHub Actions 构建
+
 ### 安装依赖
 
 ```bash

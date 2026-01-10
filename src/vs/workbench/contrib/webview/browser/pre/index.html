@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" style="width: 100%; height: 100%">
+<html lang="zh-CN" style="width: 100%; height: 100%">
 	<head>
 		<meta charset="UTF-8" />
 
+		<!--
+			CSP hash 说明:
+			下方 script-src 中的 sha256 hash 值对应内联脚本内容。
+			如果修改了 body 中脚本的任何内容，必须运行以下命令更新 hash:
+
+				node scripts/update-webview-csp-hash.js
+
+			否则浏览器会因 CSP 策略阻止脚本执行，导致 webview 功能异常。
+		-->
 		<meta
 			http-equiv="Content-Security-Policy"
-			content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';"
+			content="default-src 'none'; script-src 'sha256-CyzT4ASIz4tdwjj777gLucTn06FZgqA0cdE3C0Z+kms=' 'self'; frame-src 'self'; style-src 'unsafe-inline';"
 		/>
 
 		<!-- Disable pinch zooming -->

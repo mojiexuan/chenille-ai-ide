@@ -36,9 +36,24 @@ function toAnthropicContent(msg: AiModelMessage): string | ContentBlockParam[] {
 
 /**
  * 将统一消息格式转换为 Anthropic 格式
+ * 注意：Anthropic 要求消息必须交替出现（user/assistant），
+ * 且多个 tool_result 必须合并到同一个 user 消息中
  */
 function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 	const result: MessageParam[] = [];
+
+	// 用于收集连续的 tool_result
+	let pendingToolResults: ToolResultBlockParam[] = [];
+
+	const flushToolResults = () => {
+		if (pendingToolResults.length > 0) {
+			result.push({
+				role: 'user',
+				content: pendingToolResults,
+			});
+			pendingToolResults = [];
+		}
+	};
 
 	for (const msg of messages) {
 		// 跳过 system 消息（单独处理）
@@ -46,19 +61,18 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 			continue;
 		}
 
-		// 工具结果消息 -> Anthropic 的 tool_result
+		// 工具结果消息 - 收集起来，稍后合并
 		if (msg.role === 'tool' && msg.tool_call_id) {
-			const toolResultBlock: ToolResultBlockParam = {
+			pendingToolResults.push({
 				type: 'tool_result',
 				tool_use_id: msg.tool_call_id,
 				content: msg.content,
-			};
-			result.push({
-				role: 'user',
-				content: [toolResultBlock],
 			});
 			continue;
 		}
+
+		// 遇到非 tool 消息时，先刷新待处理的 tool_result
+		flushToolResults();
 
 		// assistant 消息（可能包含工具调用）
 		if (msg.role === 'assistant') {
@@ -107,6 +121,9 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 			content: toAnthropicContent(msg),
 		});
 	}
+
+	// 处理末尾的 tool_result
+	flushToolResults();
 
 	return result;
 }

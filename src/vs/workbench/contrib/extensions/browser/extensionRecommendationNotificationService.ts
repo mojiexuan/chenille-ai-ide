@@ -169,12 +169,12 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 				}
 				this.notificationService.prompt(
 					Severity.Info,
-					localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?"),
+					localize('ignoreExtensionRecommendations', "是否要忽略所有扩展推荐?"),
 					[{
-						label: localize('ignoreAll', "Yes, Ignore All"),
+						label: localize('ignoreAll', "是，全部忽略"),
 						run: () => this.setIgnoreRecommendationsConfig(true)
 					}, {
-						label: localize('no', "No"),
+						label: localize('no', "否"),
 						run: () => this.setIgnoreRecommendationsConfig(false)
 					}]
 				);
@@ -196,7 +196,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			return;
 		}
 
-		await this.promptRecommendationsNotification({ extensions: recommendations, source: RecommendationSource.WORKSPACE, name: localize({ key: 'this repository', comment: ['this repository means the current repository that is opened'] }, "this repository") }, {
+		await this.promptRecommendationsNotification({ extensions: recommendations, source: RecommendationSource.WORKSPACE, name: localize({ key: 'this repository', comment: ['this repository means the current repository that is opened'] }, "此存储库") }, {
 			onDidInstallRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' }),
 			onDidShowRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'show' }),
 			onDidCancelRecommendedExtensions: () => this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' }),
@@ -242,28 +242,28 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 
 		let extensionsMessage = '';
 		if (extensions.length === 1) {
-			extensionsMessage = localize('extensionFromPublisher', "'{0}' extension from {1}", extensions[0].displayName, extensions[0].publisherDisplayName);
+			extensionsMessage = localize('extensionFromPublisher', "来自 {1} 的'{0}'扩展", extensions[0].displayName, extensions[0].publisherDisplayName);
 		} else {
 			const publishers = [...extensions.reduce((result, extension) => result.add(extension.publisherDisplayName), new Set<string>())];
 			if (publishers.length > 2) {
-				extensionsMessage = localize('extensionsFromMultiplePublishers', "extensions from {0}, {1} and others", publishers[0], publishers[1]);
+				extensionsMessage = localize('extensionsFromMultiplePublishers', "来自 {0}、{1} 等发布者的扩展", publishers[0], publishers[1]);
 			} else if (publishers.length === 2) {
-				extensionsMessage = localize('extensionsFromPublishers', "extensions from {0} and {1}", publishers[0], publishers[1]);
+				extensionsMessage = localize('extensionsFromPublishers', "来自 {0} 和 {1} 的扩展", publishers[0], publishers[1]);
 			} else {
-				extensionsMessage = localize('extensionsFromPublisher', "extensions from {0}", publishers[0]);
+				extensionsMessage = localize('extensionsFromPublisher', "来自 {0} 的扩展", publishers[0]);
 			}
 		}
 
-		let message = localize('recommended', "Do you want to install the recommended {0} for {1}?", extensionsMessage, name);
+		let message = localize('recommended', "是否要为 {1} 安装推荐的{0}?", extensionsMessage, name);
 		if (source === RecommendationSource.EXE) {
-			message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended {1} for it?", name, extensionsMessage);
+			message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "您的系统上已安装 {0}。是否要为其安装推荐的{1}?", name, extensionsMessage);
 		}
 		if (!searchValue) {
 			searchValue = source === RecommendationSource.WORKSPACE ? '@recommended' : extensions.map(extensionId => `@id:${extensionId.identifier.id}`).join(' ');
 		}
 
-		const donotShowAgainLabel = source === RecommendationSource.WORKSPACE ? localize('donotShowAgain', "Don't Show Again for this Repository")
-			: extensions.length > 1 ? localize('donotShowAgainExtension', "Don't Show Again for these Extensions") : localize('donotShowAgainExtensionSingle', "Don't Show Again for this Extension");
+		const donotShowAgainLabel = source === RecommendationSource.WORKSPACE ? localize('donotShowAgain', "不再为此存储库显示")
+			: extensions.length > 1 ? localize('donotShowAgainExtension', "不再为这些扩展显示") : localize('donotShowAgainExtensionSingle', "不再为此扩展显示");
 
 		return raceCancellablePromises([
 			this._registerP(this.showRecommendationsNotification(extensions, message, searchValue, donotShowAgainLabel, source, recommendationsNotificationActions)),
@@ -295,15 +295,15 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 				]);
 			};
 			choices.push({
-				label: localize('install', "Install"),
+				label: localize('install', "安装"),
 				run: () => installExtensions(false),
 				menu: this.userDataSyncEnablementService.isEnabled() && this.userDataSyncEnablementService.isResourceEnabled(SyncResource.Extensions) ? [{
-					label: localize('install and do no sync', "Install (Do not sync)"),
+					label: localize('install and do no sync', "安装(不同步)"),
 					run: () => installExtensions(true)
 				}] : undefined,
 			});
 			choices.push(...[{
-				label: localize('show recommendations', "Show Recommendations"),
+				label: localize('show recommendations', "显示推荐"),
 				run: async () => {
 					onDidShowRecommendedExtensions(extensions);
 					for (const extension of extensions) {
