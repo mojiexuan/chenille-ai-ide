@@ -124,11 +124,12 @@ import { NativeWebContentExtractorService } from '../../platform/webContentExtra
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 import { ICommitMessageService, CommitMessageChannel, CommitMessageChannelName } from '../../chenille/common/commitMessage.js';
 import { CommitMessageMainService } from '../../chenille/electron-main/commitMessageService.js';
-import { IAiModelStorageService, ModelStorageChannel, ModelStorageChannelName, IAiPromptStorageService, PromptStorageChannel, PromptStorageChannelName, IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName, IMcpServerStorageService, McpServerStorageChannel, McpServerStorageChannelName } from '../../chenille/common/storageIpc.js';
+import { IAiModelStorageService, ModelStorageChannel, ModelStorageChannelName, IAiPromptStorageService, PromptStorageChannel, PromptStorageChannelName, IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName, IMcpServerStorageService, McpServerStorageChannel, McpServerStorageChannelName, IMcpRuntimeService, McpRuntimeChannel, McpRuntimeChannelName } from '../../chenille/common/storageIpc.js';
 import { AiModelStorageMainService } from '../../chenille/electron-main/modelStorage.js';
 import { AiPromptStorageMainService } from '../../chenille/electron-main/promptStorage.js';
 import { AiAgentStorageMainService } from '../../chenille/electron-main/agentStorage.js';
 import { McpServerStorageMainService } from '../../chenille/electron-main/mcpServerStorage.js';
+import { McpRuntimeMainService } from '../../chenille/electron-main/mcpRuntimeService.js';
 import { IAiAgentMainService, AiAgentMainService } from '../../chenille/electron-main/agentService.js';
 import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '../../chenille/common/chatService.js';
 import { ChenilleAiMainService } from '../../chenille/electron-main/chatService.js';
@@ -1125,6 +1126,7 @@ export class CodeApplication extends Disposable {
 		services.set(IAiPromptStorageService, new SyncDescriptor(AiPromptStorageMainService));
 		services.set(IAiAgentStorageService, new SyncDescriptor(AiAgentStorageMainService));
 		services.set(IMcpServerStorageService, new SyncDescriptor(McpServerStorageMainService));
+		services.set(IMcpRuntimeService, new SyncDescriptor(McpRuntimeMainService));
 		services.set(IAiAgentMainService, new SyncDescriptor(AiAgentMainService));
 		services.set(ICommitMessageService, new SyncDescriptor(CommitMessageMainService));
 		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
@@ -1276,6 +1278,9 @@ export class CodeApplication extends Disposable {
 
 		const mcpServerStorageChannel = new McpServerStorageChannel(accessor.get(IMcpServerStorageService));
 		mainProcessElectronServer.registerChannel(McpServerStorageChannelName, mcpServerStorageChannel);
+
+		const mcpRuntimeChannel = new McpRuntimeChannel(accessor.get(IMcpRuntimeService));
+		mainProcessElectronServer.registerChannel(McpRuntimeChannelName, mcpRuntimeChannel);
 
 		// Chenille: 提交消息生成服务
 		const commitMessageChannel = new CommitMessageChannel(accessor.get(ICommitMessageService));

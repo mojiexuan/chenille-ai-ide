@@ -6,7 +6,7 @@
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
-import { AiModel, AiPrompt, AgentType, AiAgentConfig, McpServerConfig } from './types.js';
+import { AiModel, AiPrompt, AgentType, AiAgentConfig, McpServerConfig, McpToolCallRequest, McpToolCallResult, McpServerInfo, AiTool } from './types.js';
 
 // ============ Model Storage IPC ============
 
@@ -232,5 +232,108 @@ export class McpServerStorageChannelClient implements IMcpServerStorageService {
 
 	delete(name: string): Promise<void> {
 		return this.channel.call('delete', [name]);
+	}
+}
+
+// ============ MCP Runtime Service IPC ============
+// MCP 运行时服务 - 用于在主进程中执行 MCP 工具调用
+
+export const IMcpRuntimeService = createDecorator<IMcpRuntimeService>('mcpRuntimeService');
+
+export interface IMcpRuntimeService {
+	readonly _serviceBrand: undefined;
+	/**
+	 * 初始化 MCP 服务器
+	 */
+	initializeServers(configs: McpServerConfig[]): Promise<void>;
+	/**
+	 * 获取所有服务器信息
+	 */
+	getServerInfos(): Promise<McpServerInfo[]>;
+	/**
+	 * 获取所有可用的 MCP 工具
+	 */
+	getAllTools(): Promise<AiTool[]>;
+	/**
+	 * 调用 MCP 工具
+	 */
+	callTool(request: McpToolCallRequest): Promise<McpToolCallResult>;
+	/**
+	 * 通过完整工具名调用
+	 */
+	callToolByFullName(fullName: string, args: Record<string, unknown>): Promise<McpToolCallResult>;
+	/**
+	 * 检查工具是否自动批准
+	 */
+	isAutoApproved(serverName: string, toolName: string): Promise<boolean>;
+	/**
+	 * 断开所有连接
+	 */
+	disconnectAll(): Promise<void>;
+	/**
+	 * 重新连接指定服务器
+	 */
+	reconnect(serverName: string): Promise<void>;
+}
+
+export const McpRuntimeChannelName = 'chenille.mcpRuntime';
+
+export class McpRuntimeChannel implements IServerChannel {
+	constructor(private readonly service: IMcpRuntimeService) { }
+
+	listen<T>(_context: unknown, _event: string): Event<T> {
+		throw new Error('No events');
+	}
+
+	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
+		switch (command) {
+			case 'initializeServers': return this.service.initializeServers(args?.[0] as McpServerConfig[]) as Promise<T>;
+			case 'getServerInfos': return this.service.getServerInfos() as Promise<T>;
+			case 'getAllTools': return this.service.getAllTools() as Promise<T>;
+			case 'callTool': return this.service.callTool(args?.[0] as McpToolCallRequest) as Promise<T>;
+			case 'callToolByFullName': return this.service.callToolByFullName(args?.[0] as string, args?.[1] as Record<string, unknown>) as Promise<T>;
+			case 'isAutoApproved': return this.service.isAutoApproved(args?.[0] as string, args?.[1] as string) as Promise<T>;
+			case 'disconnectAll': return this.service.disconnectAll() as Promise<T>;
+			case 'reconnect': return this.service.reconnect(args?.[0] as string) as Promise<T>;
+		}
+		throw new Error(`Invalid command: ${command}`);
+	}
+}
+
+export class McpRuntimeChannelClient implements IMcpRuntimeService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(private readonly channel: IChannel) { }
+
+	initializeServers(configs: McpServerConfig[]): Promise<void> {
+		return this.channel.call('initializeServers', [configs]);
+	}
+
+	getServerInfos(): Promise<McpServerInfo[]> {
+		return this.channel.call('getServerInfos');
+	}
+
+	getAllTools(): Promise<AiTool[]> {
+		return this.channel.call('getAllTools');
+	}
+
+	callTool(request: McpToolCallRequest): Promise<McpToolCallResult> {
+		return this.channel.call('callTool', [request]);
+	}
+
+	callToolByFullName(fullName: string, args: Record<string, unknown>): Promise<McpToolCallResult> {
+		return this.channel.call('callToolByFullName', [fullName, args]);
+	}
+
+	isAutoApproved(serverName: string, toolName: string): Promise<boolean> {
+		return this.channel.call('isAutoApproved', [serverName, toolName]);
+	}
+
+	disconnectAll(): Promise<void> {
+		return this.channel.call('disconnectAll');
+	}
+
+	reconnect(serverName: string): Promise<void> {
+		return this.channel.call('reconnect', [serverName]);
 	}
 }

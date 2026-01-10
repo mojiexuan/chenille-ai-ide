@@ -9,7 +9,8 @@ import { createDecorator, IInstantiationService } from '../../platform/instantia
 import { IFileService } from '../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
 import { ISearchService } from '../../workbench/services/search/common/search.js';
-import { ToolCall, parseMcpToolName } from '../common/types.js';
+import { ToolCall } from '../common/types.js';
+import { IMcpRuntimeService } from '../common/storageIpc.js';
 
 // 导入文件工具
 import {
@@ -236,6 +237,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	readonly _serviceBrand: undefined;
 
 	private _toolsService: ILanguageModelToolsService | undefined;
+	private _mcpRuntimeService: IMcpRuntimeService | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -255,6 +257,16 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			this._toolsService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelToolsService));
 		}
 		return this._toolsService;
+	}
+
+	/**
+	 * 延迟获取 IMcpRuntimeService 以避免循环依赖
+	 */
+	private get mcpRuntimeService(): IMcpRuntimeService {
+		if (!this._mcpRuntimeService) {
+			this._mcpRuntimeService = this.instantiationService.invokeFunction(accessor => accessor.get(IMcpRuntimeService));
+		}
+		return this._mcpRuntimeService;
 	}
 
 	/**
@@ -593,67 +605,59 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 
 	/**
 	 * 调度 MCP 工具
+	 * 通过 IPC 在主进程中执行 MCP 工具调用
 	 */
 	private async dispatchMcpTool(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
-		const parsed = parseMcpToolName(toolName);
-		if (!parsed) {
-			return {
-				success: false,
-				content: '',
-				error: `无效的 MCP 工具名称: ${toolName}`
-			};
-		}
+		try {
+			// 解析参数
+			const parsed = parseToolArguments<Record<string, unknown>>(toolCall);
+			const args = parsed.success ? parsed.data : {};
 
-		// 动态导入 MCP 管理器（避免循环依赖）
-		const { getMcpManager } = await import('../node/mcp/mcpManager.js');
-		const mcpManager = getMcpManager();
+			// 通过 IPC 调用主进程的 MCP Runtime 服务
+			const result = await this.mcpRuntimeService.callToolByFullName(toolName, args);
 
-		// 解析参数
-		let args: Record<string, unknown> = {};
-		if (toolCall.function.arguments) {
-			try {
-				args = JSON.parse(toolCall.function.arguments);
-			} catch {
+			if (result.success) {
+				// 格式化成功结果 - 将 MCP 内容转换为字符串
+				let content = '';
+				if (result.content && Array.isArray(result.content)) {
+					content = result.content
+						.map(c => {
+							if (c.type === 'text') {
+								return c.text;
+							} else if (c.type === 'resource' && c.resource?.text) {
+								return c.resource.text;
+							} else if (c.type === 'image') {
+								return `[图片: ${c.mimeType}]`;
+							}
+							return '';
+						})
+						.filter(s => s)
+						.join('\n');
+				}
+
+				if (!content) {
+					content = '工具执行成功';
+				}
+
+				return {
+					success: true,
+					content: truncateContent(content, 50000)
+				};
+			} else {
 				return {
 					success: false,
 					content: '',
-					error: '无法解析工具参数'
+					error: result.error ?? '未知错误'
 				};
 			}
-		}
-
-		// 调用 MCP 工具
-		const result = await mcpManager.callTool({
-			serverName: parsed.serverName,
-			toolName: parsed.toolName,
-			arguments: args,
-		});
-
-		if (!result.success) {
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
 			return {
 				success: false,
 				content: '',
-				error: result.error || 'MCP 工具调用失败'
+				error: `MCP 工具调用失败: ${errorMessage}`
 			};
 		}
-
-		// 将 MCP 内容转换为字符串
-		const content = result.content
-			?.map(c => {
-				if (c.type === 'text') {
-					return c.text;
-				} else if (c.type === 'resource' && c.resource.text) {
-					return c.resource.text;
-				}
-				return '';
-			})
-			.filter(s => s)
-			.join('\n') || '';
-
-		return {
-			success: true,
-			content
-		};
 	}
 
 	/**

@@ -252,6 +252,16 @@ npm run gulp vscode-linux-arm64-build-rpm
 
 输出位置：`.build/linux-deb-*/` 或 `.build/linux-rpm-*/`
 
+## 生产调试
+
+在安装根目录执行启动命令加上 `--open-devtools` 参数
+
+例如：
+
+```bash
+.\Chenille.exe --open-devtools
+```
+
 ## License
 
 ### Microsoft 部分
