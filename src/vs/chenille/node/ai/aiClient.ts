@@ -6,10 +6,10 @@
 import { AiProvider, ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiTool, parseMcpToolName, McpServerConfig } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
 import { OpenAIProvider } from './openaiProvider.js';
-import { AnthropicProvider } from './anthropicProvider.js';
+import { AnthropicProvider, getAnthropicSdkDebugLogs, clearAnthropicSdkDebugLogs } from './anthropicProvider.js';
 import { GoogleProvider } from './googleProvider.js';
 import { OpenAIProviderFetch } from './openaiProviderFetch.js';
-import { AnthropicProviderFetch } from './anthropicProviderFetch.js';
+import { AnthropicProviderFetch, getAnthropicFetchDebugLogs, clearAnthropicFetchDebugLogs } from './anthropicProviderFetch.js';
 import { GoogleProviderFetch } from './googleProviderFetch.js';
 import { getMcpManager } from '../mcp/mcpManager.js';
 
@@ -151,6 +151,24 @@ export class AIClient {
 	 */
 	static register(provider: AiProvider, instance: IAIProvider): void {
 		registerProvider(provider, instance);
+	}
+
+	/**
+	 * 获取 Anthropic 调试日志
+	 */
+	static getDebugLogs(): { sdk: string[]; fetch: string[] } {
+		return {
+			sdk: getAnthropicSdkDebugLogs(),
+			fetch: getAnthropicFetchDebugLogs(),
+		};
+	}
+
+	/**
+	 * 清除 Anthropic 调试日志
+	 */
+	static clearDebugLogs(): void {
+		clearAnthropicSdkDebugLogs();
+		clearAnthropicFetchDebugLogs();
 	}
 }
 

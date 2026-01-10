@@ -7,6 +7,32 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 
+// ========== 调试日志 ==========
+const DEBUG = true;
+const debugLogs: string[] = [];
+
+function debugLog(tag: string, ...args: unknown[]): void {
+	if (DEBUG) {
+		const msg = `[Anthropic-SDK][${tag}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
+		console.log(msg);
+		debugLogs.push(`${new Date().toISOString()} ${msg}`);
+		// 保留最近 200 条日志
+		if (debugLogs.length > 200) {
+			debugLogs.shift();
+		}
+	}
+}
+
+// 导出日志供外部访问
+export function getAnthropicSdkDebugLogs(): string[] {
+	return [...debugLogs];
+}
+
+export function clearAnthropicSdkDebugLogs(): void {
+	debugLogs.length = 0;
+}
+// =============================
+
 /**
  * 将多模态内容转换为 Anthropic 格式
  */
@@ -40,6 +66,14 @@ function toAnthropicContent(msg: AiModelMessage): string | ContentBlockParam[] {
  * 且多个 tool_result 必须合并到同一个 user 消息中
  */
 function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
+	debugLog('toAnthropicMessages', '输入消息数量:', messages.length);
+	debugLog('toAnthropicMessages', '输入消息:', JSON.stringify(messages.map(m => ({
+		role: m.role,
+		contentLength: m.content?.length,
+		hasToolCalls: !!m.tool_calls?.length,
+		toolCallId: m.tool_call_id,
+	})), null, 2));
+
 	const result: MessageParam[] = [];
 
 	// 用于收集连续的 tool_result
@@ -47,6 +81,7 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 
 	const flushToolResults = () => {
 		if (pendingToolResults.length > 0) {
+			debugLog('flushToolResults', '合并工具结果数量:', pendingToolResults.length);
 			result.push({
 				role: 'user',
 				content: pendingToolResults,
@@ -58,11 +93,13 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 	for (const msg of messages) {
 		// 跳过 system 消息（单独处理）
 		if (msg.role === 'system') {
+			debugLog('toAnthropicMessages', '跳过 system 消息');
 			continue;
 		}
 
 		// 工具结果消息 - 收集起来，稍后合并
 		if (msg.role === 'tool' && msg.tool_call_id) {
+			debugLog('toAnthropicMessages', '收集 tool_result:', msg.tool_call_id);
 			pendingToolResults.push({
 				type: 'tool_result',
 				tool_use_id: msg.tool_call_id,
@@ -77,6 +114,7 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 		// assistant 消息（可能包含工具调用）
 		if (msg.role === 'assistant') {
 			if (msg.tool_calls?.length) {
+				debugLog('toAnthropicMessages', 'assistant 消息带工具调用:', msg.tool_calls.length);
 				// 有工具调用时，构建包含 text 和 tool_use 的 content
 				const content: (TextBlock | ToolUseBlock)[] = [];
 
@@ -106,6 +144,7 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 					content,
 				});
 			} else {
+				debugLog('toAnthropicMessages', 'assistant 普通消息');
 				// 普通 assistant 消息
 				result.push({
 					role: 'assistant',
@@ -116,6 +155,7 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 		}
 
 		// user 消息（支持图片）
+		debugLog('toAnthropicMessages', 'user 消息');
 		result.push({
 			role: 'user',
 			content: toAnthropicContent(msg),
@@ -124,6 +164,9 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 
 	// 处理末尾的 tool_result
 	flushToolResults();
+
+	debugLog('toAnthropicMessages', '输出消息数量:', result.length);
+	debugLog('toAnthropicMessages', '输出消息角色序列:', result.map(m => m.role).join(' -> '));
 
 	return result;
 }
@@ -164,18 +207,27 @@ export class AnthropicProvider implements IAIProvider {
 	}
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
+		debugLog('chat', '开始非流式请求');
 		const client = this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
+		const messages = toAnthropicMessages(options.messages);
+		const tools = toAnthropicTools(options);
+
+		debugLog('chat', '消息数量:', messages.length);
+		debugLog('chat', '工具数量:', tools?.length || 0);
+
 		const response = await client.messages.create({
 			model: model.model,
-			messages: toAnthropicMessages(options.messages),
+			messages,
 			system: extractSystemPrompt(options.messages),
 			temperature,
 			max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-			tools: toAnthropicTools(options),
+			tools,
 		});
+
+		debugLog('chat', '响应:', { id: response.id, stop_reason: response.stop_reason, contentBlocks: response.content.length });
 
 		const content = response.content
 			.filter((block): block is TextBlock => block.type === 'text')
@@ -208,35 +260,53 @@ export class AnthropicProvider implements IAIProvider {
 	}
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
+		debugLog('stream', '========== 开始流式请求 ==========');
 		const client = this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 1) || 0.7;
 
+		const messages = toAnthropicMessages(options.messages);
+		const tools = toAnthropicTools(options);
+
+		debugLog('stream', '消息数量:', messages.length);
+		debugLog('stream', '消息角色序列:', messages.map(m => m.role).join(' -> '));
+		debugLog('stream', '工具数量:', tools?.length || 0);
+		debugLog('stream', '完整消息:', JSON.stringify(messages, null, 2));
+
 		const accumulatedToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
 		let currentToolIndex = -1;
 		let hasReceivedContent = false;
+		let eventCount = 0;
 		let finalUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
 		try {
+			debugLog('stream', '创建流式请求...');
 			// 使用 create + stream: true，返回 async iterable
 			const stream = await client.messages.create({
 				model: model.model,
-				messages: toAnthropicMessages(options.messages),
+				messages,
 				system: extractSystemPrompt(options.messages),
 				temperature,
 				max_tokens: model.maxTokens > 0 ? model.maxTokens : 4096,
-				tools: toAnthropicTools(options),
+				tools,
 				stream: true,
 			});
 
+			debugLog('stream', '流创建成功，开始迭代...');
+
 			for await (const event of stream) {
+				eventCount++;
 				if (options.token?.isCancellationRequested) {
+					debugLog('stream', '请求已取消');
 					break;
 				}
+
+				debugLog('stream', `[Event ${eventCount}] type:`, event.type);
 
 				switch (event.type) {
 					case 'message_start':
 						hasReceivedContent = true;
+						debugLog('stream', 'message_start, message id:', event.message?.id);
 						if (event.message?.usage) {
 							finalUsage = {
 								promptTokens: event.message.usage.input_tokens,
@@ -248,6 +318,7 @@ export class AnthropicProvider implements IAIProvider {
 
 					case 'content_block_start':
 						hasReceivedContent = true;
+						debugLog('stream', 'content_block_start:', event.content_block?.type);
 						if (event.content_block?.type === 'tool_use') {
 							currentToolIndex++;
 							accumulatedToolCalls.set(currentToolIndex, {
@@ -255,12 +326,14 @@ export class AnthropicProvider implements IAIProvider {
 								name: event.content_block.name || '',
 								arguments: '',
 							});
+							debugLog('stream', '工具调用开始:', event.content_block.name);
 						}
 						break;
 
 					case 'content_block_delta':
 						hasReceivedContent = true;
 						if (event.delta?.type === 'text_delta' && event.delta.text) {
+							debugLog('stream', 'text_delta 长度:', event.delta.text.length);
 							options.call?.({ content: event.delta.text, done: false });
 						} else if (event.delta?.type === 'input_json_delta' && event.delta.partial_json) {
 							const tc = accumulatedToolCalls.get(currentToolIndex);
@@ -271,6 +344,7 @@ export class AnthropicProvider implements IAIProvider {
 						break;
 
 					case 'message_delta':
+						debugLog('stream', 'message_delta:', event.delta);
 						if (event.usage) {
 							finalUsage = {
 								promptTokens: finalUsage?.promptTokens || 0,
@@ -279,14 +353,28 @@ export class AnthropicProvider implements IAIProvider {
 							};
 						}
 						break;
+
+					case 'message_stop':
+						debugLog('stream', 'message_stop');
+						break;
+
+					default:
+						debugLog('stream', '未知事件类型:', event.type);
 				}
 			}
 
+			debugLog('stream', '========== 流迭代结束 ==========');
+			debugLog('stream', '事件数:', eventCount);
+			debugLog('stream', 'hasReceivedContent:', hasReceivedContent);
+			debugLog('stream', '累积工具调用数:', accumulatedToolCalls.size);
+
 			if (options.token?.isCancellationRequested) {
+				debugLog('stream', '请求已取消，不发送结果');
 				return;
 			}
 
 			if (!hasReceivedContent) {
+				debugLog('stream', 'ERROR: 没有收到任何内容!');
 				options.call?.({ content: '', done: true, error: 'request ended without sending any chunks' });
 				return;
 			}
@@ -308,6 +396,7 @@ export class AnthropicProvider implements IAIProvider {
 				}
 
 				if (toolCalls.length > 0) {
+					debugLog('stream', '发送工具调用:', toolCalls.map(t => t.function.name));
 					options.call?.({
 						content: '',
 						tool_calls: toolCalls,
@@ -316,10 +405,13 @@ export class AnthropicProvider implements IAIProvider {
 				}
 			}
 
+			debugLog('stream', '发送 done: true');
 			options.call?.({ content: '', done: true, usage: finalUsage });
 
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			debugLog('stream', 'ERROR:', errorMessage);
+			debugLog('stream', 'Error stack:', error instanceof Error ? error.stack : 'N/A');
 			options.call?.({ content: '', done: true, error: errorMessage });
 		}
 	}

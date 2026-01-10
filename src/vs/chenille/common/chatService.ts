@@ -65,6 +65,16 @@ export interface IChenilleAiService {
 	 * 获取当前模型是否支持图像分析
 	 */
 	supportsVision(): Promise<boolean>;
+
+	/**
+	 * 获取 Anthropic 调试日志
+	 */
+	getDebugLogs(): Promise<{ sdk: string[]; fetch: string[] }>;
+
+	/**
+	 * 清除调试日志
+	 */
+	clearDebugLogs(): Promise<void>;
 }
 
 export const ChenilleAiChannelName = 'chenilleAi';
@@ -95,6 +105,10 @@ export class ChenilleAiChannel implements IServerChannel {
 				return this.service.getContextSize() as Promise<T>;
 			case 'supportsVision':
 				return this.service.supportsVision() as Promise<T>;
+			case 'getDebugLogs':
+				return this.service.getDebugLogs() as Promise<T>;
+			case 'clearDebugLogs':
+				return this.service.clearDebugLogs() as Promise<T>;
 		}
 		throw new Error(`无效的调用命令: ${command}`);
 	}
@@ -130,5 +144,13 @@ export class ChenilleAiChannelClient implements IChenilleAiService {
 
 	supportsVision(): Promise<boolean> {
 		return this.channel.call<boolean>('supportsVision');
+	}
+
+	getDebugLogs(): Promise<{ sdk: string[]; fetch: string[] }> {
+		return this.channel.call<{ sdk: string[]; fetch: string[] }>('getDebugLogs');
+	}
+
+	clearDebugLogs(): Promise<void> {
+		return this.channel.call<void>('clearDebugLogs');
 	}
 }
