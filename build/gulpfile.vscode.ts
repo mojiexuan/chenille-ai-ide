@@ -96,7 +96,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
 
 	// Chat (Chenille icon)
-	'out-build/vs/workbench/contrib/chat/browser/media/*.svg',
+	'out-build/vs/workbench/contrib/chat/browser/media/*.{svg,png}',
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
