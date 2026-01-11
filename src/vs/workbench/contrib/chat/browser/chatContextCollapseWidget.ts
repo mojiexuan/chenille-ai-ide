@@ -5,137 +5,115 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 const $ = dom.$;
 
 /**
- * 上下文收拢警告组件
+ * 上下文收拢警告卡片
+ * 显示在聊天面板中，但不添加到会话历史
  */
 export class ChatContextCollapseWidget extends Disposable {
-	private readonly _onDidClickCollapse = this._register(new Emitter<void>());
-	readonly onDidClickCollapse: Event<void> = this._onDidClickCollapse.event;
+	private readonly _onDidAccept = this._register(new Emitter<void>());
+	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 
-	private readonly _onDidClickCancel = this._register(new Emitter<void>());
-	readonly onDidClickCancel: Event<void> = this._onDidClickCancel.event;
+	private readonly _onDidDismiss = this._register(new Emitter<void>());
+	readonly onDidDismiss: Event<void> = this._onDidDismiss.event;
 
-	private readonly container: HTMLElement;
-	private readonly messageElement: HTMLElement;
-	private readonly progressElement: HTMLElement;
-	private readonly buttonContainer: HTMLElement;
-	private collapseButton: Button | undefined;
-	private cancelButton: Button | undefined;
+	private readonly element: HTMLElement;
+	private readonly disposables = this._register(new DisposableStore());
 
-	private _isCollapsing = false;
-
-	constructor(parent: HTMLElement) {
+	constructor(
+		private readonly container: HTMLElement,
+		usagePercent: number,
+	) {
 		super();
 
-		this.container = dom.append(parent, $('.chat-context-collapse-warning'));
-		this.container.style.display = 'none';
-
-		// 警告图标和消息
-		const contentContainer = dom.append(this.container, $('.chat-context-collapse-content'));
-		const iconElement = dom.append(contentContainer, $('.chat-context-collapse-icon'));
-		iconElement.textContent = '⚠️';
-
-		this.messageElement = dom.append(contentContainer, $('.chat-context-collapse-message'));
-
-		// 进度指示器
-		this.progressElement = dom.append(contentContainer, $('.chat-context-collapse-progress'));
-		this.progressElement.style.display = 'none';
-
-		// 按钮容器
-		this.buttonContainer = dom.append(this.container, $('.chat-context-collapse-buttons'));
-	}
-
-	/**
-	 * 显示警告
-	 */
-	show(usagePercent: number): void {
-		this.container.style.display = 'flex';
-		this._isCollapsing = false;
-
 		const percentText = (usagePercent * 100).toFixed(0);
-		this.messageElement.textContent = localize(
-			'contextCollapse.warning',
-			'上下文使用量已达 {0}%，建议收拢上下文以继续对话',
+
+		// 创建警告卡片
+		this.element = $('.chat-context-collapse-warning');
+		this.element.style.cssText = `
+			position: absolute;
+			bottom: 80px;
+			left: 16px;
+			right: 16px;
+			background: var(--vscode-editorWidget-background);
+			border: 1px solid var(--vscode-editorWidget-border);
+			border-radius: 8px;
+			padding: 16px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+			z-index: 100;
+		`;
+
+		// 标题
+		const title = dom.append(this.element, $('.warning-title'));
+		title.style.cssText = `
+			font-weight: 600;
+			font-size: 14px;
+			margin-bottom: 8px;
+			color: var(--vscode-editorWarning-foreground);
+		`;
+		title.textContent = localize('contextCollapse.warningTitle', '⚠️ 上下文即将达到限制');
+
+		// 消息
+		const message = dom.append(this.element, $('.warning-message'));
+		message.style.cssText = `
+			font-size: 13px;
+			line-height: 1.5;
+			margin-bottom: 16px;
+			color: var(--vscode-foreground);
+		`;
+		message.textContent = localize(
+			'contextCollapse.warningMessage',
+			'当前会话的上下文使用量已达 {0}%，即将达到模型的上下文限制。建议收拢上下文以继续对话。',
 			percentText
 		);
 
-		this.progressElement.style.display = 'none';
-		this.buttonContainer.style.display = 'flex';
+		// 按钮容器
+		const buttonContainer = dom.append(this.element, $('.warning-buttons'));
+		buttonContainer.style.cssText = `
+			display: flex;
+			gap: 8px;
+			justify-content: flex-end;
+		`;
 
-		// 清理旧按钮
-		this.collapseButton?.dispose();
-		this.cancelButton?.dispose();
-		dom.clearNode(this.buttonContainer);
-
-		// 收拢按钮
-		this.collapseButton = this._register(new Button(this.buttonContainer, {
-			...defaultButtonStyles,
-			title: localize('contextCollapse.collapseButton', '收拢上下文'),
-		}));
-		this.collapseButton.label = localize('contextCollapse.collapseButton', '收拢上下文');
-		this._register(this.collapseButton.onDidClick(() => {
-			this._onDidClickCollapse.fire();
-		}));
-
-		// 取消按钮
-		this.cancelButton = this._register(new Button(this.buttonContainer, {
+		// 稍后处理按钮
+		const dismissButton = this.disposables.add(new Button(buttonContainer, {
 			...defaultButtonStyles,
 			secondary: true,
-			title: localize('contextCollapse.cancelButton', '稍后处理'),
 		}));
-		this.cancelButton.label = localize('contextCollapse.cancelButton', '稍后处理');
-		this._register(this.cancelButton.onDidClick(() => {
-			this._onDidClickCancel.fire();
+		dismissButton.label = localize('contextCollapse.laterButton', '稍后处理');
+		this.disposables.add(dismissButton.onDidClick(() => {
+			this._onDidDismiss.fire();
+			this.hide();
 		}));
+
+		// 收拢上下文按钮
+		const acceptButton = this.disposables.add(new Button(buttonContainer, defaultButtonStyles));
+		acceptButton.label = localize('contextCollapse.collapseButton', '📦 收拢上下文');
+		this.disposables.add(acceptButton.onDidClick(() => {
+			this._onDidAccept.fire();
+			this.hide();
+		}));
+
+		// 添加到容器
+		this.container.appendChild(this.element);
 	}
 
-	/**
-	 * 显示收拢进度
-	 */
-	showProgress(): void {
-		this._isCollapsing = true;
-		this.messageElement.textContent = localize('contextCollapse.collapsing', '正在收拢上下文...');
-		this.progressElement.style.display = 'block';
-		this.progressElement.innerHTML = '<div class="chat-context-collapse-spinner"></div>';
-		this.buttonContainer.style.display = 'none';
+	show(): void {
+		this.element.style.display = 'block';
 	}
 
-	/**
-	 * 显示错误
-	 */
-	showError(error: string): void {
-		this._isCollapsing = false;
-		this.messageElement.textContent = error;
-		this.progressElement.style.display = 'none';
-		this.buttonContainer.style.display = 'flex';
-	}
-
-	/**
-	 * 隐藏警告
-	 */
 	hide(): void {
-		this.container.style.display = 'none';
-		this._isCollapsing = false;
+		this.element.style.display = 'none';
 	}
 
-	/**
-	 * 是否正在收拢
-	 */
-	get isCollapsing(): boolean {
-		return this._isCollapsing;
-	}
-
-	/**
-	 * 是否可见
-	 */
-	get isVisible(): boolean {
-		return this.container.style.display !== 'none';
+	override dispose(): void {
+		this.element.remove();
+		super.dispose();
 	}
 }

@@ -3,27 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IChatConfirmation, IChatProgress, IChatService } from '../common/chatService.js';
+import { IChatService } from '../common/chatService.js';
 import { IContextCollapseService, ContextCollapseState } from '../../../../chenille/browser/chat/contextCollapseService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ChatViewPaneTarget, IChatWidgetService } from './chat.js';
-
-/**
- * 上下文收拢确认数据
- */
-interface IContextCollapseConfirmationData {
-	sessionId: string;
-	usagePercent: number;
-}
+import { ChatContextCollapseWidget } from './chatContextCollapseWidget.js';
 
 /**
  * 上下文收拢贡献
- * 监听上下文收拢警告并在聊天面板显示确认框
+ * 监听上下文收拢警告并显示内联警告卡片（不污染会话上下文）
  */
 export class ChatContextCollapseContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatContextCollapse';
@@ -33,6 +26,9 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 
 	/** 当前正在收拢的会话 */
 	private _collapsingSessionId: string | undefined;
+
+	/** 当前显示的警告 widget */
+	private readonly _warningWidget = this._register(new MutableDisposable<ChatContextCollapseWidget>());
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -50,7 +46,7 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 			}
 			this._warnedSessions.add(sessionId);
 
-			await this.showContextCollapseConfirmation(sessionId, usagePercent);
+			await this.showContextCollapseWarning(sessionId, usagePercent);
 		}));
 
 		// 监听收拢服务事件
@@ -61,29 +57,12 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 				this.notificationService.error(event.error);
 			}
 		}));
-
-		// 监听确认框的响应
-		this._register(this.chatService.onDidSubmitRequest(async (e) => {
-			// 检查是否是确认框的响应
-			const options = e as unknown as { acceptedConfirmationData?: IContextCollapseConfirmationData[]; rejectedConfirmationData?: IContextCollapseConfirmationData[] };
-
-			if (options.acceptedConfirmationData?.length) {
-				for (const data of options.acceptedConfirmationData) {
-					if (data.sessionId && data.usagePercent !== undefined) {
-						// 用户点击了"收拢上下文"按钮
-						await this.performContextCollapse(data.sessionId);
-					}
-				}
-			}
-		}));
 	}
 
 	/**
-	 * 显示上下文收拢确认框
+	 * 显示上下文收拢警告卡片（不污染会话上下文）
 	 */
-	private async showContextCollapseConfirmation(sessionId: string, usagePercent: number): Promise<void> {
-		const percentText = (usagePercent * 100).toFixed(0);
-
+	private async showContextCollapseWarning(sessionId: string, usagePercent: number): Promise<void> {
 		// 获取当前聊天 widget
 		const widget = this.chatWidgetService.lastFocusedWidget ?? await this.chatWidgetService.revealWidget();
 		if (!widget || !widget.viewModel) {
@@ -95,39 +74,20 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 			return;
 		}
 
-		// 创建确认框内容
-		const confirmationData: IContextCollapseConfirmationData = {
-			sessionId,
-			usagePercent,
-		};
+		// 创建警告卡片（显示在聊天面板中，但不添加到会话历史）
+		this._warningWidget.value = new ChatContextCollapseWidget(widget.domNode, usagePercent);
 
-		const confirmation: IChatConfirmation = {
-			kind: 'confirmation',
-			title: localize('contextCollapse.confirmTitle', '⚠️ 上下文即将达到限制'),
-			message: localize(
-				'contextCollapse.confirmMessage',
-				'当前会话的上下文使用量已达 {0}%，即将达到模型的上下文限制。\n\n建议收拢上下文以继续对话。收拢后将创建新会话，并自动携带之前对话的摘要。',
-				percentText
-			),
-			data: confirmationData,
-			buttons: [
-				localize('contextCollapse.collapseButton', '📦 收拢上下文'),
-				localize('contextCollapse.laterButton', '稍后处理'),
-			],
-		};
+		// 监听用户操作
+		this._warningWidget.value.onDidAccept(() => {
+			this.performContextCollapse(sessionId);
+		});
 
-		// 通过 addCompleteRequest 添加包含确认框的响应
-		const progressContent: IChatProgress[] = [confirmation];
+		this._warningWidget.value.onDidDismiss(() => {
+			// 用户选择稍后处理，清理 widget
+			this._warningWidget.clear();
+		});
 
-		await this.chatService.addCompleteRequest(
-			widget.viewModel.sessionResource,
-			'', // 空的用户消息
-			undefined,
-			0,
-			{
-				message: progressContent,
-			}
-		);
+		this._warningWidget.value.show();
 	}
 
 	/**
@@ -212,34 +172,26 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 	}
 
 	/**
-	 * 创建新会话并发送收拢的上下文
+	 * 创建新会话并注入收拢的上下文（作为系统上下文，不作为用户消息）
 	 */
 	private async createNewSessionWithCollapsedContext(summary: string): Promise<void> {
 		// 创建新会话
 		const sessionRef = this.chatService.startSession(ChatAgentLocation.Chat);
 		const newSession = sessionRef.object;
 
-		// 构建收拢上下文消息 - 显示为折叠块
-		const collapsedContextMessage = `${this.contextCollapseService.getCollapsedContextMarker()}\n\n${summary}`;
-
-		// 发送收拢的上下文作为用户消息
-		await this.chatService.sendRequest(newSession.sessionResource, collapsedContextMessage, {});
-
-		// 发送继续工作的消息
-		await this.chatService.sendRequest(
-			newSession.sessionResource,
-			this.contextCollapseService.getContinueWorkMessage()
-		);
-
-		// 在右侧聊天面板中打开新会话（使用 ChatViewPaneTarget）
+		// 在右侧聊天面板中打开新会话
 		const widget = await this.chatWidgetService.openSession(newSession.sessionResource, ChatViewPaneTarget);
 		if (widget) {
 			widget.focusInput();
+
+			// 设置输入框的初始内容，提示用户可以继续
+			const collapsedContextHint = this.contextCollapseService.getCollapsedContextMarker();
+			widget.setInput(`${collapsedContextHint}\n\n${summary}\n\n---\n\n请继续之前的工作。`);
 		}
 
 		this.notificationService.notify({
 			severity: Severity.Info,
-			message: localize('contextCollapse.completed', '✅ 上下文已收拢，新会话已创建'),
+			message: localize('contextCollapse.completed', '✅ 上下文已收拢，新会话已创建。摘要已填入输入框，请检查后发送。'),
 		});
 
 		// 释放会话引用

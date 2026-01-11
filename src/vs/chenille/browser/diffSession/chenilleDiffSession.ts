@@ -140,4 +140,19 @@ export interface IChenilleDiffSessionService {
 	 * 结束指定 session
 	 */
 	endSession(uri: URI): void;
+
+	/**
+	 * 接受所有 sessions 的所有变更
+	 */
+	acceptAllSessions(): Promise<void>;
+
+	/**
+	 * 拒绝所有 sessions 的所有变更
+	 */
+	rejectAllSessions(): Promise<void>;
+
+	/**
+	 * 获取所有 sessions 中待处理的变更总数
+	 */
+	getTotalPendingCount(): number;
 }
