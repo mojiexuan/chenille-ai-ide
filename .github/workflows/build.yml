@@ -60,25 +60,25 @@ jobs:
 
       - name: Download Electron
         run: npm run electron x64
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Download built-in extensions
         run: node build/lib/builtInExtensions.ts
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Build
         run: npm run gulp vscode-linux-x64-min
-        timeout-minutes: 90
+        timeout-minutes: 150
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
 
       - name: Package deb
         run: npm run gulp vscode-linux-x64-build-deb
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Package rpm
         run: npm run gulp vscode-linux-x64-build-rpm
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -92,7 +92,7 @@ jobs:
   build-macos-x64:
     if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'darwin' || github.event_name == 'push' }}
     name: macOS x64
-    runs-on: macos-13
+    runs-on: macos-15
     timeout-minutes: 180
     steps:
       - name: Checkout
@@ -123,19 +123,19 @@ jobs:
 
       - name: Download Electron
         run: npm run electron x64
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Download built-in extensions
         run: node build/lib/builtInExtensions.ts
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Build
         run: npm run gulp vscode-darwin-x64-min
-        timeout-minutes: 90
+        timeout-minutes: 150
 
       - name: Package DMG
         run: npm run gulp vscode-darwin-x64-build-dmg
-        timeout-minutes: 30
+        timeout-minutes: 60
 
       - name: Upload macOS x64 artifacts
         uses: actions/upload-artifact@v4
@@ -178,19 +178,19 @@ jobs:
 
       - name: Download Electron
         run: npm run electron arm64
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Download built-in extensions
         run: node build/lib/builtInExtensions.ts
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Build
         run: npm run gulp vscode-darwin-arm64-min
-        timeout-minutes: 90
+        timeout-minutes: 150
 
       - name: Package DMG
         run: npm run gulp vscode-darwin-arm64-build-dmg
-        timeout-minutes: 30
+        timeout-minutes: 60
 
       - name: Upload macOS arm64 artifacts
         uses: actions/upload-artifact@v4
@@ -230,27 +230,27 @@ jobs:
 
       - name: Download Electron
         run: npm run electron x64
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Download built-in extensions
         run: node build/lib/builtInExtensions.ts
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Build
         run: npm run gulp vscode-win32-x64-min
-        timeout-minutes: 90
+        timeout-minutes: 150
 
       - name: Package Setup Installer (Inno Setup)
         run: npm run gulp vscode-win32-x64-inno-updater
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Package System Installer
         run: npm run gulp vscode-win32-x64-system-setup
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Package User Installer
         run: npm run gulp vscode-win32-x64-user-setup
-        timeout-minutes: 20
+        timeout-minutes: 30
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
