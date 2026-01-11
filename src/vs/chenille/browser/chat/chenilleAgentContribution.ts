@@ -62,7 +62,7 @@ export const CHENILLE_AGENT_ID = 'chenille.agent';
  */
 function createChenilleAgentData(): IChatAgentData {
 	// 使用 Chenille 自定义图标
-	const iconUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/media/chenille-icon.png');
+	const iconUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/media/chenille-icon.svg');
 
 	return {
 		id: CHENILLE_AGENT_ID,
