@@ -27,7 +27,9 @@ import {
 	IChatContentReference,
 	IChatTreeData,
 	IChatResponseProgressFileTreeData,
+	IChatTaskDto,
 } from '../../../workbench/contrib/chat/common/chatService.js';
+import { IChatProgressHistoryResponseContent } from '../../../workbench/contrib/chat/common/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat/common/constants.js';
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
@@ -51,6 +53,26 @@ import { IWorkbenchContribution } from '../../../workbench/common/contributions.
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
+
+/**
+ * 工具调用信息（从历史中提取）
+ */
+interface ToolInvocationInfo {
+	callId: string;
+	name: string;
+	parameters: Record<string, unknown>;
+	isComplete: boolean;
+	result?: string;
+}
+
+/**
+ * 历史消息验证结果
+ */
+interface HistoryValidationResult {
+	valid: boolean;
+	reason?: string;
+	messages?: AiModelMessage[];
+}
 
 /**
  * Chenille Agent ID
@@ -138,28 +160,335 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 	}
 
 	/**
-	 * 构建消息历史
+	 * 构建消息历史（带过滤）
+	 * 过滤掉无效的历史条目，避免发送给 API 时报错
 	 */
 	private buildMessages(request: IChatAgentRequest, history: IChatAgentHistoryEntry[]): AiModelMessage[] {
 		const messages: AiModelMessage[] = [];
 
-		// 添加历史消息
+		// 添加历史消息（带过滤）
 		for (const entry of history) {
-			messages.push({ role: 'user', content: entry.request.message });
-			// 从响应中提取文本内容
-			const responseText = entry.response
-				.filter((r): r is { kind: 'markdownContent'; content: MarkdownString } => r.kind === 'markdownContent')
-				.map((r: { kind: 'markdownContent'; content: MarkdownString }) => r.content.value)
-				.join('');
-			if (responseText) {
-				messages.push({ role: 'assistant', content: responseText });
+			const validation = this.validateHistoryEntry(entry);
+
+			if (!validation.valid) {
+				this.logService.debug(`[Chenille] 跳过历史条目: ${validation.reason}`,
+					entry.request.message.substring(0, 50));
+				continue;
+			}
+
+			// 添加验证通过的消息
+			if (validation.messages) {
+				messages.push(...validation.messages);
 			}
 		}
 
 		// 添加当前请求
 		messages.push({ role: 'user', content: request.message });
 
-		return messages;
+		// 最终校验
+		return this.finalValidation(messages);
+	}
+
+	/**
+	 * 验证单个历史条目
+	 */
+	private validateHistoryEntry(entry: IChatAgentHistoryEntry): HistoryValidationResult {
+		const result: AiModelMessage[] = [];
+		const response = entry.response as ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>;
+
+		// 1. 提取响应内容
+		const responseText = this.extractResponseText(response);
+		const toolInvocations = this.extractToolInvocations(response);
+
+		// 2. 检查是否有有效内容
+		if (!responseText && toolInvocations.length === 0) {
+			return { valid: false, reason: '响应为空' };
+		}
+
+		// 3. 检查是否只有错误
+		if (this.hasOnlyErrors(response)) {
+			return { valid: false, reason: '只包含错误信息' };
+		}
+
+		// 4. 添加用户消息
+		result.push({ role: 'user', content: entry.request.message });
+
+		// 5. 处理工具调用
+		if (toolInvocations.length > 0) {
+			const toolValidation = this.validateToolCalls(toolInvocations);
+
+			if (!toolValidation.valid) {
+				// 工具调用不完整，只保留文本部分
+				if (responseText && responseText.trim()) {
+					result.push({ role: 'assistant', content: responseText });
+					this.logService.debug(`[Chenille] 工具调用不完整，只保留文本: ${toolValidation.reason}`);
+					return { valid: true, messages: result };
+				}
+				return { valid: false, reason: toolValidation.reason };
+			}
+
+			// 添加带 tool_calls 的 assistant 消息
+			result.push({
+				role: 'assistant',
+				content: responseText || '',
+				tool_calls: toolValidation.toolCalls,
+			});
+
+			// 添加 tool 响应消息
+			if (toolValidation.toolResponses) {
+				result.push(...toolValidation.toolResponses);
+			}
+		} else {
+			// 无工具调用，只添加文本
+			if (responseText && responseText.trim()) {
+				result.push({ role: 'assistant', content: responseText });
+			} else {
+				return { valid: false, reason: '无有效响应内容' };
+			}
+		}
+
+		return { valid: true, messages: result };
+	}
+
+	/**
+	 * 验证工具调用完整性
+	 */
+	private validateToolCalls(toolInvocations: ToolInvocationInfo[]): {
+		valid: boolean;
+		reason?: string;
+		toolCalls?: AiToolCall[];
+		toolResponses?: AiModelMessage[];
+	} {
+		const toolCalls: AiToolCall[] = [];
+		const toolResponses: AiModelMessage[] = [];
+
+		for (const tool of toolInvocations) {
+			// 检查是否完成
+			if (!tool.isComplete) {
+				return { valid: false, reason: `工具 ${tool.name} 未完成` };
+			}
+
+			// 检查是否有 ID
+			if (!tool.callId) {
+				return { valid: false, reason: `工具 ${tool.name} 缺少 call_id` };
+			}
+
+			// 检查是否有结果
+			if (tool.result === undefined || tool.result === null) {
+				return { valid: false, reason: `工具 ${tool.name} 缺少结果` };
+			}
+
+			// 构建 tool_call
+			toolCalls.push({
+				id: tool.callId,
+				type: 'function',
+				function: {
+					name: tool.name,
+					arguments: JSON.stringify(tool.parameters),
+				},
+			});
+
+			// 构建 tool 响应
+			toolResponses.push({
+				role: 'tool',
+				tool_call_id: tool.callId,
+				content: typeof tool.result === 'string'
+					? tool.result
+					: JSON.stringify(tool.result),
+			});
+		}
+
+		return { valid: true, toolCalls, toolResponses };
+	}
+
+	/**
+	 * 从响应中提取工具调用信息
+	 * 注意：IChatProgressHistoryResponseContent 不包含 toolInvocationSerialized
+	 * 工具调用信息可能以其他方式存储或不在历史中
+	 */
+	private extractToolInvocations(response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>): ToolInvocationInfo[] {
+		const tools: ToolInvocationInfo[] = [];
+
+		for (const part of response) {
+			// 尝试检查是否有工具调用相关的内容
+			// 由于类型限制，我们需要使用类型断言来检查
+			const anyPart = part as { kind?: string; toolCallId?: string; toolId?: string; isComplete?: boolean; resultDetails?: unknown; pastTenseMessage?: string | { value: string } };
+
+			if (anyPart.kind === 'toolInvocationSerialized' && anyPart.toolCallId && anyPart.toolId) {
+				// 提取工具名称
+				const toolName = anyPart.toolId.split('.').pop() || anyPart.toolId;
+
+				// 提取结果内容
+				let resultContent: string | undefined;
+				if (anyPart.resultDetails) {
+					if (Array.isArray(anyPart.resultDetails)) {
+						resultContent = anyPart.resultDetails.map(r => String(r)).join('\n');
+					} else if (typeof anyPart.resultDetails === 'object') {
+						resultContent = JSON.stringify(anyPart.resultDetails);
+					}
+				}
+
+				// 如果没有 resultDetails，尝试从 pastTenseMessage 推断
+				if (!resultContent && anyPart.pastTenseMessage) {
+					resultContent = typeof anyPart.pastTenseMessage === 'string'
+						? anyPart.pastTenseMessage
+						: anyPart.pastTenseMessage.value;
+				}
+
+				tools.push({
+					callId: anyPart.toolCallId,
+					name: toolName,
+					parameters: {},
+					isComplete: anyPart.isComplete ?? false,
+					result: resultContent,
+				});
+			}
+		}
+
+		return tools;
+	}
+
+	/**
+	 * 提取响应文本
+	 */
+	private extractResponseText(response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>): string {
+		return response
+			.filter((r): r is IChatProgressHistoryResponseContent & { kind: 'markdownContent'; content: MarkdownString } =>
+				'kind' in r && r.kind === 'markdownContent' && 'content' in r)
+			.map(r => r.content.value)
+			.join('');
+	}
+
+	/**
+	 * 检查是否只有错误/警告/进度消息
+	 */
+	private hasOnlyErrors(response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>): boolean {
+		// 有效的内容类型
+		const validKinds = new Set([
+			'markdownContent',
+			'markdownVuln',
+			'treeData',
+			'inlineReference',
+			'codeblockUri',
+			'confirmation',
+			'thinking',
+		]);
+
+		// 检查是否有任何有效内容
+		const hasValidContent = response.some(r => {
+			const part = r as { kind?: string };
+			return part.kind !== undefined && validKinds.has(part.kind);
+		});
+
+		if (!hasValidContent) {
+			return true;
+		}
+
+		// 检查 markdownContent 是否只包含错误信息
+		const markdownParts = response.filter((r): r is IChatProgressHistoryResponseContent & { kind: 'markdownContent'; content: MarkdownString } => {
+			const part = r as { kind?: string; content?: unknown };
+			return part.kind === 'markdownContent' && part.content !== undefined;
+		});
+		if (markdownParts.length > 0) {
+			const allText = markdownParts.map(r => r.content.value).join('');
+			// 如果文本很短且包含错误关键词，认为是错误响应
+			if (allText.length < 200) {
+				const errorKeywords = ['未配置', '执行失败', '错误', 'Error', 'error', '异常', 'Exception'];
+				const hasOnlyError = errorKeywords.some(keyword => allText.includes(keyword));
+				// 移除 emoji 后检查是否有实际内容
+				const cleanText = allText.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
+				const hasNoRealContent = cleanText.length < 50;
+				if (hasOnlyError && hasNoRealContent) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * 最终校验：确保消息序列合法
+	 */
+	private finalValidation(messages: AiModelMessage[]): AiModelMessage[] {
+		const result: AiModelMessage[] = [];
+
+		for (let i = 0; i < messages.length; i++) {
+			const msg = messages[i];
+			const prev = result[result.length - 1];
+
+			// 避免连续的同角色消息（tool 除外）
+			if (prev && prev.role === msg.role && msg.role !== 'tool') {
+				// 合并内容
+				prev.content = `${prev.content}\n\n${msg.content}`;
+				// 如果有 tool_calls，也需要合并
+				if (msg.tool_calls) {
+					prev.tool_calls = [...(prev.tool_calls || []), ...msg.tool_calls];
+				}
+				continue;
+			}
+
+			// 检查 tool 消息前面是否有对应的 tool_calls
+			if (msg.role === 'tool' && msg.tool_call_id) {
+				const hasMatchingToolCall = result.some(m =>
+					m.role === 'assistant' &&
+					m.tool_calls?.some(tc => tc.id === msg.tool_call_id)
+				);
+				if (!hasMatchingToolCall) {
+					this.logService.warn(`[Chenille] 跳过孤立的 tool 响应: ${msg.tool_call_id}`);
+					continue;
+				}
+			}
+
+			// 检查 assistant 消息的 tool_calls 是否都有对应的 tool 响应
+			// 这个检查在添加后续消息时进行
+			if (prev?.role === 'assistant' && prev.tool_calls?.length) {
+				const toolCallIds = new Set(prev.tool_calls.map(tc => tc.id));
+				// 收集当前位置之后的所有 tool 响应
+				const remainingMessages = messages.slice(i);
+				const toolResponseIds = new Set(
+					remainingMessages
+						.filter(m => m.role === 'tool' && m.tool_call_id)
+						.map(m => m.tool_call_id)
+				);
+
+				// 检查是否所有 tool_calls 都有对应的响应
+				const missingResponses = [...toolCallIds].filter(id => !toolResponseIds.has(id));
+				if (missingResponses.length > 0) {
+					this.logService.warn(`[Chenille] 移除不完整的 tool_calls: ${missingResponses.join(', ')}`);
+					// 移除没有响应的 tool_calls
+					prev.tool_calls = prev.tool_calls.filter(tc => toolResponseIds.has(tc.id));
+					// 如果所有 tool_calls 都被移除了，清空数组
+					if (prev.tool_calls.length === 0) {
+						delete prev.tool_calls;
+					}
+				}
+			}
+
+			result.push(msg);
+		}
+
+		// 最后检查：确保最后一个 assistant 消息的 tool_calls 都有响应
+		const lastAssistant = [...result].reverse().find(m => m.role === 'assistant' && m.tool_calls?.length);
+		if (lastAssistant?.tool_calls) {
+			const toolCallIds = new Set(lastAssistant.tool_calls.map(tc => tc.id));
+			const toolResponseIds = new Set(
+				result
+					.filter(m => m.role === 'tool' && m.tool_call_id)
+					.map(m => m.tool_call_id)
+			);
+
+			const missingResponses = [...toolCallIds].filter(id => !toolResponseIds.has(id));
+			if (missingResponses.length > 0) {
+				this.logService.warn(`[Chenille] 最终检查：移除不完整的 tool_calls: ${missingResponses.join(', ')}`);
+				lastAssistant.tool_calls = lastAssistant.tool_calls.filter(tc => toolResponseIds.has(tc.id));
+				if (lastAssistant.tool_calls.length === 0) {
+					delete lastAssistant.tool_calls;
+				}
+			}
+		}
+
+		return result;
 	}
 
 	/**
