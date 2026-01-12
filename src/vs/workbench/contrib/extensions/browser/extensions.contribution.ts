@@ -268,7 +268,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "启用后，扩展在安装前将验证其签名。"),
-				default: true,
+				default: false,
 				scope: ConfigurationScope.APPLICATION,
 				included: isNative
 			},
