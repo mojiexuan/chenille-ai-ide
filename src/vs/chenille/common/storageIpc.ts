@@ -76,6 +76,7 @@ export const IAiPromptStorageService = createDecorator<IAiPromptStorageService>(
 
 export interface IAiPromptStorageService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangePrompts: Event<void>;
 	getAll(): Promise<AiPrompt[]>;
 	get(name: string): Promise<AiPrompt | undefined>;
 	save(prompt: AiPrompt): Promise<void>;
@@ -87,8 +88,11 @@ export const PromptStorageChannelName = 'chenille.promptStorage';
 export class PromptStorageChannel implements IServerChannel {
 	constructor(private readonly service: IAiPromptStorageService) { }
 
-	listen<T>(_context: unknown, _event: string): Event<T> {
-		throw new Error('No events');
+	listen<T>(_context: unknown, event: string): Event<T> {
+		switch (event) {
+			case 'onDidChangePrompts': return this.service.onDidChangePrompts as Event<T>;
+		}
+		throw new Error(`No event: ${event}`);
 	}
 
 	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
@@ -105,7 +109,11 @@ export class PromptStorageChannel implements IServerChannel {
 export class PromptStorageChannelClient implements IAiPromptStorageService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly channel: IChannel) { }
+	readonly onDidChangePrompts: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		this.onDidChangePrompts = this.channel.listen<void>('onDidChangePrompts');
+	}
 
 	getAll(): Promise<AiPrompt[]> {
 		return this.channel.call('getAll');
@@ -130,6 +138,7 @@ export const IAiAgentStorageService = createDecorator<IAiAgentStorageService>('a
 
 export interface IAiAgentStorageService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeAgents: Event<void>;
 	getAll(): Promise<AiAgentConfig[]>;
 	get(type: AgentType): Promise<AiAgentConfig | undefined>;
 	save(config: AiAgentConfig): Promise<void>;
@@ -140,8 +149,11 @@ export const AgentStorageChannelName = 'chenille.agentStorage';
 export class AgentStorageChannel implements IServerChannel {
 	constructor(private readonly service: IAiAgentStorageService) { }
 
-	listen<T>(_context: unknown, _event: string): Event<T> {
-		throw new Error('No events');
+	listen<T>(_context: unknown, event: string): Event<T> {
+		switch (event) {
+			case 'onDidChangeAgents': return this.service.onDidChangeAgents as Event<T>;
+		}
+		throw new Error(`No event: ${event}`);
 	}
 
 	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
@@ -157,7 +169,11 @@ export class AgentStorageChannel implements IServerChannel {
 export class AgentStorageChannelClient implements IAiAgentStorageService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly channel: IChannel) { }
+	readonly onDidChangeAgents: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		this.onDidChangeAgents = this.channel.listen<void>('onDidChangeAgents');
+	}
 
 	getAll(): Promise<AiAgentConfig[]> {
 		return this.channel.call('getAll');

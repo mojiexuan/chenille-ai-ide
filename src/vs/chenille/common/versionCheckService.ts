@@ -15,6 +15,8 @@ export interface IVersionUpdateInfo {
 	code: number;
 	content: string;
 	url: string;
+	/** 是否强制更新 */
+	forceUpdate?: boolean;
 }
 
 export const IChenilleVersionCheckService = createDecorator<IChenilleVersionCheckService>('chenilleVersionCheckService');

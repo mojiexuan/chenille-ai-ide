@@ -42,9 +42,9 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 		}
 
 		const headers = [
-			localize('authenticationlabel', "Label"),
+			localize('authenticationlabel', "标签"),
 			localize('authenticationid', "ID"),
-			localize('authenticationMcpAuthorizationServers', "MCP Authorization Servers")
+			localize('authenticationMcpAuthorizationServers', "MCP 授权服务器")
 		];
 
 		const rows: IRowData[][] = authentication
@@ -69,7 +69,7 @@ class AuthenticationDataRenderer extends Disposable implements IExtensionFeature
 
 const extensionFeature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'authentication',
-	label: localize('authentication', "Authentication"),
+	label: localize('authentication', "身份验证"),
 	access: {
 		canToggle: false
 	},

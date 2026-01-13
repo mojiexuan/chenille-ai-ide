@@ -1,0 +1,183 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* 更新弹窗蒙层 */
+.chenille-update-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2500;
+	backdrop-filter: blur(4px);
+	animation: chenille-fade-in 0.2s ease;
+}
+
+@keyframes chenille-fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes chenille-slide-up {
+	from {
+		opacity: 0;
+		transform: translateY(20px) scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+/* 更新弹窗容器 */
+.chenille-update-dialog {
+	width: 420px;
+	max-width: 90vw;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+	overflow: hidden;
+	animation: chenille-slide-up 0.3s ease;
+}
+
+/* 弹窗内容 */
+.chenille-update-content {
+	padding: 32px 28px 24px;
+	text-align: center;
+}
+
+/* 图标 */
+.chenille-update-icon {
+	width: 72px;
+	height: 72px;
+	margin: 0 auto 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chenille-update-icon img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	border-radius: 12px;
+}
+
+/* 标题 */
+.chenille-update-title {
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+/* 版本号 */
+.chenille-update-version {
+	display: inline-block;
+	font-size: 14px;
+	color: var(--vscode-textLink-foreground);
+	background: var(--vscode-textLink-foreground);
+	background: rgba(var(--vscode-textLink-foreground), 0.1);
+	padding: 4px 12px;
+	border-radius: 20px;
+	margin-bottom: 16px;
+	font-weight: 500;
+}
+
+/* 强制更新提示 */
+.chenille-update-force-hint {
+	font-size: 13px;
+	color: var(--vscode-errorForeground);
+	margin-bottom: 16px;
+	padding: 8px 12px;
+	background: rgba(255, 85, 85, 0.1);
+	border-radius: 6px;
+	border: 1px solid var(--vscode-errorForeground);
+}
+
+/* 更新内容 */
+.chenille-update-message {
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.6;
+	margin-bottom: 8px;
+	max-height: 120px;
+	overflow-y: auto;
+	text-align: left;
+	padding: 12px 16px;
+	background: var(--vscode-input-background);
+	border-radius: 8px;
+	border: 1px solid var(--vscode-input-border);
+}
+
+.chenille-update-message::-webkit-scrollbar {
+	width: 6px;
+}
+
+.chenille-update-message::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chenille-update-message::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+	border-radius: 3px;
+}
+
+/* 按钮区域 */
+.chenille-update-actions {
+	display: flex;
+	gap: 12px;
+	padding: 20px 28px 24px;
+	background: var(--vscode-sideBar-background);
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.chenille-update-btn {
+	flex: 1;
+	padding: 10px 20px;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 500;
+	transition: all 0.15s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+}
+
+.chenille-update-btn-primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.chenille-update-btn-primary:hover {
+	background: var(--vscode-button-hoverBackground);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.chenille-update-btn-secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.chenille-update-btn-secondary:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chenille-update-btn .codicon {
+	font-size: 16px;
+}

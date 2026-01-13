@@ -49,7 +49,7 @@ export class DiffEditorActiveAnnouncementContribution extends Disposable impleme
 
 		this._onDidActiveEditorChangeListener = this._register(this._editorService.onDidActiveEditorChange(() => {
 			if (isDiffEditor(this._editorService.activeTextEditorControl)) {
-				this._accessibilityService.alert(localize('openDiffEditorAnnouncement', "Diff editor"));
+				this._accessibilityService.alert(localize('openDiffEditorAnnouncement', "差异编辑器"));
 			}
 		}));
 	}

@@ -5,6 +5,7 @@
 
 import { IStateService } from '../../platform/state/node/state.js';
 import { Disposable } from '../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { AiPrompt } from '../common/types.js';
 import { IAiPromptStorageService } from '../common/storageIpc.js';
 import { BUILTIN_PROMPTS, isBuiltinPrompt } from '../common/builtinPrompts.js';
@@ -16,6 +17,9 @@ export type IAiPromptStorageMainService = IAiPromptStorageService;
 
 export class AiPromptStorageMainService extends Disposable implements IAiPromptStorageService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangePrompts = this._register(new Emitter<void>());
+	readonly onDidChangePrompts: Event<void> = this._onDidChangePrompts.event;
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
@@ -65,6 +69,7 @@ export class AiPromptStorageMainService extends Disposable implements IAiPromptS
 			prompts.push(prompt);
 		}
 		this.stateService.setItem(STORAGE_KEY, JSON.stringify(prompts));
+		this._onDidChangePrompts.fire();
 	}
 
 	async delete(name: string): Promise<void> {
@@ -74,5 +79,6 @@ export class AiPromptStorageMainService extends Disposable implements IAiPromptS
 		}
 		const prompts = (await this.getUserPrompts()).filter(p => p.name !== name);
 		this.stateService.setItem(STORAGE_KEY, JSON.stringify(prompts));
+		this._onDidChangePrompts.fire();
 	}
 }

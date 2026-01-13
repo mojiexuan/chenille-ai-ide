@@ -52,20 +52,20 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	private showScreenReaderNotification(): void {
 		this.screenReaderNotification = this.notificationService.prompt(
 			Severity.Info,
-			localize('screenReaderDetectedExplanation.question', "Screen reader usage detected. Do you want to enable {0} to optimize the editor for screen reader usage?", 'editor.accessibilitySupport'),
+			localize('screenReaderDetectedExplanation.question', "检测到屏幕阅读器使用。是否要启用 {0} 以针对屏幕阅读器使用优化编辑器？", 'editor.accessibilitySupport'),
 			[{
-				label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
+				label: localize('screenReaderDetectedExplanation.answerYes', "是"),
 				run: () => {
 					this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 				}
 			}, {
-				label: localize('screenReaderDetectedExplanation.answerNo', "No"),
+				label: localize('screenReaderDetectedExplanation.answerNo', "否"),
 				run: () => {
 					this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
 				}
 			},
 			{
-				label: localize('screenReaderDetectedExplanation.answerLearnMore', "Learn More"),
+				label: localize('screenReaderDetectedExplanation.answerLearnMore', "了解更多"),
 				run: () => {
 					this.openerService.open('https://code.visualstudio.com/docs/editor/accessibility#_screen-readers');
 				}
@@ -81,9 +81,9 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	private updateScreenReaderModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.screenReaderModeElement.value) {
-				const text = localize('screenReaderDetected', "Screen Reader Optimized");
+				const text = localize('screenReaderDetected', "屏幕阅读器已优化");
 				this.screenReaderModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.screenReaderMode', "Screen Reader Mode"),
+					name: localize('status.editor.screenReaderMode', "屏幕阅读器模式"),
 					text,
 					ariaLabel: text,
 					command: 'showEditorScreenReaderNotification',

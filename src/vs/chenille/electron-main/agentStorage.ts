@@ -5,6 +5,7 @@
 
 import { IStateService } from '../../platform/state/node/state.js';
 import { Disposable } from '../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { AgentType, AiAgentConfig } from '../common/types.js';
 import { IAiAgentStorageService } from '../common/storageIpc.js';
 
@@ -15,6 +16,9 @@ export type IAiAgentStorageMainService = IAiAgentStorageService;
 
 export class AiAgentStorageMainService extends Disposable implements IAiAgentStorageService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
+	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 
 	constructor(
 		@IStateService private readonly stateService: IStateService
@@ -48,5 +52,6 @@ export class AiAgentStorageMainService extends Disposable implements IAiAgentSto
 			agents.push(config);
 		}
 		this.stateService.setItem(STORAGE_KEY, JSON.stringify(agents));
+		this._onDidChangeAgents.fire();
 	}
 }
