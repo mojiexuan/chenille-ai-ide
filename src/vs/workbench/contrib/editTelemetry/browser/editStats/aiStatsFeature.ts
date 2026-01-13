@@ -126,6 +126,32 @@ export class AiStatsFeature extends Disposable {
 		return sumBy(sessionsToday, s => s.acceptedInlineSuggestions ?? 0);
 	});
 
+	public readonly chatEditCountToday = derived(this, r => {
+		this._dataVersion.read(r);
+		const val = this._data.getValue();
+		if (!val) {
+			return 0;
+		}
+		const startOfToday = new Date();
+		startOfToday.setHours(0, 0, 0, 0);
+
+		const sessionsToday = val.sessions.filter(s => s.startTime > startOfToday.getTime());
+		return sumBy(sessionsToday, s => s.chatEditCount ?? 0);
+	});
+
+	public readonly aiCharactersToday = derived(this, r => {
+		this._dataVersion.read(r);
+		const val = this._data.getValue();
+		if (!val) {
+			return 0;
+		}
+		const startOfToday = new Date();
+		startOfToday.setHours(0, 0, 0, 0);
+
+		const sessionsToday = val.sessions.filter(s => s.startTime > startOfToday.getTime());
+		return sumBy(sessionsToday, s => s.aiCharacters ?? 0);
+	});
+
 	private _getDataAndSession(): { data: IData; currentSession: ISession } {
 		const state = this._data.getValue() ?? { sessions: [] };
 

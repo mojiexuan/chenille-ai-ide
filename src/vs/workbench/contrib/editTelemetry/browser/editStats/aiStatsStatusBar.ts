@@ -129,11 +129,11 @@ export class AiStatsStatusBar extends Disposable {
 			n.div({
 				class: 'header',
 				style: {
-					minWidth: '200px',
+					minWidth: '220px',
 				}
 			},
 				[
-					n.div({ style: { flex: 1 } }, [localize('aiStatsStatusBarHeader', "AI Usage Statistics")]),
+					n.div({ style: { flex: 1 } }, [localize('aiStatsStatusBarHeader', "Chenille 使用统计")]),
 					n.div({ style: { marginLeft: 'auto' } }, actionBar([
 						{
 							action: {
@@ -142,7 +142,7 @@ export class AiStatsStatusBar extends Disposable {
 								enabled: true,
 								run: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
 								class: ThemeIcon.asClassName(Codicon.gear),
-								tooltip: localize('aiStats.statusBar.configure', "Configure")
+								tooltip: localize('aiStats.statusBar.configure', "设置")
 							},
 							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
 						}
@@ -150,29 +150,19 @@ export class AiStatsStatusBar extends Disposable {
 				]
 			),
 
-			n.div({ style: { display: 'flex' } }, [
+			n.div({ style: { display: 'flex', marginBottom: '4px' } }, [
 				n.div({ style: { flex: 1, paddingRight: '4px' } }, [
-					localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
+					localize('text1', "AI 辅助输入占比: {0}", aiRatePercent.get()),
 				]),
-				/*
-				TODO: Write article that explains the ratio and link to it.
-
-				n.div({ style: { marginLeft: 'auto' } }, actionBar([
-					{
-						action: {
-							id: 'aiStatsStatusBar.openSettings',
-							label: '',
-							enabled: true,
-							run: () => { },
-							class: ThemeIcon.asClassName(Codicon.info),
-							tooltip: ''
-						},
-						options: { icon: true, label: true, }
-					}
-				]))*/
+			]),
+			n.div({ style: { flex: 1, paddingRight: '4px', marginBottom: '4px' } }, [
+				localize('text2', "今日接受代码补全: {0} 次", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+			]),
+			n.div({ style: { flex: 1, paddingRight: '4px', marginBottom: '4px' } }, [
+				localize('text3', "今日聊天编辑: {0} 次", this._aiStatsFeature.chatEditCountToday.get()),
 			]),
 			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
-				localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+				localize('text4', "今日 AI 生成字符: {0}", this._aiStatsFeature.aiCharactersToday.get()),
 			]),
 		]);
 	}
