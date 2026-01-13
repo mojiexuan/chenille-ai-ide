@@ -4,55 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../base/common/lifecycle.js';
-import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
-import { IOpenerService } from '../../platform/opener/common/opener.js';
-import { URI } from '../../base/common/uri.js';
 import { IChenilleVersionCheckService, IVersionUpdateInfo } from '../common/versionCheckService.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { ChenilleUpdateDialog } from './updateDialog/updateDialog.js';
 
 /**
  * 版本检查 UI 服务（渲染进程）
- * 监听主进程的更新事件，显示更新提示
+ * 监听主进程的更新事件，显示更新弹窗
  */
 export class ChenilleVersionCheckUIService extends Disposable {
+	private updateDialog: ChenilleUpdateDialog | undefined;
+
 	constructor(
 		@IChenilleVersionCheckService private readonly versionCheckService: IChenilleVersionCheckService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(this.versionCheckService.onUpdateAvailable(info => this.showUpdateNotification(info)));
+		this._register(this.versionCheckService.onUpdateAvailable(info => this.showUpdateDialog(info)));
 
 		// 主动检查一次（防止错过启动时的事件）
 		this.versionCheckService.checkForUpdates().then(info => {
 			if (info) {
-				this.showUpdateNotification(info);
+				this.showUpdateDialog(info);
 			}
 		});
 	}
 
-	private showUpdateNotification(info: IVersionUpdateInfo): void {
-		const hasUrl = info.url && info.url.startsWith('http');
-		const choices = [];
-
-		if (hasUrl) {
-			choices.push({
-				label: '立即更新',
-				run: () => {
-					this.openerService.open(URI.parse(info.url), { openExternal: true });
-				}
-			});
+	private showUpdateDialog(info: IVersionUpdateInfo): void {
+		// 避免重复弹窗
+		if (this.updateDialog) {
+			return;
 		}
 
-		choices.push({
-			label: '知道了',
-			run: () => { /* 关闭通知 */ }
-		});
-
-		this.notificationService.prompt(
-			Severity.Info,
-			`发现新版本 ${info.name}！`,
-			choices,
-			{ sticky: true }
-		);
+		this.updateDialog = this.instantiationService.createInstance(ChenilleUpdateDialog, info);
+		this._register(this.updateDialog);
+		this._register(this.updateDialog.onDidClose(() => {
+			this.updateDialog = undefined;
+		}));
+		this.updateDialog.show();
 	}
 }
