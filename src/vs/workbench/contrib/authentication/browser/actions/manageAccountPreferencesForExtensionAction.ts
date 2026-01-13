@@ -19,8 +19,8 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageAccountPreferencesForExtension',
-			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences..."),
-			category: localize2('accounts', "Accounts"),
+			title: localize2('manageAccountPreferenceForExtension', "管理扩展帐户首选项..."),
+			category: localize2('accounts', "帐户"),
 			f1: true,
 			menu: [{
 				id: MenuId.AccountsContext,
@@ -68,8 +68,8 @@ class ManageAccountPreferenceForExtensionActionImpl {
 				label: ext.displayName ?? ext.name,
 				id: ext.identifier.value
 			})), {
-				placeHolder: localize('selectExtension', "Select an extension to manage account preferences for"),
-				title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
+				placeHolder: localize('selectExtension', "选择要管理帐户首选项的扩展"),
+				title: localize('pickAProviderTitle', "管理扩展帐户首选项")
 			});
 			extensionId = result?.id;
 		}
@@ -86,7 +86,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			const extensionQuery = this._authenticationQueryService.extension(extensionId);
 			const providersWithAccess = await extensionQuery.getProvidersWithAccess();
 			if (!providersWithAccess.length) {
-				await this._dialogService.info(localize('noAccountUsage', "This extension has not used any accounts yet."));
+				await this._dialogService.info(localize('noAccountUsage', "此扩展尚未使用任何帐户。"));
 				return;
 			}
 			providerId = providersWithAccess[0]; // Default to the first provider
@@ -97,8 +97,8 @@ class ManageAccountPreferenceForExtensionActionImpl {
 						id: providerId,
 					})),
 					{
-						placeHolder: localize('selectProvider', "Select an authentication provider to manage account preferences for"),
-						title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
+						placeHolder: localize('selectProvider', "选择要管理帐户首选项的身份验证提供程序"),
+						title: localize('pickAProviderTitle', "管理扩展帐户首选项")
 					}
 				);
 				if (!result) {
@@ -126,7 +126,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 				items.push({
 					providerId,
 					scopes: lastUsedScopes,
-					label: localize('use new account', "Use a new account..."),
+					label: localize('use new account', "使用新帐户..."),
 				});
 			}
 		}
@@ -147,8 +147,8 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
-		picker.placeholder = localize('placeholder v2', "Manage '{0}' account preferences for {1}...", extensionLabel, providerLabel);
-		picker.title = localize('title', "'{0}' Account Preferences For This Workspace", extensionLabel);
+		picker.placeholder = localize('placeholder v2', "管理 '{0}' 在 {1} 的帐户首选项...", extensionLabel, providerLabel);
+		picker.title = localize('title', "'{0}' 在此工作区的帐户首选项", extensionLabel);
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(async () => {
 			picker.hide();
@@ -163,7 +163,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 				label: a.label,
 				account: a,
 				providerId,
-				description: localize('currentAccount', "Current account"),
+				description: localize('currentAccount', "当前帐户"),
 				picked: true
 			}
 			: {
@@ -175,7 +175,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	}
 
 	private _handleNoAccounts(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): IDisposable {
-		picker.validationMessage = localize('noAccounts', "No accounts are currently used by this extension.");
+		picker.validationMessage = localize('noAccounts', "此扩展当前未使用任何帐户。");
 		picker.buttons = [this._quickInputService.backButton];
 		picker.show();
 		return Event.filter(picker.onDidTriggerButton, (e) => e === this._quickInputService.backButton)(() => this.run());

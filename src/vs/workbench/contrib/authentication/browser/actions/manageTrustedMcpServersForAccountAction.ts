@@ -23,8 +23,8 @@ export class ManageTrustedMcpServersForAccountAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageTrustedMCPServersForAccount',
-			title: localize2('manageTrustedMcpServersForAccount', "Manage Trusted MCP Servers For Account"),
-			category: localize2('accounts', "Accounts"),
+			title: localize2('manageTrustedMcpServersForAccount', "管理帐户的受信任 MCP 服务器"),
+			category: localize2('accounts', "帐户"),
 			f1: true,
 			precondition: ChatContextKeys.Setup.hidden.negate()
 		});
@@ -76,7 +76,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 
 		const accounts = await this._getAllAvailableAccounts();
 		const pick = await this._quickInputService.pick(accounts, {
-			placeHolder: localize('pickAccount', "Pick an account to manage trusted MCP servers for"),
+			placeHolder: localize('pickAccount', "选择要管理受信任 MCP 服务器的帐户"),
 			matchOnDescription: true,
 		});
 
@@ -125,7 +125,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 			});
 
 		if (!filteredMcpServers.length) {
-			this._dialogService.info(localize('noTrustedMcpServers', "This account has not been used by any MCP servers."));
+			this._dialogService.info(localize('noTrustedMcpServers', "此帐户尚未被任何 MCP 服务器使用。"));
 			return [];
 		}
 
@@ -135,7 +135,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 
 		return [
 			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem),
-			{ type: 'separator', label: localize('trustedMcpServers', "Trusted by Microsoft") } satisfies IQuickPickSeparator,
+			{ type: 'separator', label: localize('trustedMcpServers', "受 Microsoft 信任") } satisfies IQuickPickSeparator,
 			...trustedServers.sort(sortByLastUsed).map(this._toQuickPickItem)
 		];
 	}
@@ -143,12 +143,12 @@ class ManageTrustedMcpServersForAccountActionImpl {
 	private _toQuickPickItem(mcpServer: AllowedMcpServer): TrustedMcpServersQuickPickItem {
 		const lastUsed = mcpServer.lastUsed;
 		const description = lastUsed
-			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(lastUsed, true))
-			: localize('notUsed', "Has not used this account");
+			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "上次使用此帐户: {0}", fromNow(lastUsed, true))
+			: localize('notUsed', "尚未使用此帐户");
 		let tooltip: string | undefined;
 		let disabled: boolean | undefined;
 		if (mcpServer.trusted) {
-			tooltip = localize('trustedMcpServerTooltip', "This MCP server is trusted by Microsoft and\nalways has access to this account");
+			tooltip = localize('trustedMcpServerTooltip', "此 MCP 服务器受 Microsoft 信任，\n始终可以访问此帐户");
 			disabled = true;
 		}
 		return {
@@ -158,7 +158,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 			tooltip,
 			disabled,
 			buttons: [{
-				tooltip: localize('accountPreferences', "Manage account preferences for this MCP server"),
+				tooltip: localize('accountPreferences', "管理此 MCP 服务器的帐户首选项"),
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			}],
 			picked: mcpServer.allowed === undefined || mcpServer.allowed
@@ -172,9 +172,9 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		// Configure quick pick
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
-		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', 'Cancel');
-		quickPick.title = localize('manageTrustedMcpServers', "Manage Trusted MCP Servers");
-		quickPick.placeholder = localize('manageMcpServers', "Choose which MCP servers can access this account");
+		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', '取消');
+		quickPick.title = localize('manageTrustedMcpServers', "管理受信任的 MCP 服务器");
+		quickPick.placeholder = localize('manageMcpServers', "选择哪些 MCP 服务器可以访问此帐户");
 
 		// Set up event handlers
 		disposableStore.add(quickPick.onDidAccept(() => {

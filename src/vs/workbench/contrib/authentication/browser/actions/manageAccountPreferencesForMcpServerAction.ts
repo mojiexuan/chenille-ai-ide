@@ -19,8 +19,8 @@ export class ManageAccountPreferencesForMcpServerAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageAccountPreferencesForMcpServer',
-			title: localize2('manageAccountPreferenceForMcpServer', "Manage MCP Server Account Preferences"),
-			category: localize2('accounts', "Accounts"),
+			title: localize2('manageAccountPreferenceForMcpServer', "管理 MCP 服务器帐户首选项"),
+			category: localize2('accounts', "帐户"),
 			f1: false
 		});
 	}
@@ -68,7 +68,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 			const mcpServerQuery = this._authenticationQueryService.mcpServer(mcpServerId);
 			const providersWithAccess = await mcpServerQuery.getProvidersWithAccess();
 			if (!providersWithAccess.length) {
-				await this._dialogService.info(localize('noAccountUsage', "This MCP server has not used any accounts yet."));
+				await this._dialogService.info(localize('noAccountUsage', "此 MCP 服务器尚未使用任何帐户。"));
 				return;
 			}
 			providerId = providersWithAccess[0]; // Default to the first provider
@@ -79,8 +79,8 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 						id: providerId,
 					})),
 					{
-						placeHolder: localize('selectProvider', "Select an authentication provider to manage account preferences for"),
-						title: localize('pickAProviderTitle', "Manage MCP Server Account Preferences")
+						placeHolder: localize('selectProvider', "选择要管理帐户首选项的身份验证提供程序"),
+						title: localize('pickAProviderTitle', "管理 MCP 服务器帐户首选项")
 					}
 				);
 				if (!result) {
@@ -108,7 +108,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 				items.push({
 					providerId: providerId,
 					scopes: lastUsedScopes,
-					label: localize('use new account', "Use a new account..."),
+					label: localize('use new account', "使用新帐户..."),
 				});
 			}
 		}
@@ -129,8 +129,8 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
-		picker.placeholder = localize('placeholder v2', "Manage '{0}' account preferences for {1}...", mcpServerLabel, providerLabel);
-		picker.title = localize('title', "'{0}' Account Preferences For This Workspace", mcpServerLabel);
+		picker.placeholder = localize('placeholder v2', "管理 '{0}' 在 {1} 的帐户首选项...", mcpServerLabel, providerLabel);
+		picker.title = localize('title', "'{0}' 在此工作区的帐户首选项", mcpServerLabel);
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(async () => {
 			picker.hide();
@@ -145,7 +145,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 				label: a.label,
 				account: a,
 				providerId,
-				description: localize('currentAccount', "Current account"),
+				description: localize('currentAccount', "当前帐户"),
 				picked: true
 			}
 			: {
@@ -157,7 +157,7 @@ class ManageAccountPreferenceForMcpServerActionImpl {
 	}
 
 	private _handleNoAccounts(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): IDisposable {
-		picker.validationMessage = localize('noAccounts', "No accounts are currently used by this MCP server.");
+		picker.validationMessage = localize('noAccounts', "此 MCP 服务器当前未使用任何帐户。");
 		picker.buttons = [this._quickInputService.backButton];
 		picker.show();
 		return Event.filter(picker.onDidTriggerButton, (e) => e === this._quickInputService.backButton)(() => this.run());

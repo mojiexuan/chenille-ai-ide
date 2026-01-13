@@ -269,14 +269,14 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
 		if (dependents.length === 1) {
-			return localize('singleDependentError', "Cannot uninstall extension '{0}'. Extension '{1}' depends on this.",
+			return localize('singleDependentError', "无法卸载扩展'{0}'。扩展'{1}'依赖于此扩展。",
 				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name);
 		}
 		if (dependents.length === 2) {
-			return localize('twoDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}' and '{2}' depend on this.",
+			return localize('twoDependentsError', "无法卸载扩展'{0}'。扩展'{1}'和'{2}'依赖于此扩展。",
 				extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
 		}
-		return localize('multipleDependentsError', "Cannot uninstall extension '{0}'. Extensions '{1}', '{2}' and others depend on this.",
+		return localize('multipleDependentsError', "无法卸载扩展'{0}'。扩展'{1}'、'{2}'及其他扩展依赖于此扩展。",
 			extension.manifest.displayName || extension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
 
 	}
@@ -396,7 +396,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 		if (!manifest) {
-			return new MarkdownString().appendText(localize('manifest is not found', "Manifest is not found"));
+			return new MarkdownString().appendText(localize('manifest is not found', "未找到清单文件"));
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer
 			&& await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.canInstall(gallery) === true
@@ -408,7 +408,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			&& this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
 			return true;
 		}
-		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
+		return new MarkdownString().appendText(localize('cannot be installed', "无法安装扩展'{0}'，因为它在此环境中不可用。", gallery.displayName || gallery.name));
 	}
 
 	private async canInstallResourceExtension(extension: IResourceExtension): Promise<true | IMarkdownString> {
@@ -421,7 +421,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		if (this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
 			return true;
 		}
-		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.manifest.displayName ?? extension.identifier.id));
+		return new MarkdownString().appendText(localize('cannot be installed', "无法安装扩展'{0}'，因为它在此环境中不可用。", extension.manifest.displayName ?? extension.identifier.id));
 	}
 
 	async updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
@@ -450,7 +450,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const manifests = await Promise.all(extensions.map(async ({ extension }) => {
 			const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
 			if (!manifest) {
-				throw new Error(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", extension.displayName || extension.name));
+				throw new Error(localize('Manifest is not found', "安装扩展 {0} 失败: 未找到清单文件。", extension.displayName || extension.name));
 			}
 			return manifest;
 		}));
@@ -463,7 +463,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			try {
 				const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
 				if (!manifest) {
-					throw new Error(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", extension.displayName || extension.name));
+					throw new Error(localize('Manifest is not found', "安装扩展 {0} 失败: 未找到清单文件。", extension.displayName || extension.name));
 				}
 
 				if (options?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
@@ -512,7 +512,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions, servers?: IExtensionManagementServer[]): Promise<ILocalExtension> {
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 		if (!manifest) {
-			throw new Error(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
+			throw new Error(localize('Manifest is not found', "安装扩展 {0} 失败: 未找到清单文件。", gallery.displayName || gallery.name));
 		}
 
 		if (installOptions?.context?.[EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT] !== true) {
@@ -625,7 +625,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	async getInstallableServers(gallery: IGalleryExtension): Promise<IExtensionManagementServer[]> {
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 		if (!manifest) {
-			return Promise.reject(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
+			return Promise.reject(localize('Manifest is not found', "安装扩展 {0} 失败: 未找到清单文件。", gallery.displayName || gallery.name));
 		}
 		return this.getInstallableExtensionManagementServers(manifest);
 	}
@@ -677,7 +677,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const installableServers = this.getInstallableExtensionManagementServers(manifest);
 		for (const server of servers) {
 			if (!installableServers.includes(server)) {
-				const error = new Error(localize('cannot be installed in server', "Cannot install the '{0}' extension because it is not available in the '{1}' setup.", gallery.displayName || gallery.name, server.label));
+				const error = new Error(localize('cannot be installed in server', "无法安装扩展'{0}'，因为它在'{1}'环境中不可用。", gallery.displayName || gallery.name, server.label));
 				error.name = ExtensionManagementErrorCode.Unsupported;
 				throw error;
 			}
@@ -701,7 +701,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 
 		if (!servers.length) {
-			const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
+			const error = new Error(localize('cannot be installed', "无法安装扩展'{0}'，因为它在此环境中不可用。", gallery.displayName || gallery.name));
 			error.name = ExtensionManagementErrorCode.Unsupported;
 			throw error;
 		}
@@ -746,17 +746,17 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		if (this.isExtensionsSyncEnabled()) {
 			const { result } = await this.dialogService.prompt<boolean>({
 				type: Severity.Info,
-				message: extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+				message: extensions.length === 1 ? localize('install extension', "安装扩展") : localize('install extensions', "安装扩展"),
 				detail: extensions.length === 1
-					? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
-					: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?"),
+					? localize('install single extension', "是否要安装并在您的设备之间同步扩展'{0}'？", extensions[0].displayName)
+					: localize('install multiple extensions', "是否要安装并在您的设备之间同步扩展？"),
 				buttons: [
 					{
-						label: localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+						label: localize({ key: 'install', comment: ['&& denotes a mnemonic'] }, "安装(&&I)"),
 						run: () => false
 					},
 					{
-						label: localize({ key: 'install and do no sync', comment: ['&& denotes a mnemonic'] }, "Install (Do &&not sync)"),
+						label: localize({ key: 'install and do no sync', comment: ['&& denotes a mnemonic'] }, "安装(不同步)(&&N)"),
 						run: () => true
 					}
 				],
@@ -809,7 +809,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const manifests = await Promise.all(extensions.map(async ({ extension }) => {
 			const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
 			if (!manifest) {
-				throw new Error(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", extension.displayName || extension.name));
+				throw new Error(localize('Manifest is not found', "安装扩展 {0} 失败: 未找到清单文件。", extension.displayName || extension.name));
 			}
 			return manifest;
 		}));
@@ -852,7 +852,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		};
 
 		const installButton: IPromptButton<void> = {
-			label: allPublishers.length > 1 ? localize({ key: 'trust publishers and install', comment: ['&& denotes a mnemonic'] }, "Trust Publishers & &&Install") : localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "Trust Publisher & &&Install"),
+			label: allPublishers.length > 1 ? localize({ key: 'trust publishers and install', comment: ['&& denotes a mnemonic'] }, "信任发布者并安装(&&I)") : localize({ key: 'trust and install', comment: ['&& denotes a mnemonic'] }, "信任发布者并安装(&&I)"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'trust', extensionId: untrustedExtensions.map(e => e.identifier.id).join(',') });
 				this.trustPublishers(...allPublishers.map(p => ({ publisher: p.publisher, publisherDisplayName: p.publisherDisplayName })));
@@ -860,7 +860,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		};
 
 		const learnMoreButton: IPromptButton<void> = {
-			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+			label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "了解更多(&&L)"),
 			run: () => {
 				this.telemetryService.publicLog2<TrustPublisherEvent, TrustPublisherClassification>('extensions:trustPublisher', { action: 'learn', extensionId: untrustedExtensions.map(e => e.identifier.id).join(',') });
 				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('vscode.open', URI.parse('https://aka.ms/vscode-extension-security')));
@@ -875,10 +875,10 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const unverifiedLink = 'https://aka.ms/vscode-verify-publisher';
 
 		const title = allPublishers.length === 1
-			? localize('checkTrustedPublisherTitle', "Do you trust the publisher \"{0}\"?", allPublishers[0].publisherDisplayName)
+			? localize('checkTrustedPublisherTitle', "您信任发布者'{0}'吗？", allPublishers[0].publisherDisplayName)
 			: allPublishers.length === 2
-				? localize('checkTwoTrustedPublishersTitle', "Do you trust publishers \"{0}\" and \"{1}\"?", allPublishers[0].publisherDisplayName, allPublishers[1].publisherDisplayName)
-				: localize('checkAllTrustedPublishersTitle', "Do you trust the publisher \"{0}\" and {1} others?", allPublishers[0].publisherDisplayName, allPublishers.length - 1);
+				? localize('checkTwoTrustedPublishersTitle', "您信任发布者'{0}'和'{1}'吗？", allPublishers[0].publisherDisplayName, allPublishers[1].publisherDisplayName)
+				: localize('checkAllTrustedPublishersTitle', "您信任发布者'{0}'和其他 {1} 位发布者吗？", allPublishers[0].publisherDisplayName, allPublishers.length - 1);
 
 		const customMessage = new MarkdownString('', { supportThemeIcons: true, isTrusted: true });
 
@@ -886,47 +886,47 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			const extension = untrustedExtensions[0];
 			const manifest = untrustedExtensionManifests[0];
 			if (otherUntrustedPublishers.length) {
-				customMessage.appendMarkdown(localize('extension published by message', "The extension {0} is published by {1}.", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
+				customMessage.appendMarkdown(localize('extension published by message', "扩展 {0} 由 {1} 发布。", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
 				customMessage.appendMarkdown('&nbsp;');
 				const commandUri = createCommandUri('extension.open', extension.identifier.id, manifest.extensionPack?.length ? 'extensionPack' : 'dependencies').toString();
 				if (otherUntrustedPublishers.length === 1) {
-					customMessage.appendMarkdown(localize('singleUntrustedPublisher', "Installing this extension will also install [extensions]({0}) published by {1}.", commandUri, getPublisherLink(otherUntrustedPublishers[0])));
+					customMessage.appendMarkdown(localize('singleUntrustedPublisher', "安装此扩展还将安装由 {1} 发布的[扩展]({0})。", commandUri, getPublisherLink(otherUntrustedPublishers[0])));
 				} else {
-					customMessage.appendMarkdown(localize('message3', "Installing this extension will also install [extensions]({0}) published by {1} and {2}.", commandUri, otherUntrustedPublishers.slice(0, otherUntrustedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(otherUntrustedPublishers[otherUntrustedPublishers.length - 1])));
+					customMessage.appendMarkdown(localize('message3', "安装此扩展还将安装由 {1} 和 {2} 发布的[扩展]({0})。", commandUri, otherUntrustedPublishers.slice(0, otherUntrustedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(otherUntrustedPublishers[otherUntrustedPublishers.length - 1])));
 				}
 				customMessage.appendMarkdown('&nbsp;');
-				customMessage.appendMarkdown(localize('firstTimeInstallingMessage', "This is the first time you're installing extensions from these publishers."));
+				customMessage.appendMarkdown(localize('firstTimeInstallingMessage', "这是您首次安装来自这些发布者的扩展。"));
 			} else {
-				customMessage.appendMarkdown(localize('message1', "The extension {0} is published by {1}. This is the first extension you're installing from this publisher.", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
+				customMessage.appendMarkdown(localize('message1', "扩展 {0} 由 {1} 发布。这是您首次安装来自此发布者的扩展。", `[${extension.displayName}](${extension.detailsLink})`, getPublisherLink(extension)));
 			}
 		} else {
-			customMessage.appendMarkdown(localize('multiInstallMessage', "This is the first time you're installing extensions from publishers {0} and {1}.", getPublisherLink(allPublishers[0]), getPublisherLink(allPublishers[allPublishers.length - 1])));
+			customMessage.appendMarkdown(localize('multiInstallMessage', "这是您首次安装来自发布者 {0} 和 {1} 的扩展。", getPublisherLink(allPublishers[0]), getPublisherLink(allPublishers[allPublishers.length - 1])));
 		}
 
 		if (verifiedPublishers.length || unverfiiedPublishers.length === 1) {
 			for (const publisher of verifiedPublishers) {
 				customMessage.appendText('\n');
-				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} has verified ownership of {1}.", getPublisherLink(publisher), `[$(link-external) ${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
+				const publisherVerifiedMessage = localize('verifiedPublisherWithName', "{0} 已验证对 {1} 的所有权。", getPublisherLink(publisher), `[$(link-external) ${URI.parse(publisher.publisherDomain!.link).authority}](${publisher.publisherDomain!.link})`);
 				customMessage.appendMarkdown(`$(${verifiedPublisherIcon.id})&nbsp;${publisherVerifiedMessage}`);
 			}
 			if (unverfiiedPublishers.length) {
 				customMessage.appendText('\n');
 				if (unverfiiedPublishers.length === 1) {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} is [**not** verified]({1}).", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublisherWithName', "{0} [**未**验证]({1})。", getPublisherLink(unverfiiedPublishers[0]), unverifiedLink)}`);
 				} else {
-					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} and {1} are [**not** verified]({2}).", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
+					customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('unverifiedPublishers', "{0} 和 {1} [**未**验证]({2})。", unverfiiedPublishers.slice(0, unverfiiedPublishers.length - 1).map(p => getPublisherLink(p)).join(', '), getPublisherLink(unverfiiedPublishers[unverfiiedPublishers.length - 1]), unverifiedLink)}`);
 				}
 			}
 		} else {
 			customMessage.appendText('\n');
-			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "All publishers are [**not** verified]({0}).", unverifiedLink)}`);
+			customMessage.appendMarkdown(`$(${Codicon.unverified.id})&nbsp;${localize('allUnverifed', "所有发布者均[**未**验证]({0})。", unverifiedLink)}`);
 		}
 
 		customMessage.appendText('\n');
 		if (allPublishers.length > 1) {
-			customMessage.appendMarkdown(localize('message4', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publishers.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message4', "{0} 无法控制第三方扩展的行为，包括它们如何管理您的个人数据。仅在您信任这些发布者时才继续。", this.productService.nameLong));
 		} else {
-			customMessage.appendMarkdown(localize('message2', "{0} has no control over the behavior of third-party extensions, including how they manage your personal data. Proceed only if you trust the publisher.", this.productService.nameLong));
+			customMessage.appendMarkdown(localize('message2', "{0} 无法控制第三方扩展的行为，包括它们如何管理您的个人数据。仅在您信任此发布者时才继续。", this.productService.nameLong));
 		}
 
 		await this.dialogService.prompt({
@@ -1008,13 +1008,13 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	private async checkForWorkspaceTrust(manifest: IExtensionManifest, requireTrust: boolean): Promise<void> {
 		if (requireTrust || this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(manifest) === false) {
 			const buttons: WorkspaceTrustRequestButton[] = [];
-			buttons.push({ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' });
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustButton', "信任工作区并安装"), type: 'ContinueWithTrust' });
 			if (!requireTrust) {
-				buttons.push({ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' });
+				buttons.push({ label: localize('extensionInstallWorkspaceTrustContinueButton', "安装"), type: 'ContinueWithoutTrust' });
 			}
-			buttons.push({ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' });
+			buttons.push({ label: localize('extensionInstallWorkspaceTrustManageButton', "了解更多"), type: 'Manage' });
 			const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
+				message: localize('extensionInstallWorkspaceTrustMessage', "启用此扩展需要受信任的工作区。"),
 				buttons
 			});
 
@@ -1038,11 +1038,11 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 				}
 			}
 			if (nonWebExtensions.length && nonWebExtensions.length === extensions.length) {
-				throw new ExtensionManagementError('Not supported in Web', ExtensionManagementErrorCode.Unsupported);
+				throw new ExtensionManagementError('Web 中不支持', ExtensionManagementErrorCode.Unsupported);
 			}
 		}
 
-		const productName = localize('Chenille for Web', "{0} for the Web", this.productService.nameLong);
+		const productName = localize('Chenille for Web', "Web 版 {0}", this.productService.nameLong);
 		const virtualWorkspaceSupport = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(manifest);
 		const virtualWorkspaceSupportReason = getWorkspaceSupportTypeMessage(manifest.capabilities?.virtualWorkspaces);
 		const hasLimitedSupport = virtualWorkspaceSupport === 'limited' || !!virtualWorkspaceSupportReason;
@@ -1051,24 +1051,24 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			return;
 		}
 
-		const limitedSupportMessage = localize('limited support', "'{0}' has limited functionality in {1}.", extension.displayName || extension.identifier.id, productName);
+		const limitedSupportMessage = localize('limited support', "'{0}'在 {1} 中功能受限。", extension.displayName || extension.identifier.id, productName);
 		let message: string;
 		let buttons: IPromptButton<void>[] = [];
 		let detail: string | undefined;
 
 		const installAnywayButton: IPromptButton<void> = {
-			label: localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+			label: localize({ key: 'install anyways', comment: ['&& denotes a mnemonic'] }, "仍然安装(&&I)"),
 			run: () => { }
 		};
 
 		const showExtensionsButton: IPromptButton<void> = {
-			label: localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "&&Show Extensions"),
+			label: localize({ key: 'showExtensions', comment: ['&& denotes a mnemonic'] }, "显示扩展(&&S)"),
 			run: () => this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'))
 		};
 
 		if (nonWebExtensions.length && hasLimitedSupport) {
 			message = limitedSupportMessage;
-			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "Contains extensions which are not supported.")}`;
+			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "包含不支持的扩展。")}`;
 			buttons = [
 				installAnywayButton,
 				showExtensionsButton
@@ -1082,7 +1082,7 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		}
 
 		else {
-			message = localize('non web extensions', "'{0}' contains extensions which are not supported in {1}.", extension.displayName || extension.identifier.id, productName);
+			message = localize('non web extensions', "'{0}'包含在 {1} 中不支持的扩展。", extension.displayName || extension.identifier.id, productName);
 			buttons = [
 				installAnywayButton,
 				showExtensionsButton
@@ -1388,7 +1388,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		if (extension.manifest.main) {
 			if (!(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(extension.location, extension.manifest.main)))) {
 				isValid = false;
-				validations.push([Severity.Error, localize('main.notFound', "Cannot activate because {0} not found", extension.manifest.main)]);
+				validations.push([Severity.Error, localize('main.notFound', "无法激活，因为未找到 {0}", extension.manifest.main)]);
 			}
 		}
 		return {

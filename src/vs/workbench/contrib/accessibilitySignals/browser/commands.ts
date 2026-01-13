@@ -21,10 +21,10 @@ export class ShowSignalSoundHelp extends Action2 {
 	constructor() {
 		super({
 			id: ShowSignalSoundHelp.ID,
-			title: localize2('signals.sound.help', "Help: List Signal Sounds"),
+			title: localize2('signals.sound.help', "帮助: 列出信号声音"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.sound.help.description', "List all accessibility sounds, noises, or audio cues and configure their settings")
+				description: localize('accessibility.sound.help.description', "列出所有辅助功能声音、噪音或音频提示并配置其设置")
 			}
 		});
 	}
@@ -41,7 +41,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			signal,
 			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('sounds.help.settings', 'Configure Sound'),
+				tooltip: localize('sounds.help.settings', '配置声音'),
 				alwaysVisible: true
 			}] : []
 		})).sort((a, b) => a.label.localeCompare(b.label));
@@ -78,7 +78,7 @@ export class ShowSignalSoundHelp extends Action2 {
 			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true, AcknowledgeDocCommentsToken);
 		}));
 		disposables.add(qp.onDidHide(() => disposables.dispose()));
-		qp.placeholder = localize('sounds.help.placeholder', 'Select a sound to play and configure');
+		qp.placeholder = localize('sounds.help.placeholder', '选择要播放和配置的声音');
 		qp.canSelectMany = true;
 		await qp.show();
 	}
@@ -94,10 +94,10 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 	constructor() {
 		super({
 			id: ShowAccessibilityAnnouncementHelp.ID,
-			title: localize2('accessibility.announcement.help', "Help: List Signal Announcements"),
+			title: localize2('accessibility.announcement.help', "帮助: 列出信号播报"),
 			f1: true,
 			metadata: {
-				description: localize('accessibility.announcement.help.description', "List all accessibility announcements, alerts, braille messages, and configure their settings")
+				description: localize('accessibility.announcement.help.description', "列出所有辅助功能播报、警报、盲文消息并配置其设置")
 			}
 		});
 	}
@@ -114,7 +114,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			signal,
 			buttons: userGestureSignals.includes(signal) ? [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-				tooltip: localize('announcement.help.settings', 'Configure Announcement'),
+				tooltip: localize('announcement.help.settings', '配置播报'),
 				alwaysVisible: true,
 			}] : []
 		})).sort((a, b) => a.label.localeCompare(b.label));
@@ -149,7 +149,7 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
 		}));
 		disposables.add(qp.onDidHide(() => disposables.dispose()));
-		qp.placeholder = screenReaderOptimized ? localize('announcement.help.placeholder', 'Select an announcement to configure') : localize('announcement.help.placeholder.disabled', 'Screen reader is not active, announcements are disabled by default.');
+		qp.placeholder = screenReaderOptimized ? localize('announcement.help.placeholder', '选择要配置的播报') : localize('announcement.help.placeholder.disabled', '屏幕阅读器未激活，播报默认禁用。');
 		qp.canSelectMany = true;
 		await qp.show();
 	}

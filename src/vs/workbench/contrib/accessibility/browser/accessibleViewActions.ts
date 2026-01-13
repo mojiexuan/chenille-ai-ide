@@ -42,7 +42,7 @@ class AccessibleViewNextAction extends Action2 {
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}],
 			icon: Codicon.arrowDown,
-			title: localize('editor.action.accessibleViewNext', "Show Next in Accessible View")
+			title: localize('editor.action.accessibleViewNext', "在辅助视图中显示下一个")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -68,7 +68,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 				...accessibleViewMenu,
 				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
-			title: localize('editor.action.accessibleViewNextCodeBlock', "Accessible View: Next Code Block")
+			title: localize('editor.action.accessibleViewNextCodeBlock', "辅助视图: 下一个代码块")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -93,7 +93,7 @@ class AccessibleViewPreviousCodeBlockAction extends Action2 {
 				...accessibleViewMenu,
 				when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewContainsCodeBlocks),
 			},
-			title: localize('editor.action.accessibleViewPreviousCodeBlock', "Accessible View: Previous Code Block")
+			title: localize('editor.action.accessibleViewPreviousCodeBlock', "辅助视图: 上一个代码块")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -119,7 +119,7 @@ class AccessibleViewPreviousAction extends Action2 {
 					when: ContextKeyExpr.and(accessibleViewIsShown, accessibleViewSupportsNavigation),
 				}
 			],
-			title: localize('editor.action.accessibleViewPrevious', "Show Previous in Accessible View")
+			title: localize('editor.action.accessibleViewPrevious', "在辅助视图中显示上一个")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -147,7 +147,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewGoToSymbolSupported),
 				}
 			],
-			title: localize('editor.action.accessibleViewGoToSymbol', "Go To Symbol in Accessible View")
+			title: localize('editor.action.accessibleViewGoToSymbol', "在辅助视图中转到符号")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -176,7 +176,7 @@ export const AccessibilityHelpAction = registerCommand(new MultiCommand({
 	menuOpts: [{
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: localize('editor.action.accessibilityHelp', "Open Accessibility Help"),
+		title: localize('editor.action.accessibilityHelp', "打开辅助功能帮助"),
 		order: 1
 	}],
 }));
@@ -196,7 +196,7 @@ export const AccessibleViewAction = registerCommand(new MultiCommand({
 	menuOpts: [{
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: localize('editor.action.accessibleView', "Open Accessible View"),
+		title: localize('editor.action.accessibleView', "打开辅助视图"),
 		order: 1
 	}],
 }));
@@ -219,7 +219,7 @@ class AccessibleViewDisableHintAction extends Action2 {
 					when: ContextKeyExpr.and(ContextKeyExpr.or(accessibleViewIsShown, accessibilityHelpIsShown), accessibleViewVerbosityEnabled),
 				}
 			],
-			title: localize('editor.action.accessibleViewDisableHint', "Disable Accessible View Hint")
+			title: localize('editor.action.accessibleViewDisableHint', "禁用辅助视图提示")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -246,7 +246,7 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 					when: accessibleViewHasUnassignedKeybindings,
 				}
 			],
-			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
+			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "辅助功能帮助配置未分配的键绑定")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -273,7 +273,7 @@ class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
 					when: accessibleViewHasAssignedKeybindings,
 				}
 			],
-			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
+			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "辅助功能帮助配置已分配的键绑定")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -292,7 +292,7 @@ class AccessibilityHelpOpenHelpLinkAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.KeyH,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			title: localize('editor.action.accessibilityHelpOpenHelpLink', "Accessibility Help Open Help Link")
+			title: localize('editor.action.accessibilityHelpOpenHelpLink', "辅助功能帮助打开帮助链接")
 		});
 	}
 	run(accessor: ServicesAccessor): void {
@@ -320,7 +320,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 					order: 0,
 					when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineCompletions))
 				}],
-			title: localize('editor.action.accessibleViewAcceptInlineCompletionAction', "Accept Inline Completion")
+			title: localize('editor.action.accessibleViewAcceptInlineCompletionAction', "接受内联补全")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {

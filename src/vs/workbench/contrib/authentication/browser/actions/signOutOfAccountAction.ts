@@ -16,7 +16,7 @@ export class SignOutOfAccountAction extends Action2 {
 	constructor() {
 		super({
 			id: '_signOutOfAccount',
-			title: localize('signOutOfAccount', "Sign out of account"),
+			title: localize('signOutOfAccount', "注销帐户"),
 			f1: false
 		});
 	}
@@ -39,9 +39,9 @@ export class SignOutOfAccountAction extends Action2 {
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
 			message: accountUsages.length
-				? localize('signOutMessage', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountLabel, accountUsages.map(usage => usage.extensionName).join('\n'))
-				: localize('signOutMessageSimple', "Sign out of '{0}'?", accountLabel),
-			primaryButton: localize({ key: 'signOut', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
+				? localize('signOutMessage', "帐户 '{0}' 已被以下扩展使用: \n\n{1}\n\n 是否从这些扩展注销?", accountLabel, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: localize('signOutMessageSimple', "注销 '{0}'?", accountLabel),
+			primaryButton: localize({ key: 'signOut', comment: ['&& denotes a mnemonic'] }, "注销(&&S)")
 		});
 
 		if (confirmed) {

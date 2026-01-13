@@ -19,8 +19,8 @@ export class ManageAccountsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.manageAccounts',
-			title: localize2('manageAccounts', "Manage Accounts"),
-			category: localize2('accounts', "Accounts"),
+			title: localize2('manageAccounts', "管理帐户"),
+			category: localize2('accounts', "帐户"),
 			f1: true
 		});
 	}
@@ -51,11 +51,11 @@ class ManageAccountsActionImpl {
 	) { }
 
 	public async run() {
-		const placeHolder = localize('pickAccount', "Select an account to manage");
+		const placeHolder = localize('pickAccount', "选择要管理的帐户");
 
 		const accounts = await this.listAccounts();
 		if (!accounts.length) {
-			await this.quickInputService.pick([{ label: localize('noActiveAccounts', "There are no active accounts.") }], { placeHolder });
+			await this.quickInputService.pick([{ label: localize('noActiveAccounts', "没有活动的帐户。") }], { placeHolder });
 			return;
 		}
 
@@ -99,25 +99,25 @@ class ManageAccountsActionImpl {
 		const store = new DisposableStore();
 		const quickPick = store.add(this.quickInputService.createQuickPick<AccountActionQuickPickItem>());
 
-		quickPick.title = localize('manageAccount', "Manage '{0}'", accountLabel);
-		quickPick.placeholder = localize('selectAction', "Select an action");
+		quickPick.title = localize('manageAccount', "管理 '{0}'", accountLabel);
+		quickPick.placeholder = localize('selectAction', "选择操作");
 		quickPick.buttons = [this.quickInputService.backButton];
 
 		const items: AccountActionQuickPickItem[] = [{
-			label: localize('manageTrustedExtensions', "Manage Trusted Extensions"),
+			label: localize('manageTrustedExtensions', "管理受信任的扩展"),
 			action: () => this.commandService.executeCommand('_manageTrustedExtensionsForAccount', { providerId, accountLabel })
 		}];
 
 		if (canUseMcp) {
 			items.push({
-				label: localize('manageTrustedMCPServers', "Manage Trusted MCP Servers"),
+				label: localize('manageTrustedMCPServers', "管理受信任的 MCP 服务器"),
 				action: () => this.commandService.executeCommand('_manageTrustedMCPServersForAccount', { providerId, accountLabel })
 			});
 		}
 
 		if (await canSignOut()) {
 			items.push({
-				label: localize('signOut', "Sign Out"),
+				label: localize('signOut', "注销"),
 				action: () => this.commandService.executeCommand('_signOutOfAccount', { providerId, accountLabel })
 			});
 		}
