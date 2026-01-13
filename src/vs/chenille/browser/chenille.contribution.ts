@@ -22,6 +22,9 @@ import './diffSession/chenilleDiffActions.js';
 // 导入 CSS 样式
 import './diffSession/chenilleDiffSession.css';
 
+// 导入 electron-browser 服务（自动注册）
+import '../electron-browser/globalRulesStorageService.js';
+
 // 注册 Action
 registerChenilleSettingsAction();
 
