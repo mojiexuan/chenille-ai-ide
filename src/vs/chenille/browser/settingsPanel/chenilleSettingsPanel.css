@@ -67,6 +67,7 @@
 
 .chenille-dialog-body {
 	flex: 1;
+	min-height: 0;
 	overflow: hidden;
 	display: flex;
 }
@@ -76,6 +77,7 @@
 	display: flex;
 	height: 100%;
 	width: 100%;
+	min-height: 0;
 }
 
 /* 左侧菜单 */
@@ -125,6 +127,7 @@
 /* 右侧内容区 */
 .chenille-settings-content {
 	flex: 1;
+	min-height: 0;
 	overflow: hidden;
 	background: var(--vscode-editor-background);
 	display: flex;
@@ -504,11 +507,29 @@
 }
 
 /* 全局规则面板样式 */
-.chenille-global-rules-panel {
+.chenille-rules-tabs {
 	display: flex;
-	flex-direction: column;
-	height: 100%;
-	width: 100%;
+	gap: 0;
+}
+
+.chenille-rules-tab {
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 2px solid transparent;
+	transition: all 0.15s ease;
+	user-select: none;
+}
+
+.chenille-rules-tab:hover {
+	color: var(--vscode-foreground);
+}
+
+.chenille-rules-tab.active {
+	color: var(--vscode-foreground);
+	border-bottom-color: var(--vscode-focusBorder);
 }
 
 .chenille-rules-textarea {
@@ -528,12 +549,6 @@
 
 .chenille-char-count-warning {
 	color: var(--vscode-errorForeground);
-}
-
-.chenille-form-divider {
-	height: 1px;
-	background: var(--vscode-widget-border);
-	margin: 20px 0;
 }
 
 .chenille-form-hint code {

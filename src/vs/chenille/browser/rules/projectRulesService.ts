@@ -48,6 +48,12 @@ export interface IProjectRulesService {
 	getProjectRules(): Promise<string | undefined>;
 
 	/**
+	 * 获取项目规则文件列表
+	 * @returns 规则文件信息数组
+	 */
+	getProjectRuleFiles(): Promise<{ name: string; uri: URI }[]>;
+
+	/**
 	 * 检查项目是否有规则文件
 	 */
 	hasProjectRules(): Promise<boolean>;
@@ -127,6 +133,41 @@ export class ProjectRulesService extends Disposable implements IProjectRulesServ
 	async hasProjectRules(): Promise<boolean> {
 		const rules = await this.getProjectRules();
 		return !!rules;
+	}
+
+	async getProjectRuleFiles(): Promise<{ name: string; uri: URI }[]> {
+		const workspaceFolder = this.getWorkspaceFolder();
+		if (!workspaceFolder) {
+			return [];
+		}
+
+		try {
+			const rulesDir = URI.joinPath(workspaceFolder, RULES_DIR);
+
+			// 检查目录是否存在
+			const dirExists = await this.fileService.exists(rulesDir);
+			if (!dirExists) {
+				return [];
+			}
+
+			// 读取目录内容
+			const stat = await this.fileService.resolve(rulesDir);
+			if (!stat.children || stat.children.length === 0) {
+				return [];
+			}
+
+			// 过滤 .md 文件并排序
+			return stat.children
+				.filter(child => !child.isDirectory && child.name.endsWith('.md'))
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.map(child => ({
+					name: child.name,
+					uri: child.resource,
+				}));
+		} catch (error) {
+			this.logService.error('[Chenille Rules] 获取规则文件列表失败:', error);
+			return [];
+		}
 	}
 
 	async createProjectRulesDirectory(): Promise<boolean> {
