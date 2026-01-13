@@ -13,8 +13,9 @@ import { PromptManagementPanel } from './promptManagementPanel.js';
 import { AgentManagementPanel } from './agentManagementPanel.js';
 import { McpManagementPanel } from './mcpManagementPanel.js';
 import { GlobalRulesPanel } from './globalRulesPanel.js';
+import { SkillsPanel } from './skillsPanel.js';
 
-export type PanelType = 'model' | 'prompt' | 'agent' | 'mcp' | 'rules';
+export type PanelType = 'model' | 'prompt' | 'agent' | 'mcp' | 'rules' | 'skills';
 
 interface MenuItem {
 	id: PanelType;
@@ -36,6 +37,7 @@ export class ChenilleSettingsPanel extends Disposable {
 		{ id: 'agent', label: localize('agentManagement', "智能体管理"), icon: 'codicon-hubot' },
 		{ id: 'mcp', label: localize('mcpManagement', "MCP 服务器"), icon: 'codicon-plug' },
 		{ id: 'rules', label: localize('rulesManagement', "规则管理"), icon: 'codicon-law' },
+		{ id: 'skills', label: localize('skillsManagement', "技能管理"), icon: 'codicon-lightbulb' },
 	];
 
 	constructor(
@@ -106,6 +108,11 @@ export class ChenilleSettingsPanel extends Disposable {
 			case 'rules':
 				this.panelDisposables.add(
 					this.instantiationService.createInstance(GlobalRulesPanel, this.contentContainer)
+				);
+				break;
+			case 'skills':
+				this.panelDisposables.add(
+					this.instantiationService.createInstance(SkillsPanel, this.contentContainer)
 				);
 				break;
 		}
