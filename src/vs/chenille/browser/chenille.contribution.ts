@@ -14,6 +14,7 @@ import { IContextCollapseService, ContextCollapseService } from './chat/contextC
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { ChenilleAgentContribution } from './chat/chenilleAgentContribution.js';
 import { IChenilleDiffSessionService, ChenilleDiffSessionService } from './diffSession/index.js';
+import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesService.js';
 
 // 导入 diff actions（自动注册）
 import './diffSession/chenilleDiffActions.js';
@@ -32,6 +33,7 @@ registerSingleton(IChenilleChatIntegration, ChenilleChatIntegrationImpl, Instant
 registerSingleton(IChenilleChatProvider, ChenilleChatProviderImpl, InstantiationType.Delayed);
 registerSingleton(IContextCollapseService, ContextCollapseService, InstantiationType.Delayed);
 registerSingleton(IChenilleDiffSessionService, ChenilleDiffSessionService, InstantiationType.Delayed);
+registerSingleton(IProjectRulesService, ProjectRulesService, InstantiationType.Delayed);
 
 // 注册 Chenille Agent 到 VS Code Chat 系统
 registerWorkbenchContribution2(ChenilleAgentContribution.ID, ChenilleAgentContribution, WorkbenchPhase.AfterRestored);

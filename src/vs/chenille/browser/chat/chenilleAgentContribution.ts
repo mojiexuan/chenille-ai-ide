@@ -50,6 +50,7 @@ import {
 	IPreparedToolInvocation,
 } from '../../../workbench/contrib/chat/common/languageModelToolsService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
+import { IProjectRulesService } from '../rules/projectRulesService.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -120,6 +121,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -141,6 +143,17 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		}
 
 		const isAgentMode = this.modeService.isAgentMode();
+		const isNewSession = history.length === 0;
+
+		// 新会话时获取项目规则
+		let projectRules: string | undefined;
+		if (isNewSession) {
+			projectRules = await this.projectRulesService.getProjectRules();
+			if (projectRules) {
+				this.logService.info('[Chenille Agent] 已加载项目规则');
+			}
+		}
+
 		const messages = this.buildMessages(request, history);
 
 		// 保存会话上下文，用于工具调用时的内联确认
@@ -150,7 +163,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		};
 
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, projectRules);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
