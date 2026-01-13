@@ -8,8 +8,9 @@ import { Action2, registerAction2 } from '../../../platform/actions/common/actio
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ChenilleSettingsDialog } from './chenilleSettingsDialog.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { CHENILLE_SETTINGS_ACTION_ID } from './constants.js';
 
-export const CHENILLE_SETTINGS_ACTION_ID = 'chenille.openSettings';
+export { CHENILLE_SETTINGS_ACTION_ID };
 
 let currentDialog: ChenilleSettingsDialog | undefined;
 let currentListener: IDisposable | undefined;

@@ -25,7 +25,7 @@ export const DEFAULT_MAX_LENGTH = 10000;
 /** 默认全局规则配置 */
 export const DEFAULT_GLOBAL_RULES: IGlobalRulesConfig = {
 	content: '',
-	enabled: true,
+	enabled: false,
 	maxLength: DEFAULT_MAX_LENGTH,
 };
 

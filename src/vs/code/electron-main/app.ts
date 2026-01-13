@@ -139,6 +139,8 @@ import { IChenilleVersionCheckService, ChenilleVersionCheckChannel, ChenilleVers
 import { ChenilleVersionCheckMainService } from '../../chenille/electron-main/versionCheckService.js';
 import { IGlobalRulesStorageService, GlobalRulesStorageChannel, GlobalRulesStorageChannelName } from '../../chenille/common/globalRulesStorage.js';
 import { GlobalRulesStorageMainService } from '../../chenille/electron-main/globalRulesStorage.js';
+import { IGlobalSkillsStorageService, GlobalSkillsStorageChannel, GlobalSkillsStorageChannelName } from '../../chenille/common/skills.js';
+import { GlobalSkillsStorageMainService } from '../../chenille/electron-main/globalSkillsStorage.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1135,6 +1137,7 @@ export class CodeApplication extends Disposable {
 		services.set(IChenilleInlineCompletionService, new SyncDescriptor(ChenilleInlineCompletionMainService));
 		services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
 		services.set(IGlobalRulesStorageService, new SyncDescriptor(GlobalRulesStorageMainService));
+		services.set(IGlobalSkillsStorageService, new SyncDescriptor(GlobalSkillsStorageMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1304,6 +1307,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: 全局规则存储服务
 		const globalRulesStorageChannel = new GlobalRulesStorageChannel(accessor.get(IGlobalRulesStorageService));
 		mainProcessElectronServer.registerChannel(GlobalRulesStorageChannelName, globalRulesStorageChannel);
+
+		// Chenille: 全局技能存储服务
+		const globalSkillsStorageChannel = new GlobalSkillsStorageChannel(accessor.get(IGlobalSkillsStorageService));
+		mainProcessElectronServer.registerChannel(GlobalSkillsStorageChannelName, globalSkillsStorageChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

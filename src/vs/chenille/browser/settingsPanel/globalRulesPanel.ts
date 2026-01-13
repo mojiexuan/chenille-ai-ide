@@ -10,8 +10,10 @@ import { IGlobalRulesStorageService, IGlobalRulesConfig, DEFAULT_MAX_LENGTH } fr
 import { IProjectRulesService } from '../rules/projectRulesService.js';
 import { INotificationService, Severity } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { CHENILLE_SETTINGS_ACTION_ID } from './constants.js';
 
 type TabType = 'global' | 'project';
 
@@ -28,7 +30,7 @@ export class GlobalRulesPanel extends Disposable {
 	private textarea: HTMLTextAreaElement | undefined;
 	private enabledCheckbox: HTMLInputElement | undefined;
 	private charCountElement: HTMLElement | undefined;
-	private currentData: IGlobalRulesConfig = { content: '', enabled: true, maxLength: DEFAULT_MAX_LENGTH };
+	private currentData: IGlobalRulesConfig = { content: '', enabled: false, maxLength: DEFAULT_MAX_LENGTH };
 
 	constructor(
 		parent: HTMLElement,
@@ -36,6 +38,7 @@ export class GlobalRulesPanel extends Disposable {
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.container = parent;
@@ -100,7 +103,7 @@ export class GlobalRulesPanel extends Disposable {
 		const enableLabel = append(enableGroup, $('label.chenille-form-checkbox-label'));
 		this.enabledCheckbox = append(enableLabel, $('input.chenille-form-checkbox')) as HTMLInputElement;
 		this.enabledCheckbox.type = 'checkbox';
-		this.enabledCheckbox.checked = true;
+		this.enabledCheckbox.checked = this.currentData.enabled;
 		append(enableLabel, $('span')).textContent = localize('enableGlobalRules', '启用全局规则');
 
 		this._register(addDisposableListener(this.enabledCheckbox, EventType.CHANGE, () => {
@@ -275,13 +278,14 @@ export class GlobalRulesPanel extends Disposable {
 		try {
 			const created = await this.projectRulesService.createProjectRulesDirectory();
 			if (created) {
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: localize('projectRulesDirCreated', '项目规则目录已创建'),
-				});
+				// 关闭设置面板，让用户直接编辑
+				this.commandService.executeCommand(CHENILLE_SETTINGS_ACTION_ID);
+				// 打开创建的文件
+				const ruleFiles = await this.projectRulesService.getProjectRuleFiles();
+				if (ruleFiles.length > 0) {
+					this.openerService.open(ruleFiles[0].uri);
+				}
 			}
-			// 刷新项目规则列表
-			this.renderProjectRulesContent();
 		} catch (error) {
 			this.notificationService.notify({
 				severity: Severity.Error,

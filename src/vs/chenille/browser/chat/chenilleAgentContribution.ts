@@ -51,6 +51,7 @@ import {
 } from '../../../workbench/contrib/chat/common/languageModelToolsService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { IProjectRulesService } from '../rules/projectRulesService.js';
+import { ISkillService } from '../../common/skills.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -122,6 +123,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
+		@ISkillService private readonly skillService: ISkillService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -147,10 +149,17 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 		// 新会话时获取合并后的规则（全局 + 项目）
 		let mergedRules: string | undefined;
+		let skillsPrompt: string | undefined;
 		if (isNewSession) {
 			mergedRules = await this.projectRulesService.getMergedRules();
 			if (mergedRules) {
 				this.logService.info('[Chenille Agent] 已加载规则');
+			}
+
+			// 获取 Skills 元数据
+			skillsPrompt = await this.skillService.getSkillsPrompt();
+			if (skillsPrompt) {
+				this.logService.info('[Chenille Agent] 已加载技能元数据');
 			}
 		}
 
@@ -163,7 +172,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		};
 
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, mergedRules);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, mergedRules, skillsPrompt);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -526,7 +535,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
 		sessionContext: { sessionResource: URI; requestId: string },
-		projectRules?: string
+		projectRules?: string,
+		skillsPrompt?: string
 	): Promise<IChatAgentResult> {
 		const tools = enableTools ? this.getAvailableTools() : undefined;
 		let toolRound = 0;
@@ -536,9 +546,10 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				return {};
 			}
 
-			// 只在第一轮传递项目规则
+			// 只在第一轮传递项目规则和技能提示
 			const rulesForThisRound = toolRound === 0 ? projectRules : undefined;
-			const roundResult = await this.executeOneRound(messages, tools, progress, token, rulesForThisRound);
+			const skillsForThisRound = toolRound === 0 ? skillsPrompt : undefined;
+			const roundResult = await this.executeOneRound(messages, tools, progress, token, rulesForThisRound, skillsForThisRound);
 
 			// 无工具调用，对话结束
 			if (!roundResult.toolCalls?.length) {
@@ -575,7 +586,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		tools: AiTool[] | undefined,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
-		projectRules?: string
+		projectRules?: string,
+		skillsPrompt?: string
 	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
 		const requestId = generateUuid();
 		let content = '';
@@ -583,11 +595,15 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		let reasoning = '';
 		let reasoning_signature = '';
 
-		// 构建自定义系统提示（包含项目规则）
-		let customSystemPrompt: string | undefined;
+		// 构建自定义系统提示（包含项目规则和技能提示）
+		const promptParts: string[] = [];
 		if (projectRules) {
-			customSystemPrompt = `<project_rules>\n以下是项目规则，请在回答时遵循这些规则：\n\n${projectRules}\n</project_rules>`;
+			promptParts.push(`<project_rules>\n以下是项目规则，请在回答时遵循这些规则：\n\n${projectRules}\n</project_rules>`);
 		}
+		if (skillsPrompt) {
+			promptParts.push(skillsPrompt);
+		}
+		const customSystemPrompt = promptParts.length > 0 ? promptParts.join('\n\n') : undefined;
 
 		return new Promise((resolve, reject) => {
 			let resolved = false;
