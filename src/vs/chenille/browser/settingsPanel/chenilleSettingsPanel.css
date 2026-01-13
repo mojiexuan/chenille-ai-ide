@@ -502,3 +502,44 @@
 	opacity: 0.8;
 	cursor: not-allowed;
 }
+
+/* 全局规则面板样式 */
+.chenille-global-rules-panel {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+.chenille-rules-textarea {
+	min-height: 200px;
+	max-height: 400px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.chenille-char-count {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	text-align: right;
+	margin-top: 4px;
+}
+
+.chenille-char-count-warning {
+	color: var(--vscode-errorForeground);
+}
+
+.chenille-form-divider {
+	height: 1px;
+	background: var(--vscode-widget-border);
+	margin: 20px 0;
+}
+
+.chenille-form-hint code {
+	background: var(--vscode-textCodeBlock-background);
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+}

@@ -137,6 +137,8 @@ import { IChenilleInlineCompletionService, ChenilleInlineCompletionChannel, Chen
 import { ChenilleInlineCompletionMainService } from '../../chenille/electron-main/inlineCompletionService.js';
 import { IChenilleVersionCheckService, ChenilleVersionCheckChannel, ChenilleVersionCheckChannelName } from '../../chenille/common/versionCheckService.js';
 import { ChenilleVersionCheckMainService } from '../../chenille/electron-main/versionCheckService.js';
+import { IGlobalRulesStorageService, GlobalRulesStorageChannel, GlobalRulesStorageChannelName } from '../../chenille/common/globalRulesStorage.js';
+import { GlobalRulesStorageMainService } from '../../chenille/electron-main/globalRulesStorage.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1132,6 +1134,7 @@ export class CodeApplication extends Disposable {
 		services.set(IChenilleAiService, new SyncDescriptor(ChenilleAiMainService));
 		services.set(IChenilleInlineCompletionService, new SyncDescriptor(ChenilleInlineCompletionMainService));
 		services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
+		services.set(IGlobalRulesStorageService, new SyncDescriptor(GlobalRulesStorageMainService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1297,6 +1300,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: 版本检查服务
 		const versionCheckChannel = new ChenilleVersionCheckChannel(accessor.get(IChenilleVersionCheckService));
 		mainProcessElectronServer.registerChannel(ChenilleVersionCheckChannelName, versionCheckChannel);
+
+		// Chenille: 全局规则存储服务
+		const globalRulesStorageChannel = new GlobalRulesStorageChannel(accessor.get(IGlobalRulesStorageService));
+		mainProcessElectronServer.registerChannel(GlobalRulesStorageChannelName, globalRulesStorageChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

@@ -113,8 +113,12 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
 		const requestId = request.requestId;
 
-		// 确定使用的系统提示（自定义或默认）
-		const systemPromptContent = request.systemPrompt ?? agent.prompt.content;
+		// 构建系统提示：默认提示 + 自定义提示（项目规则等）
+		let systemPromptContent = agent.prompt.content;
+		if (request.systemPrompt) {
+			// 将自定义提示追加到默认提示后面
+			systemPromptContent = `${systemPromptContent}\n\n${request.systemPrompt}`;
+		}
 
 		// 构建消息列表，确保系统提示在最前面
 		const messages = [

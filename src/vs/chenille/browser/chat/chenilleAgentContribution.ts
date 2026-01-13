@@ -50,6 +50,7 @@ import {
 	IPreparedToolInvocation,
 } from '../../../workbench/contrib/chat/common/languageModelToolsService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
+import { IProjectRulesService } from '../rules/projectRulesService.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -120,6 +121,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -141,6 +143,17 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		}
 
 		const isAgentMode = this.modeService.isAgentMode();
+		const isNewSession = history.length === 0;
+
+		// 新会话时获取合并后的规则（全局 + 项目）
+		let mergedRules: string | undefined;
+		if (isNewSession) {
+			mergedRules = await this.projectRulesService.getMergedRules();
+			if (mergedRules) {
+				this.logService.info('[Chenille Agent] 已加载规则');
+			}
+		}
+
 		const messages = this.buildMessages(request, history);
 
 		// 保存会话上下文，用于工具调用时的内联确认
@@ -150,7 +163,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		};
 
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, mergedRules);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -512,7 +525,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		enableTools: boolean,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
-		sessionContext: { sessionResource: URI; requestId: string }
+		sessionContext: { sessionResource: URI; requestId: string },
+		projectRules?: string
 	): Promise<IChatAgentResult> {
 		const tools = enableTools ? this.getAvailableTools() : undefined;
 		let toolRound = 0;
@@ -522,7 +536,9 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				return {};
 			}
 
-			const roundResult = await this.executeOneRound(messages, tools, progress, token);
+			// 只在第一轮传递项目规则
+			const rulesForThisRound = toolRound === 0 ? projectRules : undefined;
+			const roundResult = await this.executeOneRound(messages, tools, progress, token, rulesForThisRound);
 
 			// 无工具调用，对话结束
 			if (!roundResult.toolCalls?.length) {
@@ -558,13 +574,20 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		messages: AiModelMessage[],
 		tools: AiTool[] | undefined,
 		progress: (parts: IChatProgress[]) => void,
-		token: CancellationToken
+		token: CancellationToken,
+		projectRules?: string
 	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
 		const requestId = generateUuid();
 		let content = '';
 		let toolCalls: AiToolCall[] | undefined;
 		let reasoning = '';
 		let reasoning_signature = '';
+
+		// 构建自定义系统提示（包含项目规则）
+		let customSystemPrompt: string | undefined;
+		if (projectRules) {
+			customSystemPrompt = `<project_rules>\n以下是项目规则，请在回答时遵循这些规则：\n\n${projectRules}\n</project_rules>`;
+		}
 
 		return new Promise((resolve, reject) => {
 			let resolved = false;
@@ -639,8 +662,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				}
 			});
 
-			// 发起请求
-			this.aiService.streamChat({ requestId, messages, tools }, token).catch((err) => {
+			// 发起请求（传递自定义系统提示）
+			this.aiService.streamChat({
+				requestId,
+				messages,
+				tools,
+				systemPrompt: customSystemPrompt,
+			}, token).catch((err) => {
 				clearTimeout(timeout);
 				if (!resolved) {
 					resolved = true;
