@@ -126,6 +126,21 @@ export async function searchInFiles(
 		// 如果有搜索服务，使用它
 		if (searchService) {
 			try {
+				// 处理 filePattern，确保使用正确的 glob 格式
+				let includePattern: Record<string, boolean> | undefined;
+				if (params.filePattern) {
+					let pattern = params.filePattern;
+					// 如果是简单的扩展名模式（如 *.vue），转换为递归模式（**/*.vue）
+					if (pattern.startsWith('*.') && !pattern.includes('/') && !pattern.includes('**')) {
+						pattern = '**/' + pattern;
+					}
+					// 如果没有通配符，假设是扩展名，添加 **/*.
+					else if (!pattern.includes('*') && !pattern.includes('/')) {
+						pattern = '**/*.' + pattern;
+					}
+					includePattern = { [pattern]: true };
+				}
+
 				const query: ITextQuery = {
 					type: QueryType.Text,
 					contentPattern: {
@@ -135,7 +150,7 @@ export async function searchInFiles(
 					},
 					folderQueries: [{ folder: searchRoot }],
 					maxResults,
-					includePattern: params.filePattern ? { [params.filePattern]: true } : undefined
+					includePattern
 				};
 
 				const searchResults = await searchService.textSearch(query);
@@ -219,10 +234,31 @@ export async function searchInFiles(
 						// 检查文件模式
 						if (params.filePattern) {
 							const name = child.name;
-							// 简单的扩展名匹配
-							if (params.filePattern.startsWith('*.')) {
-								const ext = params.filePattern.substring(1);
+							let pattern = params.filePattern;
+
+							// 标准化模式：移除 **/ 前缀
+							if (pattern.startsWith('**/')) {
+								pattern = pattern.substring(3);
+							}
+
+							// 简单的扩展名匹配（*.vue, *.ts 等）
+							if (pattern.startsWith('*.')) {
+								const ext = pattern.substring(1); // 包含点，如 .vue
 								if (!name.endsWith(ext)) {
+									continue;
+								}
+							}
+							// 纯扩展名（vue, ts 等）
+							else if (!pattern.includes('*') && !pattern.includes('/')) {
+								if (!name.endsWith('.' + pattern)) {
+									continue;
+								}
+							}
+							// 其他模式暂不支持，跳过文件
+							else if (pattern.includes('*')) {
+								// 简单的通配符匹配
+								const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+								if (!regex.test(name)) {
 									continue;
 								}
 							}

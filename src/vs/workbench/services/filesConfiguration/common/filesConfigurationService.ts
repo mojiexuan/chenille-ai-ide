@@ -13,7 +13,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
 import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isWeb } from '../../../../base/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { GlobalIdleValue } from '../../../../base/common/async.js';
@@ -120,7 +119,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
+	private static readonly DEFAULT_AUTO_SAVE_MODE = AutoSaveConfiguration.AFTER_DELAY;
 	private static readonly DEFAULT_AUTO_SAVE_DELAY = 1000;
 
 	private static readonly READONLY_MESSAGES = {

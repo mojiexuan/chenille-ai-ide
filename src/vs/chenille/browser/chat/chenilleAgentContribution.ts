@@ -33,11 +33,12 @@ import { IChatProgressHistoryResponseContent } from '../../../workbench/contrib/
 import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat/common/constants.js';
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
-import { AiModelMessage, AiToolCall, AiTool } from '../../common/types.js';
+import { AiModelMessage, AiToolCall, AiTool, AiMessageContent } from '../../common/types.js';
 import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, isChenilleFileTool, getInternalToolId } from '../../tools/dispatcher.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { isImageVariableEntry, IImageVariableEntry } from '../../../workbench/contrib/chat/common/chatVariableEntries.js';
 import {
 	ILanguageModelToolsService,
 	IToolData,
@@ -204,11 +205,101 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			}
 		}
 
-		// 添加当前请求
-		messages.push({ role: 'user', content: request.message });
+		// 添加当前请求（处理图片附件）
+		const currentMessage = this.buildCurrentMessage(request);
+		messages.push(currentMessage);
 
 		// 最终校验
 		return this.finalValidation(messages);
+	}
+
+	/**
+	 * 构建当前请求消息（支持图片附件）
+	 */
+	private buildCurrentMessage(request: IChatAgentRequest): AiModelMessage {
+		const imageContents: AiMessageContent[] = [];
+
+		// 检查 variables 中是否有图片附件
+		if (request.variables?.variables) {
+			for (const variable of request.variables.variables) {
+				if (isImageVariableEntry(variable)) {
+					const imageData = this.extractImageData(variable);
+					if (imageData) {
+						imageContents.push(imageData);
+						this.logService.info(`[Chenille Agent] 检测到图片附件: ${variable.name}`);
+					}
+				}
+			}
+		}
+
+		// 如果有图片，构建多模态消息
+		if (imageContents.length > 0) {
+			return {
+				role: 'user',
+				content: request.message,
+				multiContent: [
+					{ type: 'text', text: request.message },
+					...imageContents
+				]
+			};
+		}
+
+		// 无图片，返回纯文本消息
+		return { role: 'user', content: request.message };
+	}
+
+	/**
+	 * 从图片附件中提取 base64 数据
+	 */
+	private extractImageData(attachment: IImageVariableEntry): AiMessageContent | undefined {
+		const { value, mimeType } = attachment;
+
+		// value 是 Uint8Array
+		if (value instanceof Uint8Array) {
+			// 将 Uint8Array 转换为 base64
+			let binary = '';
+			const bytes = value;
+			const len = bytes.byteLength;
+			for (let i = 0; i < len; i++) {
+				binary += String.fromCharCode(bytes[i]);
+			}
+			const base64Data = btoa(binary);
+
+			// 确定 MIME 类型
+			const detectedMimeType = mimeType || this.detectImageMimeType(bytes) || 'image/png';
+
+			return {
+				type: 'image',
+				data: base64Data,
+				mimeType: detectedMimeType
+			};
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * 检测图片的 MIME 类型
+	 */
+	private detectImageMimeType(bytes: Uint8Array): string | undefined {
+		// PNG: 89 50 4E 47
+		if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+			return 'image/png';
+		}
+		// JPEG: FF D8 FF
+		if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+			return 'image/jpeg';
+		}
+		// GIF: 47 49 46 38
+		if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+			return 'image/gif';
+		}
+		// WebP: 52 49 46 46 ... 57 45 42 50
+		if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+			bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+			return 'image/webp';
+		}
+		return undefined;
 	}
 
 	/**

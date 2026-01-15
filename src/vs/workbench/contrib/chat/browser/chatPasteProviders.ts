@@ -59,18 +59,21 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	}
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
-			return;
-		}
-
 		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
 
-		// 检查模型是否支持视觉能力
+		// 检查模型是否支持视觉能力（Chenille 或 VS Code 扩展）
 		const vscodeVision = widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
 		const chenilleVision = await this.chenilleChatProvider.supportsVision();
+
+		// 如果是 VS Code 扩展的视觉能力，需要检查 chatReferenceBinaryData 提案 API
+		if (vscodeVision && !this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+			return;
+		}
+
+		// 如果两者都不支持视觉，返回
 		if (!vscodeVision && !chenilleVision) {
 			return;
 		}

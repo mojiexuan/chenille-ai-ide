@@ -35,7 +35,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent, ResponseModelState, IChatToolInvocation, ToolConfirmKind } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './chatSessionStore.js';
@@ -44,9 +44,10 @@ import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, IImageVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration } from './constants.js';
-import { ILanguageModelToolsService } from './languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from './languageModelToolsService.js';
 import { IChenilleChatProvider, IChenilleChatMessage } from '../../../../chenille/common/chatProvider.js';
 import { TokenUsage, AiMessageContent } from '../../../../chenille/common/types.js';
+import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -1095,6 +1096,51 @@ export class ChatService extends Disposable implements IChatService {
 								content: new MarkdownString(`工具 \`${name}\` ${statusText}`, markdownOptions)
 							});
 						}
+					}
+
+					// 工具确认请求 - 创建 ChatToolInvocation 显示确认 UI
+					if (chunk.toolConfirmation) {
+						const { toolCallId, toolName, message, resolve } = chunk.toolConfirmation;
+
+						// 创建简化的 toolData
+						const toolData = {
+							id: `chenille.${toolName}`,
+							source: ToolDataSource.Internal,
+							displayName: toolName,
+							modelDescription: '',
+						};
+
+						// 创建带确认消息的 preparedInvocation
+						const preparedInvocation = {
+							invocationMessage: new MarkdownString(`正在请求执行: \`${toolName}\``, markdownOptions),
+							confirmationMessages: {
+								title: localize('chenille.toolConfirmation.title', '确认执行'),
+								message: new MarkdownString(message, markdownOptions),
+							},
+						};
+
+						// 创建 ChatToolInvocation 实例
+						const toolInvocation = new ChatToolInvocation(
+							preparedInvocation,
+							toolData,
+							toolCallId,
+							false, // fromSubAgent
+							{} // parameters
+						);
+
+						// 发送到 UI
+						progressItems.push(toolInvocation);
+
+						// 异步等待用户确认
+						IChatToolInvocation.awaitConfirmation(toolInvocation, token).then(confirmedReason => {
+							const confirmed = confirmedReason.type !== ToolConfirmKind.Denied && confirmedReason.type !== ToolConfirmKind.Skipped;
+							resolve(confirmed);
+
+							// 标记工具执行完成
+							if (confirmed) {
+								toolInvocation.didExecuteTool(undefined);
+							}
+						});
 					}
 
 					// 错误

@@ -33,6 +33,7 @@ import {
 	deleteFile,
 	renameFile,
 	getOpenEditors,
+	editFile,
 	FileToolResult,
 	// 导入参数类型
 	ReadFileParams,
@@ -48,7 +49,8 @@ import {
 	CreateFileParams,
 	DeleteFileParams,
 	RenameFileParams,
-	GetOpenEditorsParams
+	GetOpenEditorsParams,
+	EditFileParams
 } from './fileTools/index.js';
 import {
 	resolveFilePath,
@@ -109,7 +111,8 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'createFile',
 	'deleteFile',
 	'renameFile',
-	'getOpenEditors'
+	'getOpenEditors',
+	'editFile'
 ]);
 
 /**
@@ -131,9 +134,6 @@ export function isMcpTool(toolName: string): boolean {
  * 这些工具通过 ILanguageModelToolsService 调用
  */
 const VSCODE_TOOL_ID_MAP: Record<string, string> = {
-	// 文件操作（VS Code 内置）
-	'editFile': 'vscode_editFile_internal',
-
 	// 终端工具
 	'runInTerminal': 'run_in_terminal',
 	'getTerminalOutput': 'get_terminal_output',
@@ -164,6 +164,7 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 
 	// 子代理
 	'runSubagent': 'runSubagent',
+	// 注意：editFile 已移至 Chenille 文件工具
 };
 
 /**
@@ -481,6 +482,12 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
 					}
+					// 删除文件前，先清理对应的 diff session
+					const deleteUri = resolveFilePath(parsed.data.path, this.workspaceService);
+					const existingSession = this.diffSessionService.getSession(deleteUri);
+					if (existingSession) {
+						this.diffSessionService.endSession(deleteUri);
+					}
 					result = await deleteFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
@@ -489,6 +496,12 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					const parsed = parseToolArguments<RenameFileParams>(toolCall, ['oldPath', 'newPath']);
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
+					}
+					// 重命名文件前，先清理旧路径的 diff session
+					const oldUri = resolveFilePath(parsed.data.oldPath, this.workspaceService);
+					const oldSession = this.diffSessionService.getSession(oldUri);
+					if (oldSession) {
+						this.diffSessionService.endSession(oldUri);
 					}
 					result = await renameFile(parsed.data, this.fileService, this.workspaceService);
 					break;
@@ -500,6 +513,19 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					result = await getOpenEditors(parsed.data, this.editorService, this.workspaceService);
+					break;
+				}
+
+				case 'editFile': {
+					const parsed = parseToolArguments<EditFileParams>(toolCall, ['path', 'content']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					// 如果启用 diff 模式，使用 diff session
+					if (this.diffModeEnabled) {
+						return await this.dispatchEditWithDiff(parsed.data);
+					}
+					result = await editFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
 
@@ -637,6 +663,17 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				summary = `获取成功: 共 ${totalCount ?? 0} 个打开的编辑器`;
 				break;
 			}
+			case 'editFile': {
+				const created = data.created as boolean | undefined;
+				const lineCount = data.lineCount as number | undefined;
+				const originalLineCount = data.originalLineCount as number | undefined;
+				if (created) {
+					summary = `文件创建成功，共 ${lineCount ?? 0} 行`;
+				} else {
+					summary = `文件编辑成功: ${originalLineCount ?? '?'} 行 → ${lineCount ?? '?'} 行`;
+				}
+				break;
+			}
 		}
 
 		// 构建最终内容：摘要 + 详细数据
@@ -743,14 +780,22 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		const parameters = parsed.success ? parsed.data : {};
 
 		try {
+			// 从 sessionResource 提取 sessionId（使用 LocalChatSessionUri.parseLocalSessionId）
+			let sessionId: string | undefined;
+			if (sessionContext?.sessionResource) {
+				// 导入 LocalChatSessionUri 来正确解析 base64 编码的 sessionId
+				const { LocalChatSessionUri } = await import('../../workbench/contrib/chat/common/chatUri.js');
+				sessionId = LocalChatSessionUri.parseLocalSessionId(sessionContext.sessionResource);
+			}
+
 			// 构建调用上下文（包含会话信息以启用内联确认）
 			const invocation: IToolInvocation = {
 				callId: `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
 				toolId: internalToolId,
 				parameters,
 				tokenBudget: undefined,
-				context: sessionContext ? {
-					sessionId: sessionContext.requestId,
+				context: (sessionContext && sessionId) ? {
+					sessionId: sessionId,
 					sessionResource: sessionContext.sessionResource,
 				} : undefined,
 				chatRequestId: sessionContext?.requestId,
@@ -1151,5 +1196,92 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			offset += lines[i].length + 1; // +1 for newline
 		}
 		return offset + column - 1;
+	}
+
+	/**
+	 * 使用 diff session 执行全文编辑操作
+	 */
+	private async dispatchEditWithDiff(params: EditFileParams): Promise<IToolResult> {
+		try {
+			const uri = resolveFilePath(params.path, this.workspaceService);
+			const newContent = params.content;
+
+			// 检查文件是否存在
+			let fileExists = true;
+			try {
+				await this.fileService.stat(uri);
+			} catch {
+				fileExists = false;
+			}
+
+			if (!fileExists) {
+				// 文件不存在，创建新文件并使用 diff 模式
+				await this.fileService.writeFile(uri, VSBuffer.fromString(''));
+
+				// 创建 diff session
+				const session = await this.diffSessionService.createSession(uri);
+
+				// 监听 session 结束事件，如果用户撤销，则删除文件
+				const disposable = session.onDidEnd(async (e) => {
+					disposable.dispose();
+					if (!e.accepted) {
+						try {
+							await this.fileService.del(uri);
+						} catch {
+							// 忽略删除失败
+						}
+					}
+				});
+
+				// 应用内容
+				const edit = EditOperation.insert(new Position(1, 1), newContent);
+				await session.applyEdits([edit]);
+
+				const pendingCount = session.getPendingCount();
+				const lineCount = countLines(newContent);
+				return {
+					success: true,
+					content: `文件创建成功: ${params.path}，共 ${lineCount} 行。\n` +
+						`[Diff 模式] 新文件内容已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。`
+				};
+			}
+
+			// 文件存在，获取或创建 diff session
+			let session = this.diffSessionService.getSession(uri);
+			if (!session) {
+				session = await this.diffSessionService.createSession(uri);
+			}
+
+			// 获取当前内容
+			const currentContent = session.modifiedModel.getValue();
+			const originalLineCount = countLines(currentContent);
+
+			// 全文替换
+			const fullRange = new Range(
+				1, 1,
+				session.modifiedModel.getLineCount(),
+				session.modifiedModel.getLineMaxColumn(session.modifiedModel.getLineCount())
+			);
+			const edit = EditOperation.replace(fullRange, newContent);
+			await session.applyEdits([edit]);
+
+			const pendingCount = session.getPendingCount();
+			const newLineCount = countLines(newContent);
+
+			return {
+				success: true,
+				content: `文件编辑成功: ${params.path}\n` +
+					`原文件: ${originalLineCount} 行 → 新文件: ${newLineCount} 行\n` +
+					`[Diff 模式] 变更已显示在编辑器中，等待确认。当前有 ${pendingCount} 个待处理的变更块。`
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `编辑文件失败: ${errorMessage}`
+			};
+		}
 	}
 }

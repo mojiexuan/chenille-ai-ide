@@ -260,6 +260,22 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 				required: []
 			}
 		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'editFile',
+			description: '全文覆盖编辑文件。如果文件不存在则创建。适用于需要完全重写文件内容的场景。对于局部修改，优先使用 replaceInFile/insertInFile。',
+			parameters: {
+				type: 'object',
+				properties: {
+					path: { type: 'string', description: '文件路径' },
+					content: { type: 'string', description: '新的文件内容（完整内容）' },
+					explanation: { type: 'string', description: '修改说明（可选）' }
+				},
+				required: ['path', 'content']
+			}
+		}
 	}
 ];
 
@@ -288,7 +304,7 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'runInTerminal',
 		vsCodeToolId: 'run_in_terminal',
-		description: '在终端中执行命令。支持后台进程。',
+		description: '在终端中执行命令。返回终端 ID，可用于 getTerminalOutput。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -302,11 +318,11 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'getTerminalOutput',
 		vsCodeToolId: 'get_terminal_output',
-		description: '获取终端命令的输出。',
+		description: '获取终端命令的输出。需要提供 runInTerminal 返回的终端 ID。',
 		parameters: {
 			type: 'object',
 			properties: {
-				id: { type: 'string', description: '终端 ID' }
+				id: { type: 'string', description: '终端 ID（从 runInTerminal 返回值获取）' }
 			} as AiFunctionDefinitionParameterProperty,
 			required: ['id']
 		}
@@ -314,21 +330,21 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'getTerminalSelection',
 		vsCodeToolId: 'terminal_selection',
-		description: '获取终端中选中的文本。',
+		description: '获取终端中选中的文本。需要用户在终端中选中文本。',
 		parameters: { type: 'object', properties: {} as AiFunctionDefinitionParameterProperty, required: [] }
 	},
 	{
 		chenilleName: 'getTerminalLastCommand',
 		vsCodeToolId: 'terminal_last_command',
-		description: '获取终端最后执行的命令及输出。',
+		description: '获取终端最后执行的命令及输出。需要终端保持活动状态。',
 		parameters: { type: 'object', properties: {} as AiFunctionDefinitionParameterProperty, required: [] }
 	},
 
-	// 任务工具
+	// 任务工具（需要 VS Code 任务系统支持）
 	{
 		chenilleName: 'runTask',
 		vsCodeToolId: 'run_task',
-		description: '运行 tasks.json 中定义的任务。',
+		description: '运行 tasks.json 中定义的任务。⚠️ 需要工作区配置了任务。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -341,7 +357,7 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'getTaskOutput',
 		vsCodeToolId: 'get_task_output',
-		description: '获取任务的输出。',
+		description: '获取任务的输出。⚠️ 需要先运行任务。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -354,7 +370,7 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'createAndRunTask',
 		vsCodeToolId: 'create_and_run_task',
-		description: '创建并运行任务。',
+		description: '创建并运行临时任务。⚠️ 需要 VS Code 任务系统支持。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -365,11 +381,11 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 		}
 	},
 
-	// 测试工具
+	// 测试工具（需要测试扩展支持）
 	{
 		chenilleName: 'runTests',
 		vsCodeToolId: 'runTests',
-		description: '运行单元测试。支持覆盖率收集。',
+		description: '运行单元测试。⚠️ 需要安装测试扩展（如 Test Explorer）。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -400,7 +416,7 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 	{
 		chenilleName: 'installExtensions',
 		vsCodeToolId: 'vscode_installExtensions',
-		description: '安装扩展。',
+		description: '安装扩展。⚠️ 需要扩展市场可用。',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -466,23 +482,8 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 			} as AiFunctionDefinitionParameterProperty,
 			required: ['prompt', 'description']
 		}
-	},
-
-	// 文件编辑（VS Code 内置）
-	{
-		chenilleName: 'editFile',
-		vsCodeToolId: 'vscode_editFile_internal',
-		description: '【不推荐】全文覆盖文件。优先使用 replaceInFile/insertInFile。',
-		parameters: {
-			type: 'object',
-			properties: {
-				uri: { type: 'string', description: '文件路径' },
-				code: { type: 'string', description: '完整代码内容' },
-				explanation: { type: 'string', description: '修改说明' }
-			} as AiFunctionDefinitionParameterProperty,
-			required: ['uri', 'code']
-		}
 	}
+	// 注意：editFile 已移至 Chenille 文件工具，不再使用 VS Code 内置版本
 ];
 
 // ==================== 工具辅助函数 ====================

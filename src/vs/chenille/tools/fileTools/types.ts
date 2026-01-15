@@ -292,3 +292,25 @@ export interface GetOpenEditorsResult {
 	/** 打开的编辑器总数 */
 	totalCount: number;
 }
+
+
+// ==================== editFile ====================
+
+export interface EditFileParams {
+	/** 文件路径 */
+	path: string;
+	/** 新的文件内容（全文覆盖） */
+	content: string;
+	/** 修改说明（可选） */
+	explanation?: string;
+}
+
+export interface EditFileResult {
+	success: boolean;
+	/** 是否为新创建的文件 */
+	created: boolean;
+	/** 文件行数 */
+	lineCount: number;
+	/** 原文件行数（如果是修改） */
+	originalLineCount?: number;
+}

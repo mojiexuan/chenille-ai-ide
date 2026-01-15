@@ -20,7 +20,9 @@ import {
 	DeleteFileParams,
 	DeleteFileResult,
 	RenameFileParams,
-	RenameFileResult
+	RenameFileResult,
+	EditFileParams,
+	EditFileResult
 } from './types.js';
 import {
 	resolveFilePath,
@@ -447,6 +449,59 @@ export async function renameFile(
 		return {
 			success: false,
 			error: `重命名失败: ${error instanceof Error ? error.message : String(error)}`,
+			errorCode: 'UNKNOWN_ERROR'
+		};
+	}
+}
+
+
+/**
+ * 编辑文件（全文覆盖）
+ * 如果文件不存在则创建
+ */
+export async function editFile(
+	params: EditFileParams,
+	fileService: IFileService,
+	workspaceService: IWorkspaceContextService
+): Promise<FileToolResult<EditFileResult>> {
+	try {
+		const uri = resolveFilePath(params.path, workspaceService);
+		const newContent = params.content;
+		const newLineCount = countLines(newContent);
+
+		// 检查文件是否已存在
+		let originalLineCount: number | undefined;
+		let isCreated = false;
+
+		try {
+			const existingContent = await fileService.readFile(uri);
+			originalLineCount = countLines(existingContent.value.toString());
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				// 文件不存在，将创建新文件
+				isCreated = true;
+			} else {
+				throw error;
+			}
+		}
+
+		// 写入文件
+		await fileService.writeFile(uri, VSBuffer.fromString(newContent));
+
+		return {
+			success: true,
+			data: {
+				success: true,
+				created: isCreated,
+				lineCount: newLineCount,
+				originalLineCount
+			}
+		};
+
+	} catch (error) {
+		return {
+			success: false,
+			error: `编辑文件失败: ${error instanceof Error ? error.message : String(error)}`,
 			errorCode: 'UNKNOWN_ERROR'
 		};
 	}
