@@ -23,6 +23,14 @@ export interface IChenilleChatResponseChunk {
 		status: 'calling' | 'success' | 'error';
 		result?: string;
 	};
+	/** 工具确认请求（需要用户确认才能执行的工具） */
+	toolConfirmation?: {
+		toolCallId: string;
+		toolName: string;
+		message: string;
+		/** 确认回调，用户点击确认/取消后调用 */
+		resolve: (confirmed: boolean) => void;
+	};
 	/** 是否完成 */
 	done: boolean;
 	/** 错误信息 */

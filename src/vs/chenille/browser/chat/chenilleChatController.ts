@@ -41,6 +41,14 @@ export interface IChenilleChatChunk {
 		success: boolean;
 		result: string;
 	};
+	/** 工具确认请求（需要用户确认才能执行的工具） */
+	toolConfirmation?: {
+		toolCallId: string;
+		toolName: string;
+		message: string;
+		/** 确认回调，用户点击确认/取消后调用 */
+		resolve: (confirmed: boolean) => void;
+	};
 	/** 是否完成 */
 	done: boolean;
 	/** 错误信息 */
@@ -226,7 +234,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		let fullResponse = '';
 		let toolRound = 0;
 		// 累计 token 使用量
-		let totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+		const totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
 		try {
 			// 工具调用循环（聊天模式下只执行一轮）
@@ -409,6 +417,56 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 
 			const toolName = toolCall.function.name ?? 'unknown';
 
+			// 解析参数
+			let parameters: Record<string, unknown> = {};
+			let parseError: string | undefined;
+			try {
+				if (toolCall.function.arguments) {
+					parameters = JSON.parse(toolCall.function.arguments);
+				}
+			} catch (error) {
+				// 参数解析失败，记录错误
+				parseError = error instanceof Error ? error.message : String(error);
+			}
+
+			// 如果参数解析失败，告诉 AI 并提供修复建议
+			if (parseError) {
+				const errorContent = this.formatParseErrorContent(toolName, toolCall.function.arguments || '', parseError);
+				messages.push({
+					role: 'tool',
+					tool_call_id: toolCall.id,
+					content: errorContent,
+				});
+				this._onChunk.fire({
+					toolResult: {
+						toolName,
+						success: false,
+						result: errorContent,
+					},
+					done: false,
+				});
+				continue;
+			}
+
+			// 检查是否需要用户确认
+			const confirmationResult = await this.checkToolConfirmation(toolCall.id, toolName, parameters);
+			if (confirmationResult.needsConfirmation && !confirmationResult.confirmed) {
+				messages.push({
+					role: 'tool',
+					tool_call_id: toolCall.id,
+					content: confirmationResult.cancelMessage || `[用户已取消执行工具: ${toolName}]`,
+				});
+				this._onChunk.fire({
+					toolResult: {
+						toolName,
+						success: false,
+						result: confirmationResult.cancelMessage || `用户已取消执行工具: ${toolName}`,
+					},
+					done: false,
+				});
+				continue;
+			}
+
 			try {
 				// 将 AiToolCall 转换为 ToolCall 格式供 dispatcher 使用
 				const dispatchToolCall = {
@@ -460,6 +518,173 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	}
 
 	/**
+	 * 请求工具确认（通过聊天区域的确认组件）
+	 * @returns true 如果用户确认，false 如果用户取消
+	 */
+	private requestToolConfirmation(toolCallId: string, toolName: string, message: string): Promise<boolean> {
+		return new Promise<boolean>((resolve) => {
+			// 发送确认请求到 UI
+			this._onChunk.fire({
+				toolConfirmation: {
+					toolCallId,
+					toolName,
+					message,
+					resolve,
+				},
+				done: false,
+			});
+		});
+	}
+
+	/**
+	 * 检查工具是否需要用户确认
+	 * @returns 确认结果
+	 */
+	private async checkToolConfirmation(
+		toolCallId: string,
+		toolName: string,
+		parameters: Record<string, unknown>
+	): Promise<{ needsConfirmation: boolean; confirmed?: boolean; cancelMessage?: string }> {
+		// 高危工具列表及其确认消息
+		switch (toolName) {
+			case 'deleteFile': {
+				const filePath = parameters.path as string | undefined;
+				const confirmed = await this.requestToolConfirmation(
+					toolCallId,
+					toolName,
+					localize('chenille.deleteFile.confirm', '是否确认删除文件 "{0}"？此操作不可撤销。', filePath || '未知路径')
+				);
+				return {
+					needsConfirmation: true,
+					confirmed,
+					cancelMessage: `[用户已取消删除文件: ${filePath || '未知路径'}]`
+				};
+			}
+
+			case 'renameFile': {
+				const oldPath = parameters.oldPath as string | undefined;
+				const newPath = parameters.newPath as string | undefined;
+				const overwrite = parameters.overwrite as boolean | undefined;
+				// 只有覆盖模式才需要确认
+				if (overwrite) {
+					const confirmed = await this.requestToolConfirmation(
+						toolCallId,
+						toolName,
+						localize('chenille.renameFile.confirm', '是否确认将 "{0}" 移动到 "{1}"？目标文件将被覆盖。', oldPath || '未知', newPath || '未知')
+					);
+					return {
+						needsConfirmation: true,
+						confirmed,
+						cancelMessage: `[用户已取消移动文件: ${oldPath} → ${newPath}]`
+					};
+				}
+				return { needsConfirmation: false };
+			}
+
+			case 'createFile': {
+				const filePath = parameters.path as string | undefined;
+				const overwrite = parameters.overwrite as boolean | undefined;
+				// 只有覆盖模式才需要确认
+				if (overwrite) {
+					const confirmed = await this.requestToolConfirmation(
+						toolCallId,
+						toolName,
+						localize('chenille.createFile.confirm', '是否确认覆盖文件 "{0}"？原内容将丢失。', filePath || '未知路径')
+					);
+					return {
+						needsConfirmation: true,
+						confirmed,
+						cancelMessage: `[用户已取消覆盖文件: ${filePath || '未知路径'}]`
+					};
+				}
+				return { needsConfirmation: false };
+			}
+
+			case 'runInTerminal': {
+				const command = parameters.command as string | undefined;
+				// 检查是否是危险命令
+				if (this.isDangerousCommand(command)) {
+					const confirmed = await this.requestToolConfirmation(
+						toolCallId,
+						toolName,
+						localize('chenille.runInTerminal.confirm', '是否确认执行命令？\n\n```\n{0}\n```\n\n⚠️ 此命令可能修改系统或删除文件。', command || '未知命令')
+					);
+					return {
+						needsConfirmation: true,
+						confirmed,
+						cancelMessage: `[用户已取消执行命令: ${(command || '').substring(0, 50)}...]`
+					};
+				}
+				return { needsConfirmation: false };
+			}
+
+			case 'installExtensions': {
+				const ids = parameters.ids as string[] | undefined;
+				const extensionList = ids?.join(', ') || '未知扩展';
+				const confirmed = await this.requestToolConfirmation(
+					toolCallId,
+					toolName,
+					localize('chenille.installExtensions.confirm', '是否确认安装以下扩展？\n\n{0}\n\n⚠️ 扩展可能访问您的文件和网络。', extensionList)
+				);
+				return {
+					needsConfirmation: true,
+					confirmed,
+					cancelMessage: `[用户已取消安装扩展: ${extensionList}]`
+				};
+			}
+
+			default:
+				return { needsConfirmation: false };
+		}
+	}
+
+	/**
+	 * 检查命令是否危险
+	 */
+	private isDangerousCommand(command: string | undefined): boolean {
+		if (!command) {
+			return false;
+		}
+
+		const lowerCommand = command.toLowerCase();
+
+		// 危险命令模式
+		const dangerousPatterns = [
+			// 删除命令
+			/\brm\s+-rf?\b/,
+			/\brmdir\b/,
+			/\bdel\s+\/[sfq]/i,
+			/\brd\s+\/s/i,
+			// 格式化/分区
+			/\bformat\b/,
+			/\bfdisk\b/,
+			/\bmkfs\b/,
+			// 权限修改
+			/\bchmod\s+777\b/,
+			/\bchown\b.*-R/,
+			// 系统修改
+			/\breg\s+(delete|add)/i,
+			/\bregedit\b/,
+			// 网络下载执行
+			/curl.*\|\s*(bash|sh)/,
+			/wget.*\|\s*(bash|sh)/,
+			/powershell.*-enc/i,
+			/iex\s*\(/i,
+			// 危险的 git 操作
+			/\bgit\s+push\s+.*--force\b/,
+			/\bgit\s+reset\s+--hard\b/,
+			// npm/yarn 全局安装
+			/\bnpm\s+i(nstall)?\s+-g\b/,
+			/\byarn\s+global\s+add\b/,
+			// sudo/管理员
+			/\bsudo\b/,
+			/\brunas\b/,
+		];
+
+		return dangerousPatterns.some(pattern => pattern.test(lowerCommand));
+	}
+
+	/**
 	 * 格式化工具执行结果内容（用于 tool 消息）
 	 */
 	private formatToolResultContent(toolName: string, result: IToolResult): string {
@@ -484,6 +709,43 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	 */
 	private formatToolErrorContent(toolName: string, error: string): string {
 		return `工具 "${toolName}" 执行异常: ${error}`;
+	}
+
+	/**
+	 * 格式化参数解析错误内容（用于 tool 消息）
+	 * 提供详细的错误信息和修复建议
+	 */
+	private formatParseErrorContent(toolName: string, rawArguments: string, error: string): string {
+		// 截取参数片段用于显示
+		const maxPreviewLength = 200;
+		const argsPreview = rawArguments.length > maxPreviewLength
+			? rawArguments.substring(0, maxPreviewLength) + '...'
+			: rawArguments;
+
+		// 分析常见错误类型并提供建议
+		let suggestion = '';
+		if (error.includes('Unterminated string')) {
+			suggestion = '建议：检查字符串是否正确闭合，确保所有引号成对出现。如果内容包含特殊字符，请使用转义。';
+		} else if (error.includes('Unexpected token')) {
+			suggestion = '建议：检查 JSON 格式是否正确，确保键名使用双引号，值的类型正确。';
+		} else if (error.includes('Unexpected end')) {
+			suggestion = '建议：JSON 不完整，可能被截断。请确保完整输出所有参数。';
+		} else {
+			suggestion = '建议：请检查参数格式是否为有效的 JSON，确保语法正确。';
+		}
+
+		return `工具 "${toolName}" 参数解析失败
+
+错误: ${error}
+
+参数片段:
+\`\`\`
+${argsPreview}
+\`\`\`
+
+${suggestion}
+
+请重新调用工具，确保参数是有效的 JSON 格式。`;
 	}
 
 	/**

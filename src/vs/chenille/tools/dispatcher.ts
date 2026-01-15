@@ -482,6 +482,12 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
 					}
+					// 删除文件前，先清理对应的 diff session
+					const deleteUri = resolveFilePath(parsed.data.path, this.workspaceService);
+					const existingSession = this.diffSessionService.getSession(deleteUri);
+					if (existingSession) {
+						this.diffSessionService.endSession(deleteUri);
+					}
 					result = await deleteFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
@@ -490,6 +496,12 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					const parsed = parseToolArguments<RenameFileParams>(toolCall, ['oldPath', 'newPath']);
 					if (!parsed.success) {
 						return { success: false, content: '', error: parsed.error };
+					}
+					// 重命名文件前，先清理旧路径的 diff session
+					const oldUri = resolveFilePath(parsed.data.oldPath, this.workspaceService);
+					const oldSession = this.diffSessionService.getSession(oldUri);
+					if (oldSession) {
+						this.diffSessionService.endSession(oldUri);
 					}
 					result = await renameFile(parsed.data, this.fileService, this.workspaceService);
 					break;
@@ -768,14 +780,22 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		const parameters = parsed.success ? parsed.data : {};
 
 		try {
+			// 从 sessionResource 提取 sessionId（使用 LocalChatSessionUri.parseLocalSessionId）
+			let sessionId: string | undefined;
+			if (sessionContext?.sessionResource) {
+				// 导入 LocalChatSessionUri 来正确解析 base64 编码的 sessionId
+				const { LocalChatSessionUri } = await import('../../workbench/contrib/chat/common/chatUri.js');
+				sessionId = LocalChatSessionUri.parseLocalSessionId(sessionContext.sessionResource);
+			}
+
 			// 构建调用上下文（包含会话信息以启用内联确认）
 			const invocation: IToolInvocation = {
 				callId: `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
 				toolId: internalToolId,
 				parameters,
 				tokenBudget: undefined,
-				context: sessionContext ? {
-					sessionId: sessionContext.requestId,
+				context: (sessionContext && sessionId) ? {
+					sessionId: sessionId,
 					sessionResource: sessionContext.sessionResource,
 				} : undefined,
 				chatRequestId: sessionContext?.requestId,
