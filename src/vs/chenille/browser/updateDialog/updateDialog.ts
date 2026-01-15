@@ -15,6 +15,8 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { FileAccess } from '../../../base/common/network.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 
 export class ChenilleUpdateDialog extends Disposable {
 	private modalElement: HTMLElement | undefined;
@@ -29,6 +31,7 @@ export class ChenilleUpdateDialog extends Disposable {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
@@ -65,10 +68,12 @@ export class ChenilleUpdateDialog extends Disposable {
 			forceHint.textContent = '此版本包含重要更新，请立即更新后继续使用';
 		}
 
-		// 更新内容
+		// 更新内容（Markdown 渲染）
 		if (this.updateInfo.content) {
 			const message = append(content, $('.chenille-update-message'));
-			message.textContent = this.updateInfo.content;
+			const markdown = new MarkdownString(this.updateInfo.content, { supportThemeIcons: true });
+			const rendered = this.dialogDisposables.add(this.markdownRendererService.render(markdown));
+			message.appendChild(rendered.element);
 		}
 
 		// 按钮区域
