@@ -37,7 +37,8 @@ export {
 	deleteLines,
 	createFile,
 	deleteFile,
-	renameFile
+	renameFile,
+	editFile
 } from './modifyFile.js';
 
 // 编辑器工具

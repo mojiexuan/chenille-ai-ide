@@ -260,6 +260,22 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 				required: []
 			}
 		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'editFile',
+			description: '全文覆盖编辑文件。如果文件不存在则创建。适用于需要完全重写文件内容的场景。对于局部修改，优先使用 replaceInFile/insertInFile。',
+			parameters: {
+				type: 'object',
+				properties: {
+					path: { type: 'string', description: '文件路径' },
+					content: { type: 'string', description: '新的文件内容（完整内容）' },
+					explanation: { type: 'string', description: '修改说明（可选）' }
+				},
+				required: ['path', 'content']
+			}
+		}
 	}
 ];
 
@@ -466,23 +482,8 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 			} as AiFunctionDefinitionParameterProperty,
 			required: ['prompt', 'description']
 		}
-	},
-
-	// 文件编辑（VS Code 内置）
-	{
-		chenilleName: 'editFile',
-		vsCodeToolId: 'vscode_editFile_internal',
-		description: '【不推荐】全文覆盖文件。优先使用 replaceInFile/insertInFile。',
-		parameters: {
-			type: 'object',
-			properties: {
-				uri: { type: 'string', description: '文件路径' },
-				code: { type: 'string', description: '完整代码内容' },
-				explanation: { type: 'string', description: '修改说明' }
-			} as AiFunctionDefinitionParameterProperty,
-			required: ['uri', 'code']
-		}
 	}
+	// 注意：editFile 已移至 Chenille 文件工具，不再使用 VS Code 内置版本
 ];
 
 // ==================== 工具辅助函数 ====================
