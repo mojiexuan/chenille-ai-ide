@@ -36,6 +36,7 @@
 
 | Chenille AI IDE | Code -OSS 版本                                               | 日期                      |
 | --------------- | ------------------------------------------------------------ | ------------------------- |
+| v0.0.3          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 15 日 23:18  |
 | v0.0.2          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 14 日 06:49  |
 | v0.0.1          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 11 日        |
 | v0.0.0          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2025 年 12 月 17 日 21:53 |
