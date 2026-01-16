@@ -19,7 +19,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, ExtensionRuntimeActionType, SearchMcpServersContext, DefaultViewsContext, CONTEXT_EXTENSIONS_GALLERY_STATUS } from '../common/extensions.js';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from './extensionsActions.js';
 import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY, AbstractExtensionsListView } from './extensionsViews.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -69,6 +69,10 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { scanIDEInstallations, scanExtensionsFromIDE, createImportHint, IIDEInstallation, IImportableExtension, getImportSuccessMessage, getImportFailedMessage } from './extensionImport.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -635,6 +639,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		this.renderNotificaiton();
 		this._register(this.extensionsWorkbenchService.onDidChangeExtensionsNotification(() => this.renderNotificaiton()));
 
+		// 添加导入提示
+		this.initImportHint();
+
 		this.updateInstalledExtensionsContexts();
 		if (this.searchBox.getValue()) {
 			this.triggerSearch();
@@ -726,7 +733,13 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		}
 		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8 - (24 * 2), 20));
 		const searchBoxHeight = 20 + 21 /*margin*/;
-		const headerHeight = this.header && !!this.notificationContainer?.childNodes.length ? this.notificationContainer.clientHeight + searchBoxHeight + 10 /*margin*/ : searchBoxHeight;
+		let headerHeight = searchBoxHeight;
+		if (this.header && !!this.notificationContainer?.childNodes.length) {
+			headerHeight += this.notificationContainer.clientHeight + 10 /*margin*/;
+		}
+		if (this.importHintContainer) {
+			headerHeight += this.importHintContainer.clientHeight;
+		}
 		this.header!.style.height = `${headerHeight}px`;
 		super.layout(new Dimension(dimension.width, dimension.height - headerHeight));
 	}
@@ -963,6 +976,141 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		}
 
 		return false;
+	}
+
+	private importHintContainer: HTMLElement | undefined;
+	private importHintDisposable: DisposableStore = this._register(new DisposableStore());
+
+	private async initImportHint(): Promise<void> {
+		if (!this.header) {
+			return;
+		}
+
+		try {
+			const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
+			const environmentService = this.instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const installations = await scanIDEInstallations(fileService, environmentService.userHome);
+
+			if (installations.length === 0) {
+				return;
+			}
+
+			// 检查组件是否仍然有效
+			if (!this.header || this._store.isDisposed) {
+				return;
+			}
+
+			this.importHintContainer = append(this.header, $('.extension-import-hint-container'));
+			this.importHintDisposable.add(createImportHint(
+				this.importHintContainer,
+				installations,
+				(installation) => this.showImportDialog(installation)
+			));
+
+			// 等待下一帧让浏览器计算高度，然后触发重新布局
+			requestAnimationFrame(() => {
+				if (this._dimension && !this._store.isDisposed) {
+					this.layout(this._dimension);
+				}
+			});
+		} catch {
+			// 在 web 环境中可能无法获取 INativeEnvironmentService，忽略错误
+		}
+	}
+
+	private async showImportDialog(installation: IIDEInstallation): Promise<void> {
+		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
+		const quickInputService = this.instantiationService.invokeFunction(accessor => accessor.get(IQuickInputService));
+		const extensionManagementService = this.instantiationService.invokeFunction(accessor => accessor.get(IWorkbenchExtensionManagementService));
+
+		// 扫描扩展
+		const extensions = await this.progressService.withProgress(
+			{ location: ProgressLocation.Notification, title: localize('scanningExtensions', "正在扫描 {0} 的扩展...", installation.source.name) },
+			() => scanExtensionsFromIDE(installation, fileService)
+		);
+
+		if (extensions.length === 0) {
+			this.notificationService.info(localize('noExtensionsFound', "在 {0} 中未找到可导入的扩展", installation.source.name));
+			return;
+		}
+
+		// 获取已安装的扩展
+		const installedExtensions = await extensionManagementService.getInstalled();
+		const installedIds = new Set(installedExtensions.map(e => e.identifier.id.toLowerCase()));
+
+		// 过滤出未安装的扩展
+		const importableExtensions = extensions.filter(ext => !installedIds.has(ext.id));
+
+		if (importableExtensions.length === 0) {
+			this.notificationService.info(localize('allExtensionsInstalled', "{0} 中的所有扩展都已安装", installation.source.name));
+			return;
+		}
+
+		// 显示选择对话框
+		interface IExtensionQuickPickItem extends IQuickPickItem {
+			extension: IImportableExtension;
+		}
+
+		const items: IExtensionQuickPickItem[] = importableExtensions.map(ext => ({
+			label: ext.displayName,
+			description: ext.version,
+			detail: ext.description,
+			extension: ext,
+			picked: true
+		}));
+
+		const picks = await quickInputService.pick(items, {
+			placeHolder: localize('selectExtensionsToImport', "选择要从 {0} 导入的扩展", installation.source.name),
+			canPickMany: true
+		});
+
+		if (!picks || picks.length === 0) {
+			return;
+		}
+
+		// 导入选中的扩展
+		const selectedExtensions = picks.map(p => p.extension);
+		let successCount = 0;
+		let failedCount = 0;
+
+		await this.progressService.withProgress(
+			{
+				location: ProgressLocation.Notification,
+				title: localize('importingExtensions', "正在导入扩展..."),
+				cancellable: false
+			},
+			async (progress) => {
+				for (let i = 0; i < selectedExtensions.length; i++) {
+					const ext = selectedExtensions[i];
+					progress.report({
+						message: `${ext.displayName} (${i + 1}/${selectedExtensions.length})`,
+						increment: (100 / selectedExtensions.length)
+					});
+
+					try {
+						await extensionManagementService.installFromLocation(ext.extensionPath);
+						successCount++;
+					} catch (error) {
+						failedCount++;
+						this.notificationService.warn(localize('importExtensionFailed', "导入扩展 {0} 失败: {1}", ext.displayName, error.message || error));
+					}
+				}
+			}
+		);
+
+		// 显示结果
+		if (failedCount === 0) {
+			this.notificationService.prompt(
+				Severity.Info,
+				getImportSuccessMessage(successCount),
+				[{
+					label: localize('reloadWindow', "重新加载窗口"),
+					run: () => this.commandService.executeCommand('workbench.action.reloadWindow')
+				}]
+			);
+		} else {
+			this.notificationService.warn(getImportFailedMessage(failedCount, selectedExtensions.length));
+		}
 	}
 }
 
