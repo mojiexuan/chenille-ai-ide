@@ -124,6 +124,14 @@ export class ChenilleChatProviderImpl extends Disposable implements IChenilleCha
 					});
 				}
 
+				// 文件编辑事件（用于 diff 预览）
+				if (chunk.fileEdit) {
+					this._onResponseChunk.fire({
+						fileEdit: chunk.fileEdit,
+						done: false,
+					});
+				}
+
 				// 工具确认请求
 				if (chunk.toolConfirmation) {
 					this._onResponseChunk.fire({

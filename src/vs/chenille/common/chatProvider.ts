@@ -10,6 +10,24 @@ import { AiToolCall, TokenUsage, AiMessageContent } from './types.js';
 import { URI } from '../../base/common/uri.js';
 
 /**
+ * 文件编辑信息（用于 diff 预览）
+ */
+export interface IChenilleFileEdit {
+	/** 文件路径 */
+	path: string;
+	/** 文件 URI */
+	uri: URI;
+	/** 编辑类型 */
+	type: 'create' | 'edit' | 'replace' | 'insert' | 'delete';
+	/** 新内容（完整文件内容） */
+	newContent: string;
+	/** 原始内容（如果文件存在） */
+	originalContent?: string;
+	/** 是否完成（用于标记编辑结束） */
+	done?: boolean;
+}
+
+/**
  * Chenille Chat 响应块
  */
 export interface IChenilleChatResponseChunk {
@@ -23,6 +41,8 @@ export interface IChenilleChatResponseChunk {
 		status: 'calling' | 'success' | 'error';
 		result?: string;
 	};
+	/** 文件编辑信息（用于 diff 预览） */
+	fileEdit?: IChenilleFileEdit;
 	/** 工具确认请求（需要用户确认才能执行的工具） */
 	toolConfirmation?: {
 		toolCallId: string;
@@ -61,6 +81,8 @@ export interface IChenilleSessionContext {
 	sessionResource: URI;
 	/** 请求 ID */
 	requestId: string;
+	/** 是否有编辑会话（用于决定是否使用 diff 预览） */
+	hasEditingSession?: boolean;
 }
 
 /**

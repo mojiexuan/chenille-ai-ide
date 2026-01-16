@@ -1143,6 +1143,52 @@ export class ChatService extends Disposable implements IChatService {
 						});
 					}
 
+					// 文件编辑事件 - 发送 textEdit 到 ChatEditingService 实现 diff 预览
+					if (chunk.fileEdit && model.editingSession) {
+						const { uri, newContent, originalContent, done } = chunk.fileEdit;
+
+						if (!done) {
+							// 发送 textEdit 开始信号
+							model.acceptResponseProgress(request, {
+								kind: 'textEdit',
+								edits: [],
+								uri
+							});
+						} else {
+							// 计算行数
+							const originalLineCount = originalContent ? originalContent.split('\n').length : 1;
+							const lastLineLength = originalContent
+								? (originalContent.split('\n').pop()?.length ?? 0) + 1
+								: 1;
+
+							// 创建全文替换的 TextEdit
+							const textEdit = {
+								range: {
+									startLineNumber: 1,
+									startColumn: 1,
+									endLineNumber: originalLineCount,
+									endColumn: lastLineLength
+								},
+								text: newContent
+							};
+
+							// 发送编辑
+							model.acceptResponseProgress(request, {
+								kind: 'textEdit',
+								uri,
+								edits: [textEdit]
+							});
+
+							// 发送 textEdit 结束信号
+							model.acceptResponseProgress(request, {
+								kind: 'textEdit',
+								uri,
+								edits: [],
+								done: true
+							});
+						}
+					}
+
 					// 错误
 					if (chunk.error && !chunk.done) {
 						progressItems.push({
@@ -1167,6 +1213,7 @@ export class ChatService extends Disposable implements IChatService {
 					sessionContext: {
 						sessionResource: model.sessionResource,
 						requestId: request.id,
+						hasEditingSession: !!model.editingSession,
 					},
 				}, token);
 

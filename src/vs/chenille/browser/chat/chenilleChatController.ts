@@ -17,7 +17,10 @@ import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js'
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
-import { IChenilleSessionContext } from '../../common/chatProvider.js';
+import { IChenilleSessionContext, IChenilleFileEdit } from '../../common/chatProvider.js';
+import { IFileService } from '../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../base/common/uri.js';
 
 /** 最大工具调用轮次（设置为较大值，实际上不限制） */
 const MAX_TOOL_ROUNDS = 1000;
@@ -41,6 +44,8 @@ export interface IChenilleChatChunk {
 		success: boolean;
 		result: string;
 	};
+	/** 文件编辑信息（用于 diff 预览） */
+	fileEdit?: IChenilleFileEdit;
 	/** 工具确认请求（需要用户确认才能执行的工具） */
 	toolConfirmation?: {
 		toolCallId: string;
@@ -145,6 +150,8 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 	) {
 		super();
 	}
@@ -468,12 +475,28 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			}
 
 			try {
-				// 将 AiToolCall 转换为 ToolCall 格式供 dispatcher 使用
-				const dispatchToolCall = {
-					type: 'function' as const,
-					function: toolCall.function,
-				};
-				const result = await this.toolDispatcher.dispatch(dispatchToolCall, token, sessionContext);
+				let result: IToolResult;
+
+				// 检查是否为文件编辑工具
+				const isFileEditTool = ['editFile', 'createFile', 'replaceInFile', 'insertInFile', 'deleteLines'].includes(toolName);
+
+				if (isFileEditTool && sessionContext?.hasEditingSession) {
+					// 有 editingSession：发送 fileEdit 事件，让 chatServiceImpl.ts 通过 textEdit 处理
+					// 不直接写入文件，由 ChatEditingService 处理
+					const editResult = await this.executeFileEditWithDiffPreview(toolName, parameters);
+					result = {
+						success: !editResult.error,
+						content: editResult.message,
+						error: editResult.error,
+					};
+				} else {
+					// 没有 editingSession 或不是文件编辑工具：直接执行
+					const dispatchToolCall = {
+						type: 'function' as const,
+						function: toolCall.function,
+					};
+					result = await this.toolDispatcher.dispatch(dispatchToolCall, token, sessionContext);
+				}
 
 				// 发送工具结果事件
 				this._onChunk.fire({
@@ -515,6 +538,144 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 				// 继续执行下一个工具，不中断
 			}
 		}
+	}
+
+	/**
+	 * 执行文件编辑并发送 fileEdit 事件（用于 diff 预览）
+	 * 返回编辑结果消息
+	 */
+	private async executeFileEditWithDiffPreview(
+		toolName: string,
+		parameters: Record<string, unknown>
+	): Promise<{ message: string; error?: string }> {
+		const path = parameters.path as string | undefined;
+		if (!path) {
+			return { message: '', error: '错误: 缺少文件路径参数' };
+		}
+
+		const uri = this.resolveFilePath(path);
+
+		try {
+			// 读取原始文件内容（如果存在）
+			let originalContent = '';
+			let fileExists = false;
+
+			try {
+				const fileContent = await this.fileService.readFile(uri);
+				originalContent = fileContent.value.toString();
+				fileExists = true;
+			} catch {
+				// 文件不存在，这对于 createFile 和 editFile 是正常的
+			}
+
+			// 计算新内容
+			let newContent: string;
+			let editType: IChenilleFileEdit['type'];
+
+			switch (toolName) {
+				case 'editFile':
+				case 'createFile': {
+					newContent = (parameters.content as string) ?? '';
+					editType = fileExists ? 'edit' : 'create';
+					break;
+				}
+				case 'replaceInFile': {
+					const oldText = parameters.oldText as string;
+					const newText = parameters.newText as string;
+					if (!oldText) {
+						return { message: '', error: '错误: 缺少 oldText 参数' };
+					}
+					if (!originalContent.includes(oldText)) {
+						return { message: '', error: '错误: 未找到要替换的文本' };
+					}
+					newContent = originalContent.replace(oldText, newText ?? '');
+					editType = 'replace';
+					break;
+				}
+				case 'insertInFile': {
+					const line = parameters.line as number;
+					const content = parameters.content as string;
+					if (line === undefined || content === undefined) {
+						return { message: '', error: '错误: 缺少 line 或 content 参数' };
+					}
+					const lines = originalContent.split('\n');
+					lines.splice(line, 0, content);
+					newContent = lines.join('\n');
+					editType = 'insert';
+					break;
+				}
+				case 'deleteLines': {
+					const startLine = parameters.startLine as number;
+					const endLine = parameters.endLine as number;
+					if (startLine === undefined || endLine === undefined) {
+						return { message: '', error: '错误: 缺少 startLine 或 endLine 参数' };
+					}
+					const lines = originalContent.split('\n');
+					lines.splice(startLine - 1, endLine - startLine + 1);
+					newContent = lines.join('\n');
+					editType = 'delete';
+					break;
+				}
+				default:
+					return { message: '', error: `错误: 未知的文件编辑工具: ${toolName}` };
+			}
+
+			// 发送 fileEdit 开始事件
+			this._onChunk.fire({
+				fileEdit: {
+					path,
+					uri,
+					type: editType,
+					newContent,
+					originalContent: fileExists ? originalContent : undefined,
+				},
+				done: false,
+			});
+
+			// 发送 fileEdit 结束事件
+			this._onChunk.fire({
+				fileEdit: {
+					path,
+					uri,
+					type: editType,
+					newContent,
+					originalContent: fileExists ? originalContent : undefined,
+					done: true,
+				},
+				done: false,
+			});
+
+			const originalLineCount = originalContent.split('\n').length;
+			const newLineCount = newContent.split('\n').length;
+			const description = editType === 'create' ? '创建文件' : '编辑文件';
+			const resultMessage = fileExists
+				? `${description}成功: ${path} (${originalLineCount} 行 → ${newLineCount} 行)`
+				: `${description}成功: ${path} (${newLineCount} 行)`;
+
+			return { message: resultMessage };
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return { message: '', error: `文件编辑失败: ${errorMessage}` };
+		}
+	}
+
+	/**
+	 * 解析文件路径为 URI
+	 */
+	private resolveFilePath(path: string): URI {
+		// 如果已经是绝对路径或 URI
+		if (path.startsWith('/') || path.startsWith('\\') || path.includes('://') || /^[a-zA-Z]:/.test(path)) {
+			return URI.file(path);
+		}
+
+		// 相对路径，基于工作区根目录
+		const workspaceFolders = this.workspaceService.getWorkspace().folders;
+		if (workspaceFolders.length > 0) {
+			return URI.joinPath(workspaceFolders[0].uri, path);
+		}
+
+		return URI.file(path);
 	}
 
 	/**

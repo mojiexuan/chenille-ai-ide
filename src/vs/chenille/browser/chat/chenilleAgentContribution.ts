@@ -13,7 +13,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { nullExtensionDescription } from '../../../workbench/services/extensions/common/extensions.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileAccess } from '../../../base/common/network.js';
-import { FileType } from '../../../platform/files/common/files.js';
+import { FileType, IFileService } from '../../../platform/files/common/files.js';
 import {
 	IChatAgentData,
 	IChatAgentImplementation,
@@ -28,8 +28,9 @@ import {
 	IChatTreeData,
 	IChatResponseProgressFileTreeData,
 	IChatTaskDto,
+	IChatService,
 } from '../../../workbench/contrib/chat/common/chatService.js';
-import { IChatProgressHistoryResponseContent } from '../../../workbench/contrib/chat/common/chatModel.js';
+import { IChatProgressHistoryResponseContent, ChatModel } from '../../../workbench/contrib/chat/common/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat/common/constants.js';
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { IChenilleChatModeService } from '../../common/chatMode.js';
@@ -53,6 +54,7 @@ import {
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { IProjectRulesService } from '../rules/projectRulesService.js';
 import { ISkillService } from '../../common/skills.js';
+import { TextEdit } from '../../../editor/common/languages.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -125,6 +127,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@ISkillService private readonly skillService: ISkillService,
+		@IChatService private readonly chatService: IChatService,
+		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -171,6 +175,11 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			sessionResource: request.sessionResource,
 			requestId: request.requestId,
 		};
+
+		// 调试日志：检查 editingSession 状态
+		const chatModel = this.chatService.getSession(request.sessionResource) as ChatModel | undefined;
+		this.logService.info(`[Chenille Agent] invoke - location: ${request.location}, sessionResource: ${request.sessionResource.toString()}`);
+		this.logService.info(`[Chenille Agent] invoke - chatModel: ${chatModel ? 'found' : 'not found'}, editingSession: ${chatModel?.editingSession ? 'found' : 'not found'}`);
 
 		try {
 			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, mergedRules, skillsPrompt);
@@ -795,6 +804,10 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		token: CancellationToken,
 		sessionContext: { sessionResource: URI; requestId: string }
 	): Promise<void> {
+		// 直接使用 sessionResource 获取 ChatModel
+		const chatModel = this.chatService.getSession(sessionContext.sessionResource) as ChatModel | undefined;
+		this.logService.info(`[Chenille] executeToolCalls - sessionResource: ${sessionContext.sessionResource.toString()}, chatModel: ${chatModel ? 'found' : 'not found'}, editingSession: ${chatModel?.editingSession ? 'found' : 'not found'}`);
+
 		for (const toolCall of toolCalls) {
 			if (token.isCancellationRequested) {
 				messages.push({
@@ -825,8 +838,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			try {
 				let resultContent: string;
 
-				// 判断是 Chenille 文件工具还是 VS Code 内置工具
-				if (isChenilleFileTool(toolName)) {
+				// 检查是否为文件编辑工具，且有可用的 ChatModel
+				const isFileEditTool = ['editFile', 'createFile', 'replaceInFile', 'insertInFile', 'deleteLines'].includes(toolName);
+
+				if (isFileEditTool && chatModel?.editingSession) {
+					// 使用 VS Code ChatEditingService 进行文件编辑
+					resultContent = await this.executeFileEditWithChatEditing(toolName, parameters, chatModel, progress, token);
+				} else if (isChenilleFileTool(toolName)) {
 					// Chenille 文件工具 - 使用 toolsService.invokeTool 以获得内联确认
 					resultContent = await this.invokeChenilleFileTool(toolName, toolCall, token, sessionContext);
 
@@ -871,6 +889,180 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				});
 			}
 		}
+	}
+
+	/**
+	 * 使用 VS Code ChatEditingService 执行文件编辑
+	 * 这样可以获得 diff 预览和确认/撤销按钮
+	 */
+	private async executeFileEditWithChatEditing(
+		toolName: string,
+		parameters: Record<string, unknown>,
+		chatModel: ChatModel,
+		progress: (parts: IChatProgress[]) => void,
+		token: CancellationToken
+	): Promise<string> {
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			// 回退到直接执行
+			return this.executeFileEditDirectly(toolName, parameters);
+		}
+
+		const path = parameters.path as string | undefined;
+		if (!path) {
+			return '错误: 缺少文件路径参数';
+		}
+
+		const uri = this.resolveFilePath(path);
+
+		try {
+			// 读取原始文件内容（如果存在）
+			let originalContent = '';
+			let originalLineCount = 0;
+			let fileExists = false;
+
+			try {
+				const fileContent = await this.fileService.readFile(uri);
+				originalContent = fileContent.value.toString();
+				originalLineCount = originalContent.split('\n').length;
+				fileExists = true;
+			} catch {
+				// 文件不存在，这对于 createFile 和 editFile 是正常的
+			}
+
+			// 计算新内容
+			let newContent: string;
+			let description: string;
+
+			switch (toolName) {
+				case 'editFile':
+				case 'createFile': {
+					newContent = (parameters.content as string) ?? '';
+					description = fileExists ? '编辑文件' : '创建文件';
+					break;
+				}
+				case 'replaceInFile': {
+					const oldText = parameters.oldText as string;
+					const newText = parameters.newText as string;
+					if (!oldText) {
+						return '错误: 缺少 oldText 参数';
+					}
+					if (!originalContent.includes(oldText)) {
+						return `错误: 未找到要替换的文本`;
+					}
+					newContent = originalContent.replace(oldText, newText ?? '');
+					description = '替换文本';
+					break;
+				}
+				case 'insertInFile': {
+					const line = parameters.line as number;
+					const content = parameters.content as string;
+					if (line === undefined || content === undefined) {
+						return '错误: 缺少 line 或 content 参数';
+					}
+					const lines = originalContent.split('\n');
+					lines.splice(line, 0, content);
+					newContent = lines.join('\n');
+					description = '插入内容';
+					break;
+				}
+				case 'deleteLines': {
+					const startLine = parameters.startLine as number;
+					const endLine = parameters.endLine as number;
+					if (startLine === undefined || endLine === undefined) {
+						return '错误: 缺少 startLine 或 endLine 参数';
+					}
+					const lines = originalContent.split('\n');
+					lines.splice(startLine - 1, endLine - startLine + 1);
+					newContent = lines.join('\n');
+					description = '删除行';
+					break;
+				}
+				default:
+					return `错误: 未知的文件编辑工具: ${toolName}`;
+			}
+
+			// 发送 codeblockUri 进度（显示文件链接）
+			progress([{
+				kind: 'markdownContent',
+				content: new MarkdownString(`\n\`\`\`\n`),
+			}]);
+			chatModel.acceptResponseProgress(request, {
+				kind: 'codeblockUri',
+				uri,
+				isEdit: true
+			});
+			progress([{
+				kind: 'markdownContent',
+				content: new MarkdownString(`\n\`\`\`\n`),
+			}]);
+
+			// 发送 textEdit 开始信号
+			chatModel.acceptResponseProgress(request, {
+				kind: 'textEdit',
+				edits: [],
+				uri
+			});
+
+			// 创建全文替换的 TextEdit
+			const newLineCount = newContent.split('\n').length;
+			const textEdit: TextEdit = {
+				range: {
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: fileExists ? originalLineCount : 1,
+					endColumn: fileExists ? (originalContent.split('\n').pop()?.length ?? 0) + 1 : 1
+				},
+				text: newContent
+			};
+
+			// 发送编辑
+			chatModel.acceptResponseProgress(request, {
+				kind: 'textEdit',
+				uri,
+				edits: [textEdit]
+			});
+
+			// 发送 textEdit 结束信号
+			chatModel.acceptResponseProgress(request, {
+				kind: 'textEdit',
+				uri,
+				edits: [],
+				done: true
+			});
+
+			const resultMessage = fileExists
+				? `${description}成功: ${path} (${originalLineCount} 行 → ${newLineCount} 行)`
+				: `${description}成功: ${path} (${newLineCount} 行)`;
+
+			return resultMessage;
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return `文件编辑失败: ${errorMessage}`;
+		}
+	}
+
+	/**
+	 * 直接执行文件编辑（回退方案，当 ChatEditingService 不可用时）
+	 */
+	private async executeFileEditDirectly(
+		toolName: string,
+		parameters: Record<string, unknown>
+	): Promise<string> {
+		// 构建工具调用
+		const toolCall = {
+			type: 'function' as const,
+			function: {
+				name: toolName,
+				arguments: JSON.stringify(parameters),
+			},
+		};
+
+		const result = await this.toolDispatcher.dispatch(toolCall);
+		return result.success
+			? (result.content || `工具 "${toolName}" 执行成功`)
+			: `错误: ${result.error}`;
 	}
 
 	/**

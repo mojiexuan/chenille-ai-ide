@@ -13,17 +13,10 @@ import { IChenilleChatModeService, ChenilleChatModeService } from '../common/cha
 import { IContextCollapseService, ContextCollapseService } from './chat/contextCollapseService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { ChenilleAgentContribution } from './chat/chenilleAgentContribution.js';
-import { IChenilleDiffSessionService, ChenilleDiffSessionService } from './diffSession/index.js';
 import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesService.js';
 import { IProjectSkillsService, ProjectSkillsService } from './skills/projectSkillsService.js';
 import { ISkillService } from '../common/skills.js';
 import { SkillService } from './skills/skillService.js';
-
-// 导入 diff actions（自动注册）
-import './diffSession/chenilleDiffActions.js';
-
-// 导入 CSS 样式
-import './diffSession/chenilleDiffSession.css';
 
 // 导入 electron-browser 服务（自动注册）
 import '../electron-browser/globalRulesStorageService.js';
@@ -39,7 +32,6 @@ registerSingleton(IChenilleChatController, ChenilleChatControllerImpl, Instantia
 registerSingleton(IChenilleChatIntegration, ChenilleChatIntegrationImpl, InstantiationType.Delayed);
 registerSingleton(IChenilleChatProvider, ChenilleChatProviderImpl, InstantiationType.Delayed);
 registerSingleton(IContextCollapseService, ContextCollapseService, InstantiationType.Delayed);
-registerSingleton(IChenilleDiffSessionService, ChenilleDiffSessionService, InstantiationType.Delayed);
 registerSingleton(IProjectRulesService, ProjectRulesService, InstantiationType.Delayed);
 registerSingleton(IProjectSkillsService, ProjectSkillsService, InstantiationType.Delayed);
 registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
