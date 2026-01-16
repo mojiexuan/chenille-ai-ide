@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -12,11 +13,16 @@ import { IContextCollapseService, ContextCollapseState } from '../../../../cheni
 import { IChatModel } from '../common/chatModel.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ChatViewPaneTarget, IChatWidgetService } from './chat.js';
-import { ChatContextCollapseWidget } from './chatContextCollapseWidget.js';
+import { registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+
+/** 上下文收拢命令 ID */
+const CONTEXT_COLLAPSE_COMMAND_ID = 'chenille.contextCollapse';
+const CONTEXT_COLLAPSE_DISMISS_COMMAND_ID = 'chenille.contextCollapse.dismiss';
 
 /**
  * 上下文收拢贡献
- * 监听上下文收拢警告并显示内联警告卡片（不污染会话上下文）
+ * 监听上下文收拢警告并在消息气泡中显示警告
  */
 export class ChatContextCollapseContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatContextCollapse';
@@ -27,8 +33,8 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 	/** 当前正在收拢的会话 */
 	private _collapsingSessionId: string | undefined;
 
-	/** 当前显示的警告 widget */
-	private readonly _warningWidget = this._register(new MutableDisposable<ChatContextCollapseWidget>());
+	/** 待处理的收拢请求（sessionId -> usagePercent） */
+	private static readonly _pendingCollapseRequests = new Map<string, number>();
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -46,6 +52,9 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 			}
 			this._warnedSessions.add(sessionId);
 
+			// 保存待处理的请求
+			ChatContextCollapseContribution._pendingCollapseRequests.set(sessionId, usagePercent);
+
 			await this.showContextCollapseWarning(sessionId, usagePercent);
 		}));
 
@@ -60,7 +69,21 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 	}
 
 	/**
-	 * 显示上下文收拢警告卡片（不污染会话上下文）
+	 * 获取待处理的收拢请求
+	 */
+	static getPendingRequest(sessionId: string): number | undefined {
+		return ChatContextCollapseContribution._pendingCollapseRequests.get(sessionId);
+	}
+
+	/**
+	 * 清除待处理的收拢请求
+	 */
+	static clearPendingRequest(sessionId: string): void {
+		ChatContextCollapseContribution._pendingCollapseRequests.delete(sessionId);
+	}
+
+	/**
+	 * 显示上下文收拢警告（在消息气泡中）
 	 */
 	private async showContextCollapseWarning(sessionId: string, usagePercent: number): Promise<void> {
 		// 获取当前聊天 widget
@@ -74,30 +97,44 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 			return;
 		}
 
-		// 创建警告卡片（显示在聊天面板中，但不添加到会话历史）
-		this._warningWidget.value = new ChatContextCollapseWidget(widget.domNode, usagePercent);
+		const percentText = (usagePercent * 100).toFixed(0);
 
-		// 监听用户操作
-		this._warningWidget.value.onDidAccept(() => {
-			this.performContextCollapse(sessionId);
-		});
+		// 创建带命令链接的警告消息
+		const warningMessage = new MarkdownString('', { isTrusted: { enabledCommands: [CONTEXT_COLLAPSE_COMMAND_ID, CONTEXT_COLLAPSE_DISMISS_COMMAND_ID] } });
+		warningMessage.appendMarkdown(`### ⚠️ ${localize('contextCollapse.warningTitle', '上下文即将达到限制')}\n\n`);
+		warningMessage.appendMarkdown(localize(
+			'contextCollapse.warningMessage',
+			'当前会话的上下文使用量已达 **{0}%**，即将达到模型的上下文限制。建议收拢上下文以继续对话。',
+			percentText
+		));
+		warningMessage.appendMarkdown('\n\n');
+		warningMessage.appendMarkdown(`[📦 ${localize('contextCollapse.collapseButton', '收拢上下文')}](command:${CONTEXT_COLLAPSE_COMMAND_ID}?${encodeURIComponent(JSON.stringify({ sessionId }))})`);
+		warningMessage.appendMarkdown('&nbsp;&nbsp;&nbsp;');
+		warningMessage.appendMarkdown(`[${localize('contextCollapse.laterButton', '稍后处理')}](command:${CONTEXT_COLLAPSE_DISMISS_COMMAND_ID}?${encodeURIComponent(JSON.stringify({ sessionId }))})`);
 
-		this._warningWidget.value.onDidDismiss(() => {
-			// 用户选择稍后处理，清理 widget
-			this._warningWidget.clear();
-		});
-
-		this._warningWidget.value.show();
+		// 获取最后一个请求并添加警告
+		const requests = widget.viewModel.model.getRequests();
+		const lastRequest = requests[requests.length - 1];
+		if (lastRequest?.response) {
+			// 使用 appendProgress 添加警告到响应中
+			this.chatService.appendProgress(lastRequest, {
+				kind: 'warning',
+				content: warningMessage
+			});
+		}
 	}
 
 	/**
 	 * 执行上下文收拢
 	 */
-	private async performContextCollapse(sessionId: string): Promise<void> {
+	async performContextCollapse(sessionId: string): Promise<void> {
 		if (this._collapsingSessionId === sessionId) {
 			return; // 避免重复收拢
 		}
 		this._collapsingSessionId = sessionId;
+
+		// 清除待处理的请求
+		ChatContextCollapseContribution.clearPendingRequest(sessionId);
 
 		// 获取会话模型
 		const models = this.chatService.chatModels.get();
@@ -141,6 +178,14 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 		} finally {
 			this._collapsingSessionId = undefined;
 		}
+	}
+
+	/**
+	 * 忽略上下文收拢警告
+	 */
+	dismissWarning(sessionId: string): void {
+		ChatContextCollapseContribution.clearPendingRequest(sessionId);
+		this.notificationService.info(localize('contextCollapse.dismissed', '已忽略上下文收拢警告，您可以继续对话。'));
 	}
 
 	/**
@@ -206,6 +251,64 @@ export class ChatContextCollapseContribution extends Disposable implements IWork
 		this._warnedSessions.delete(sessionId);
 	}
 }
+
+// 注册上下文收拢命令
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CONTEXT_COLLAPSE_COMMAND_ID,
+			title: localize('contextCollapse.command', '收拢上下文'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, args: { sessionId: string }): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const contextCollapseService = accessor.get(IContextCollapseService);
+		const notificationService = accessor.get(INotificationService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const sessionId = args?.sessionId;
+		if (!sessionId) {
+			return;
+		}
+
+		// 创建一个临时的贡献实例来执行收拢
+		const contribution = new ChatContextCollapseContribution(
+			chatService,
+			contextCollapseService,
+			notificationService,
+			chatWidgetService
+		);
+
+		try {
+			await contribution.performContextCollapse(sessionId);
+		} finally {
+			contribution.dispose();
+		}
+	}
+});
+
+// 注册忽略警告命令
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CONTEXT_COLLAPSE_DISMISS_COMMAND_ID,
+			title: localize('contextCollapse.dismiss', '忽略上下文收拢警告'),
+		});
+	}
+
+	run(accessor: ServicesAccessor, args: { sessionId: string }): void {
+		const notificationService = accessor.get(INotificationService);
+
+		const sessionId = args?.sessionId;
+		if (!sessionId) {
+			return;
+		}
+
+		ChatContextCollapseContribution.clearPendingRequest(sessionId);
+		notificationService.info(localize('contextCollapse.dismissed', '已忽略上下文收拢警告，您可以继续对话。'));
+	}
+});
 
 // 注册贡献
 registerWorkbenchContribution2(
