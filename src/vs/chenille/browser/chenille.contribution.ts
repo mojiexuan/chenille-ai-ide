@@ -17,6 +17,7 @@ import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesS
 import { IProjectSkillsService, ProjectSkillsService } from './skills/projectSkillsService.js';
 import { ISkillService } from '../common/skills.js';
 import { SkillService } from './skills/skillService.js';
+import { IndexActivationContribution } from './indexing/indexActivation.contribution.js';
 
 // 导入 electron-browser 服务（自动注册）
 import '../electron-browser/globalRulesStorageService.js';
@@ -38,3 +39,6 @@ registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
 
 // 注册 Chenille Agent 到 VS Code Chat 系统
 registerWorkbenchContribution2(ChenilleAgentContribution.ID, ChenilleAgentContribution, WorkbenchPhase.AfterRestored);
+
+// 注册索引激活（工作区恢复后自动激活已启用的索引）
+registerWorkbenchContribution2(IndexActivationContribution.ID, IndexActivationContribution, WorkbenchPhase.AfterRestored);

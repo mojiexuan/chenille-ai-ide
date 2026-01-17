@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// 注册 electron-browser 服务
-import './storageService.js';
-import './commitMessageService.js';
-import './chatService.js';
-import './inlineCompletionService.js';
-import './versionCheckService.js';
-import './indexingService.contribution.js';
+// 类型导出
+export * from './types.js';
+export * from './indexingService.js';
+export * from './errors.js';

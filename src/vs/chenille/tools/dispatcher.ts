@@ -62,6 +62,7 @@ import {
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { ITextModelService } from '../../editor/common/services/resolverService.js';
 import { IOutlineModelService } from '../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { IChenilleIndexingService } from '../common/indexing/indexingService.js';
 
 
 /**
@@ -116,7 +117,8 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'getCurrentTime',
 	'appendToFile',
 	'getWorkspaceSymbols',
-	'getFileOutline'
+	'getFileOutline',
+	'codebaseSearch'
 ]);
 
 
@@ -262,6 +264,8 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	private _toolsService: ILanguageModelToolsService | undefined;
 	private _mcpRuntimeService: IMcpRuntimeService | undefined;
 
+	private _indexingService: IChenilleIndexingService | undefined;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
@@ -272,6 +276,16 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
 	) {
 		super();
+	}
+
+	/**
+	 * 延迟获取 IChenilleIndexingService 以避免循环依赖
+	 */
+	private get indexingService(): IChenilleIndexingService {
+		if (!this._indexingService) {
+			this._indexingService = this.instantiationService.invokeFunction(accessor => accessor.get(IChenilleIndexingService));
+		}
+		return this._indexingService;
 	}
 
 
@@ -536,7 +550,10 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					break;
 				}
 
-
+				case 'codebaseSearch': {
+					// 代码库语义搜索
+					return await this.executeCodebaseSearch(toolCall);
+				}
 
 				default:
 					return {
@@ -694,6 +711,122 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			success: true,
 			content: finalContent
 		};
+	}
+
+	/**
+	 * 执行代码库语义搜索
+	 */
+	private async executeCodebaseSearch(toolCall: ToolCall): Promise<IToolResult> {
+		interface CodebaseSearchParams {
+			query: string;
+			topK?: number;
+		}
+
+		const parsed = parseToolArguments<CodebaseSearchParams>(toolCall, ['query']);
+		if (!parsed.success) {
+			return { success: false, content: '', error: parsed.error };
+		}
+
+		const { query, topK = 5 } = parsed.data;
+
+		// 获取当前工作区路径
+		const workspace = this.workspaceService.getWorkspace();
+		if (workspace.folders.length === 0) {
+			return {
+				success: false,
+				content: '',
+				error: 'NO_WORKSPACE: 未打开工作区。请先打开一个项目文件夹。'
+			};
+		}
+
+		// 使用第一个工作区（如果有多个工作区，可以后续扩展）
+		const workspacePath = workspace.folders[0].uri.fsPath;
+
+		try {
+			// 检查索引状态
+			const status = await this.indexingService.getIndexStatus(workspacePath);
+
+			if (!status.isEnabled) {
+				return {
+					success: false,
+					content: JSON.stringify({
+						error: 'INDEX_DISABLED',
+						message: '代码库索引未启用。请使用 searchInFiles 或 getWorkspaceSymbols 工具代替。',
+						suggestion: '用户可以在 Chenille 设置 > 索引管理 中启用索引功能。'
+					}, null, 2),
+					error: 'INDEX_DISABLED: 代码库索引未启用，请改用 searchInFiles 或 getWorkspaceSymbols 工具。'
+				};
+			}
+
+			if (status.isIndexing) {
+				return {
+					success: false,
+					content: JSON.stringify({
+						error: 'INDEX_BUILDING',
+						message: '代码库索引正在构建中，请稍后再试。',
+						progress: `已索引 ${status.fileCount} 个文件`
+					}, null, 2),
+					error: 'INDEX_BUILDING: 索引正在构建中，请改用 searchInFiles 或 getWorkspaceSymbols 工具。'
+				};
+			}
+
+			if (!status.hasIndex) {
+				return {
+					success: false,
+					content: JSON.stringify({
+						error: 'INDEX_NOT_READY',
+						message: '代码库索引尚未建立。',
+						suggestion: '请使用 searchInFiles 或 getWorkspaceSymbols 工具代替。'
+					}, null, 2),
+					error: 'INDEX_NOT_READY: 索引尚未建立，请改用 searchInFiles 或 getWorkspaceSymbols 工具。'
+				};
+			}
+
+			// 执行语义检索
+			const results = await this.indexingService.retrieve({
+				query,
+				workspacePath,
+				topK: Math.min(topK, 20) // 限制最大返回数量
+			});
+
+			if (results.length === 0) {
+				return {
+					success: true,
+					content: JSON.stringify({
+						query,
+						results: [],
+						message: '未找到相关代码。建议尝试不同的查询词，或使用 searchInFiles 进行精确搜索。'
+					}, null, 2)
+				};
+			}
+
+			// 格式化结果
+			const formattedResults = results.map((r, i) => ({
+				rank: i + 1,
+				path: r.filepath,
+				score: Math.round(r.score * 100) / 100,
+				startLine: r.startLine,
+				endLine: r.endLine,
+				content: r.content
+			}));
+
+			return {
+				success: true,
+				content: JSON.stringify({
+					query,
+					totalResults: results.length,
+					results: formattedResults
+				}, null, 2)
+			};
+
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				content: '',
+				error: `代码库搜索失败: ${errorMessage}。请改用 searchInFiles 或 getWorkspaceSymbols 工具。`
+			};
+		}
 	}
 
 	/**

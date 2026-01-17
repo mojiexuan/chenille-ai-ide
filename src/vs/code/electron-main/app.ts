@@ -141,6 +141,8 @@ import { IGlobalRulesStorageService, GlobalRulesStorageChannel, GlobalRulesStora
 import { GlobalRulesStorageMainService } from '../../chenille/electron-main/globalRulesStorage.js';
 import { IGlobalSkillsStorageService, GlobalSkillsStorageChannel, GlobalSkillsStorageChannelName } from '../../chenille/common/skills.js';
 import { GlobalSkillsStorageMainService } from '../../chenille/electron-main/globalSkillsStorage.js';
+import { IChenilleIndexingService, ChenilleIndexingChannel, ChenilleIndexingChannelName } from '../../chenille/common/indexing/indexingService.js';
+import { ChenilleIndexingService } from '../../chenille/electron-main/indexingService.js';
 
 /**
  * The main Chenille application. There will only ever be one instance,
@@ -1138,6 +1140,7 @@ export class CodeApplication extends Disposable {
 		services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
 		services.set(IGlobalRulesStorageService, new SyncDescriptor(GlobalRulesStorageMainService));
 		services.set(IGlobalSkillsStorageService, new SyncDescriptor(GlobalSkillsStorageMainService));
+		services.set(IChenilleIndexingService, new SyncDescriptor(ChenilleIndexingService));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1311,6 +1314,10 @@ export class CodeApplication extends Disposable {
 		// Chenille: 全局技能存储服务
 		const globalSkillsStorageChannel = new GlobalSkillsStorageChannel(accessor.get(IGlobalSkillsStorageService));
 		mainProcessElectronServer.registerChannel(GlobalSkillsStorageChannelName, globalSkillsStorageChannel);
+
+		// Chenille: 索引服务
+		const indexingChannel = new ChenilleIndexingChannel(accessor.get(IChenilleIndexingService));
+		mainProcessElectronServer.registerChannel(ChenilleIndexingChannelName, indexingChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

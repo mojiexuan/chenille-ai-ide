@@ -8,6 +8,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IChenilleChatController, IChenilleChatChunk } from './chenilleChatController.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { IChenilleIndexingService } from '../../common/indexing/indexingService.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 
 /**
  * Chenille Chat 集成服务接口
@@ -86,6 +88,8 @@ export class ChenilleChatIntegrationImpl extends Disposable implements IChenille
 
 	constructor(
 		@IChenilleChatController private readonly chatController: IChenilleChatController,
+		@IChenilleIndexingService private readonly indexingService: IChenilleIndexingService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 	) {
 		super();
 	}
@@ -118,6 +122,13 @@ export class ChenilleChatIntegrationImpl extends Disposable implements IChenille
 		let fullContent = '';
 		let hasError = false;
 		let errorMessage: string | undefined;
+
+		// 处理 @codebase 引用
+		let enhancedInput = input;
+		const codebaseContext = await this.processCodebaseReference(input, progressCallback);
+		if (codebaseContext) {
+			enhancedInput = codebaseContext.enhancedInput;
+		}
 
 		try {
 			// 监听响应块
@@ -185,7 +196,7 @@ export class ChenilleChatIntegrationImpl extends Disposable implements IChenille
 
 			// 发起请求
 			const response = await this.chatController.chat({
-				input,
+				input: enhancedInput,
 				history: aiHistory,
 				enableTools: true,
 			}, cts.token);
@@ -208,6 +219,121 @@ export class ChenilleChatIntegrationImpl extends Disposable implements IChenille
 			if (this._currentCts === cts) {
 				this._currentCts = undefined;
 			}
+		}
+	}
+
+	/**
+	 * 处理 @codebase 引用
+	 * 检测输入中的 @codebase，检索相关代码并构建增强的输入
+	 */
+	private async processCodebaseReference(
+		input: string,
+		progressCallback: (progress: IChenilleChatProgress[]) => void
+	): Promise<{ enhancedInput: string } | null> {
+		// 检测 @codebase 模式
+		const codebaseMatch = input.match(/@codebase\s*/i);
+		if (!codebaseMatch) {
+			return null;
+		}
+
+		// 提取查询（去掉 @codebase）
+		const query = input.replace(/@codebase\s*/i, '').trim();
+		if (!query) {
+			progressCallback([{
+				kind: 'markdownContent',
+				content: new MarkdownString('⚠️ 请在 @codebase 后输入您的问题\n\n')
+			}]);
+			return null;
+		}
+
+		// 获取工作区路径
+		const workspace = this.workspaceService.getWorkspace();
+		if (workspace.folders.length === 0) {
+			progressCallback([{
+				kind: 'markdownContent',
+				content: new MarkdownString('⚠️ 未打开工作区，无法使用代码库搜索\n\n')
+			}]);
+			return { enhancedInput: query };
+		}
+
+		const workspacePath = workspace.folders[0].uri.fsPath;
+
+		try {
+			// 检查索引状态
+			const status = await this.indexingService.getIndexStatus(workspacePath);
+
+			if (!status.isEnabled || !status.hasIndex) {
+				progressCallback([{
+					kind: 'markdownContent',
+					content: new MarkdownString('⚠️ 代码库索引未启用或未建立，将直接回答问题\n\n')
+				}]);
+				return { enhancedInput: query };
+			}
+
+			if (status.isIndexing) {
+				progressCallback([{
+					kind: 'markdownContent',
+					content: new MarkdownString('⏳ 代码库索引正在构建中，将直接回答问题\n\n')
+				}]);
+				return { enhancedInput: query };
+			}
+
+			// 显示搜索进度
+			progressCallback([{
+				kind: 'markdownContent',
+				content: new MarkdownString('🔍 正在搜索代码库...\n\n')
+			}]);
+
+			// 执行检索
+			const results = await this.indexingService.retrieve({
+				query,
+				workspacePath,
+				topK: 5
+			});
+
+			if (results.length === 0) {
+				progressCallback([{
+					kind: 'markdownContent',
+					content: new MarkdownString('📭 未找到相关代码，将直接回答问题\n\n')
+				}]);
+				return { enhancedInput: query };
+			}
+
+			// 构建上下文
+			const contextParts: string[] = [
+				'以下是从代码库中检索到的相关代码片段：\n'
+			];
+
+			for (const result of results) {
+				const scorePercent = Math.round(result.score * 100);
+				contextParts.push(`\n## ${result.filepath} (相关度: ${scorePercent}%)`);
+				if (result.startLine && result.endLine) {
+					contextParts.push(`行 ${result.startLine}-${result.endLine}`);
+				}
+				contextParts.push('```');
+				contextParts.push(result.content);
+				contextParts.push('```\n');
+			}
+
+			contextParts.push(`\n---\n用户问题: ${query}`);
+
+			// 显示检索结果摘要
+			progressCallback([{
+				kind: 'markdownContent',
+				content: new MarkdownString(`✅ 找到 ${results.length} 个相关代码片段\n\n`)
+			}]);
+
+			return {
+				enhancedInput: contextParts.join('\n')
+			};
+
+		} catch (error) {
+			const errMsg = error instanceof Error ? error.message : String(error);
+			progressCallback([{
+				kind: 'markdownContent',
+				content: new MarkdownString(`⚠️ 代码库搜索失败: ${errMsg}\n\n`)
+			}]);
+			return { enhancedInput: query };
 		}
 	}
 

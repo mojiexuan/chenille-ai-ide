@@ -310,7 +310,9 @@
 	color: var(--vscode-input-foreground);
 	font-size: 13px;
 	font-family: inherit;
-	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
 }
 
 .chenille-form-input:hover,
@@ -556,5 +558,550 @@
 	padding: 2px 6px;
 	border-radius: 3px;
 	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+}
+
+/* ========== 索引管理面板样式 ========== */
+
+.index-management-panel {
+	padding: 20px;
+	height: 100%;
+	overflow-y: auto;
+}
+
+.index-panel-header h2 {
+	margin: 0 0 8px 0;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.index-panel-header .description {
+	margin: 0 0 20px 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.workspace-info {
+	background: var(--vscode-textBlockQuote-background);
+	padding: 12px 16px;
+	border-radius: 6px;
+	margin-bottom: 20px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.workspace-info .label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.workspace-info .path {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	word-break: break-all;
+}
+
+.workspace-info .warning {
+	color: var(--vscode-errorForeground);
+}
+
+.index-status {
+	margin-bottom: 24px;
+}
+
+.status-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.status-row.toggle-row {
+	padding-bottom: 16px;
+	margin-bottom: 16px;
+}
+
+.status-row .label {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.status-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 16px;
+}
+
+.status-item {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.status-item .label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.status-item .value {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.status-item .value.success {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.status-item .value.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.status-item .value.indexing {
+	color: var(--vscode-progressBar-background);
+}
+
+.progress-container {
+	margin-top: 16px;
+	padding: 16px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 6px;
+}
+
+.progress-bar {
+	height: 4px;
+	background: var(--vscode-progressBar-background);
+	border-radius: 2px;
+	width: 0%;
+	transition: width 0.3s ease;
+	margin-bottom: 8px;
+}
+
+.progress-text {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.index-actions {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.index-actions .monaco-button {
+	min-width: 100px;
+}
+
+.index-actions .monaco-button.secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.index-actions .monaco-button.danger {
+	background: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.no-workspace-message,
+.error-message {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 20px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 6px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.error-message {
+	color: var(--vscode-errorForeground);
+}
+
+/* ========== 索引统计面板样式 ========== */
+
+.index-stats-panel {
+	margin-top: 24px;
+	padding: 16px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 8px;
+}
+
+.stats-header h3 {
+	margin: 0 0 16px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.stats-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 12px;
+	margin-bottom: 20px;
+}
+
+.stat-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	background: var(--vscode-editor-background);
+	border-radius: 4px;
+}
+
+.stat-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.stat-value {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.language-distribution {
+	border-top: 1px solid var(--vscode-widget-border);
+	padding-top: 16px;
+}
+
+.language-distribution h4 {
+	margin: 0 0 12px 0;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+}
+
+.lang-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.lang-item {
+	display: grid;
+	grid-template-columns: 100px 60px 1fr;
+	align-items: center;
+	gap: 12px;
+}
+
+.lang-name {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	font-family: var(--monaco-monospace-font);
+}
+
+.lang-count {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	text-align: right;
+}
+
+.lang-bar {
+	height: 6px;
+	background: var(--vscode-editor-background);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.lang-bar-fill {
+	height: 100%;
+	background: var(--vscode-progressBar-background);
+	border-radius: 3px;
+	transition: width 0.3s ease;
+}
+
+/* ========== 多工作区支持样式 ========== */
+
+.multi-workspace-info {
+	margin-top: 8px;
+	padding: 6px 12px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 4px;
+	font-size: 12px;
+	display: inline-block;
+}
+
+.workspace-list {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin-top: 20px;
+}
+
+.workspace-card {
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	padding: 16px;
+	transition: border-color 0.2s;
+}
+
+.workspace-card:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.workspace-card-header {
+	margin-bottom: 12px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.workspace-card-header .workspace-name {
+	margin: 0 0 4px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.workspace-card-header .workspace-path {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--monaco-monospace-font);
+	word-break: break-all;
+}
+
+.workspace-status {
+	margin-bottom: 12px;
+}
+
+.workspace-status .toggle-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.workspace-status .status-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+}
+
+.workspace-status .status-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+}
+
+.workspace-status .status-item .label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.workspace-status .status-item .value {
+	font-weight: 500;
+}
+
+.workspace-status .status-item .value.success {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.workspace-status .status-item .value.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.workspace-status .status-item .value.indexing {
+	color: var(--vscode-progressBar-background);
+}
+
+.workspace-stats {
+	margin-bottom: 12px;
+}
+
+.compact-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.stat-badge {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 4px;
+	font-size: 11px;
+}
+
+.stat-badge .stat-icon {
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.stat-badge .stat-text {
+	color: var(--vscode-foreground);
+}
+
+.stat-badge.langs {
+	max-width: 200px;
+}
+
+.stat-badge.langs .stat-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.workspace-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.workspace-actions .monaco-button.small {
+	padding: 4px 12px;
+	font-size: 12px;
+	min-width: auto;
+}
+
+.workspace-actions .monaco-button.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.workspace-actions .monaco-button.secondary {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.workspace-actions .monaco-button.danger {
+	background: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+/* ========== 本地模型开关样式 ========== */
+
+.workspace-status .local-model-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+	padding: 8px 12px;
+	background: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 4px;
+}
+
+.workspace-status .local-model-row .label {
+	color: var(--vscode-foreground);
+	font-weight: 500;
+}
+
+.workspace-status .hint-row {
+	padding: 4px 12px;
+	margin-bottom: 8px;
+}
+
+.workspace-status .hint-row .hint {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	font-style: italic;
+}
+
+/* ========== 模型下载进度样式 ========== */
+
+.workspace-status .model-download-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+	margin-bottom: 8px;
+	background: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 4px;
+}
+
+.workspace-status .model-download-row .download-label {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.workspace-status .model-download-row .download-progress-bar {
+	flex: 1;
+	height: 6px;
+	background: var(--vscode-progressBar-background);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.workspace-status .model-download-row .download-progress-fill {
+	height: 100%;
+	background: var(--vscode-progressBar-background);
+	background: linear-gradient(
+		90deg,
+		var(--vscode-button-background),
+		var(--vscode-button-hoverBackground)
+	);
+	transition: width 0.2s ease;
+}
+
+.workspace-status .model-download-row .download-percent {
+	flex-shrink: 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	min-width: 36px;
+	text-align: right;
+}
+
+/* ========== 嵌入模型选择样式 ========== */
+
+.workspace-status .model-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.workspace-status .model-row.disabled {
+	opacity: 0.5;
+}
+
+.workspace-status .model-row .label {
+	color: var(--vscode-foreground);
+	font-weight: 500;
+}
+
+.workspace-status .model-select {
+	flex: 1;
+	max-width: 280px;
+	padding: 4px 8px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.workspace-status .model-select:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.workspace-status .model-select:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* ========== 错误信息样式 ========== */
+
+.workspace-status .error-row {
+	margin-bottom: 12px;
+}
+
+.workspace-status .error-message {
+	display: block;
+	padding: 8px 12px;
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+	border-radius: 4px;
+	color: var(--vscode-inputValidation-warningForeground);
 	font-size: 12px;
 }

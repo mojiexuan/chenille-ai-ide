@@ -321,6 +321,25 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 		}
 	},
 
+	// 代码库语义搜索
+	{
+		type: 'function',
+		function: {
+			name: 'codebaseSearch',
+			description: `【推荐】语义搜索代码库，找到与查询最相关的代码片段。
+适用场景：理解代码结构、查找实现细节、探索项目架构、定位相关代码。
+⚠️ 如果返回索引不可用（INDEX_DISABLED/INDEX_BUILDING），请改用 searchInFiles 或 getWorkspaceSymbols。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					query: { type: 'string', description: '自然语言查询（描述你要找什么代码）' },
+					topK: { type: 'number', description: '返回结果数量，默认 5，最大 20' }
+				},
+				required: ['query']
+			}
+		}
+	},
+
 	// 符号工具
 	{
 		type: 'function',
@@ -563,7 +582,6 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 			required: ['prompt', 'description']
 		}
 	}
-	// 注意：editFile 已移至 Chenille 文件工具，不再使用 VS Code 内置版本
 ];
 
 // ==================== 工具辅助函数 ====================
