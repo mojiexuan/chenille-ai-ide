@@ -8,7 +8,7 @@ import { Disposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { AiPrompt } from '../common/types.js';
 import { IAiPromptStorageService } from '../common/storageIpc.js';
-import { BUILTIN_PROMPTS, isBuiltinPrompt } from '../common/builtinPrompts.js';
+import { BUILTIN_PROMPTS, isBuiltinPrompt } from '../common/prompts/index.js';
 
 const STORAGE_KEY = 'chenille.aiPrompts';
 

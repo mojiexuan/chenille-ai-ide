@@ -7,7 +7,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IChenilleChatController, IChenilleChatRequest } from './chenilleChatController.js';
-import { CONTEXT_COLLAPSE_SYSTEM_PROMPT, createCollapseRequestMessage, CONTINUE_WORK_MESSAGE, COLLAPSED_CONTEXT_MARKER } from '../../common/contextCollapsePrompt.js';
+import { CONTEXT_COLLAPSE_SYSTEM_PROMPT, createCollapseRequestMessage, CONTINUE_WORK_MESSAGE, COLLAPSED_CONTEXT_MARKER } from '../../common/prompts/index.js';
 import { localize } from '../../../nls.js';
 
 /**

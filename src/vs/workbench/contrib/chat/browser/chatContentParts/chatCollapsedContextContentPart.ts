@@ -13,7 +13,7 @@ import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { COLLAPSED_CONTEXT_MARKER } from '../../../../../chenille/common/contextCollapsePrompt.js';
+import { COLLAPSED_CONTEXT_MARKER } from '../../../../../chenille/common/prompts/index.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 
 const $ = dom.$;
