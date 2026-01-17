@@ -371,3 +371,69 @@ export function matchGlob(pattern: string, path: string): boolean {
 	const regex = new RegExp(`^${regexPattern}$`);
 	return regex.test(path);
 }
+
+
+
+/**
+ * 标准化空白字符，用于模糊匹配
+ * - 统一换行符 (\r\n -> \n)
+ * - 去除行尾空格
+ */
+export function normalizeWhitespace(text: string): string {
+	return text
+		.replace(/\r\n/g, '\n')      // 统一换行符
+		.replace(/[ \t]+$/gm, '');   // 去除行尾空格
+}
+
+/**
+ * 尝试在内容中查找文本，支持空白容差
+ * 先尝试精确匹配，失败后尝试标准化匹配
+ */
+export function findTextWithWhitespaceTolerance(
+	content: string,
+	searchText: string
+): {
+	found: boolean;
+	exactMatch: boolean;
+	normalizedOldText?: string;
+	locations: Array<{ startLine: number; endLine: number; startColumn: number; preview: string }>;
+} {
+	// 1. 先尝试精确匹配
+	const exactLocations = findMultilineText(content, searchText, true);
+	if (exactLocations.length > 0) {
+		return {
+			found: true,
+			exactMatch: true,
+			locations: exactLocations
+		};
+	}
+
+	// 2. 尝试标准化后匹配
+	const normalizedContent = normalizeWhitespace(content);
+	const normalizedSearchText = normalizeWhitespace(searchText);
+
+	// 如果标准化后没有变化，就不用再试了
+	if (normalizedSearchText === searchText) {
+		return {
+			found: false,
+			exactMatch: false,
+			locations: []
+		};
+	}
+
+	const normalizedLocations = findMultilineText(normalizedContent, normalizedSearchText, true);
+	if (normalizedLocations.length > 0) {
+		return {
+			found: true,
+			exactMatch: false,
+			normalizedOldText: normalizedSearchText,
+			locations: normalizedLocations
+		};
+	}
+
+	return {
+		found: false,
+		exactMatch: false,
+		locations: []
+	};
+}

@@ -32,7 +32,9 @@ import {
 	replaceText,
 	insertAtLine,
 	deleteLineRange,
-	countLines
+	countLines,
+	normalizeWhitespace,
+	findTextWithWhitespaceTolerance
 } from './fileUtils.js';
 
 /**
@@ -71,19 +73,22 @@ export async function replaceInFile(
 			throw error;
 		}
 
-		// 查找所有匹配
-		const locations = findMultilineText(content, params.oldText, true);
+		// 查找所有匹配（支持空白容差）
+		const matchResult = findTextWithWhitespaceTolerance(content, params.oldText);
 
-		// 检查匹配数量
-		if (locations.length === 0) {
-			// 尝试不区分大小写搜索，给出提示
+		// 用于实际替换的文本（可能是标准化后的版本）
+		let workingContent = content;
+		let workingOldText = params.oldText;
+
+		if (!matchResult.found) {
+			// 精确匹配和标准化匹配都失败，尝试大小写提示
 			const caseInsensitiveLocations = findMultilineText(content, params.oldText, false);
 
 			let suggestion = '未找到要替换的文本。';
 			if (caseInsensitiveLocations.length > 0) {
 				suggestion += ` 找到 ${caseInsensitiveLocations.length} 个大小写不同的匹配。请检查大小写是否正确。`;
 			} else {
-				suggestion += ' 请使用 searchInFile 工具确认文本内容，或使用 readFile 查看文件。';
+				suggestion += ' 请使用 readFile 读取目标区域，确保 oldText 与文件内容完全一致（包括空格、换行、缩进）。';
 			}
 
 			return {
@@ -104,6 +109,14 @@ export async function replaceInFile(
 				}
 			};
 		}
+
+		// 如果是标准化后匹配到的，使用标准化后的内容
+		if (!matchResult.exactMatch) {
+			workingContent = normalizeWhitespace(content);
+			workingOldText = normalizeWhitespace(params.oldText);
+		}
+
+		const locations = matchResult.locations;
 
 		if (locations.length > 1 && expectedOccurrences === 1) {
 			// 找到多个匹配，需要更精确的上下文
@@ -149,7 +162,7 @@ export async function replaceInFile(
 		}
 
 		// 执行替换
-		const { newContent, replacedCount, lineNumbers } = replaceText(content, params.oldText, params.newText);
+		const { newContent, replacedCount, lineNumbers } = replaceText(workingContent, workingOldText, params.newText);
 
 		// 写入文件
 		await fileService.writeFile(uri, VSBuffer.fromString(newContent));

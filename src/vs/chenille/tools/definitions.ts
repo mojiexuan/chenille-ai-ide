@@ -156,12 +156,13 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 		type: 'function',
 		function: {
 			name: 'replaceInFile',
-			description: `【推荐】精确替换文件中的文本。oldText 必须完全匹配，默认只替换唯一匹配。`,
+			description: `【推荐】精确替换文件中的文本。oldText 必须完全匹配，默认只替换唯一匹配。
+⚠️ 使用前必须先用 readFile 读取目标区域，确保 oldText 与文件内容完全一致（包括空格、换行、缩进）。`,
 			parameters: {
 				type: 'object',
 				properties: {
 					path: { type: 'string', description: '文件路径' },
-					oldText: { type: 'string', description: '要替换的原文本（必须精确匹配）' },
+					oldText: { type: 'string', description: '要替换的原文本（必须与文件内容完全一致，建议从 readFile 结果中复制）' },
 					newText: { type: 'string', description: '替换后的新文本' },
 					expectedOccurrences: { type: 'number', description: '期望匹配次数，默认 1' }
 				},
