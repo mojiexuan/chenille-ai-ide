@@ -48,3 +48,7 @@ export { getOpenEditors } from './editorTools.js';
 
 // 系统工具
 export { getSystemInfo, getCurrentTime } from './systemTools.js';
+
+
+// 符号工具
+export { getWorkspaceSymbolsTool, getFileOutline } from './symbolTools.js';

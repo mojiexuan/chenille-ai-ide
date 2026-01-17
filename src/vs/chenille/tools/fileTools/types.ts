@@ -374,3 +374,74 @@ export interface GetCurrentTimeResult {
 	/** 时区偏移（分钟） */
 	timezoneOffset: number;
 }
+
+
+
+// ==================== getWorkspaceSymbols ====================
+
+export interface GetWorkspaceSymbolsParams {
+	/** 搜索查询（符号名称的部分匹配） */
+	query?: string;
+	/** 最大返回结果数 */
+	maxResults?: number;
+	/** 符号类型过滤：class, function, method, variable, interface, enum 等 */
+	kindFilter?: string[];
+}
+
+export interface WorkspaceSymbolInfo {
+	/** 符号名称 */
+	name: string;
+	/** 符号类型 */
+	kind: string;
+	/** 容器名称（如类名） */
+	containerName?: string;
+	/** 位置信息 */
+	location: {
+		file: string;
+		line: number;
+		column: number;
+	};
+}
+
+export interface GetWorkspaceSymbolsResult {
+	/** 搜索查询 */
+	query: string;
+	/** 总共找到的符号数 */
+	totalFound: number;
+	/** 返回的符号数 */
+	returned: number;
+	/** 符号列表 */
+	symbols: WorkspaceSymbolInfo[];
+}
+
+// ==================== getFileOutline ====================
+
+export interface GetFileOutlineParams {
+	/** 文件路径 */
+	path: string;
+}
+
+export interface OutlineSymbol {
+	/** 符号名称 */
+	name: string;
+	/** 符号类型 */
+	kind: string;
+	/** 详细信息 */
+	detail?: string;
+	/** 行范围 */
+	range: {
+		startLine: number;
+		endLine: number;
+	};
+	/** 子符号 */
+	children?: OutlineSymbol[];
+}
+
+export interface GetFileOutlineResult {
+	/** 文件路径 */
+	file: string;
+	/** 顶层符号总数 */
+	totalSymbols: number;
+	/** 大纲结构 */
+	outline: OutlineSymbol[];
+}

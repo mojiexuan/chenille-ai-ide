@@ -50,11 +50,19 @@ import {
 	AppendToFileParams,
 	GetSystemInfoParams,
 	GetCurrentTimeParams,
+	GetWorkspaceSymbolsParams,
+	GetFileOutlineParams,
 	appendToFile,
 	getSystemInfo,
 	getCurrentTime,
+	getWorkspaceSymbolsTool,
+	getFileOutline,
+
 } from './fileTools/index.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
+import { ITextModelService } from '../../editor/common/services/resolverService.js';
+import { IOutlineModelService } from '../../editor/contrib/documentSymbols/browser/outlineModel.js';
+
 
 /**
  * 工具执行结果
@@ -106,8 +114,11 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'editFile',
 	'getSystemInfo',
 	'getCurrentTime',
-	'appendToFile'
+	'appendToFile',
+	'getWorkspaceSymbols',
+	'getFileOutline'
 ]);
+
 
 /**
  * 检查是否为 Chenille 自实现的文件工具
@@ -256,10 +267,13 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
 	) {
 		super();
 	}
+
 
 	/**
 	 * 延迟获取 ILanguageModelToolsService 以避免循环依赖
@@ -309,7 +323,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			// 检查是否为 Chenille 文件工具
 			else if (isChenilleFileTool(toolName)) {
 				result = await withTimeout(
-					this.dispatchFileTools(toolName, toolCall),
+					this.dispatchFileTools(toolName, toolCall, token),
 					TOOL_TIMEOUT,
 					toolName
 				);
@@ -337,7 +351,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	/**
 	 * 调度 Chenille 文件工具
 	 */
-	private async dispatchFileTools(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
+	private async dispatchFileTools(toolName: string, toolCall: ToolCall, token: CancellationToken): Promise<IToolResult> {
 		try {
 			let result: FileToolResult<unknown>;
 
@@ -503,6 +517,25 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					result = await getCurrentTime(parsed.data);
 					break;
 				}
+
+				case 'getWorkspaceSymbols': {
+					const parsed = parseToolArguments<GetWorkspaceSymbolsParams>(toolCall);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					result = await getWorkspaceSymbolsTool(parsed.data, this.workspaceService, token);
+					break;
+				}
+
+				case 'getFileOutline': {
+					const parsed = parseToolArguments<GetFileOutlineParams>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					result = await getFileOutline(parsed.data, this.workspaceService, this.textModelService, this.outlineModelService, token);
+					break;
+				}
+
 
 
 				default:

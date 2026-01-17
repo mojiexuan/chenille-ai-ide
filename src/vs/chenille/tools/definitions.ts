@@ -319,7 +319,44 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 			}
 		}
 	},
+
+	// 符号工具
+	{
+		type: 'function',
+		function: {
+			name: 'getWorkspaceSymbols',
+			description: '搜索工作区中的符号（类、函数、变量等）。利用语言服务提供的符号索引进行快速搜索。',
+			parameters: {
+				type: 'object',
+				properties: {
+					query: { type: 'string', description: '搜索查询（符号名称的部分匹配）' },
+					maxResults: { type: 'number', description: '最大返回结果数，默认 50' },
+					kindFilter: {
+						type: 'array',
+						items: { type: 'string' },
+						description: '符号类型过滤：Class, Function, Method, Variable, Interface, Enum 等'
+					}
+				},
+				required: []
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'getFileOutline',
+			description: '获取文件的结构大纲（类、函数、变量的层级视图）。返回符号的树形结构，包含名称、类型、行范围。',
+			parameters: {
+				type: 'object',
+				properties: {
+					path: { type: 'string', description: '文件路径' }
+				},
+				required: ['path']
+			}
+		}
+	},
 ];
+
 
 // ==================== VS Code 内置工具映射 ====================
 
