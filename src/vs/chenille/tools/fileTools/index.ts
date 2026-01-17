@@ -10,9 +10,10 @@
  * - 读取类：readFile, getFileInfo, checkFileExists
  * - 目录类：listDirectory, findFiles
  * - 搜索类：searchInFile, searchInFiles
- * - 修改类：replaceInFile, insertInFile, deleteLines
+ * - 修改类：replaceInFile, insertInFile, deleteLines, appendToFile
  * - 管理类：createFile, deleteFile, renameFile
  * - 编辑器类：getOpenEditors
+ * - 系统类：getSystemInfo, getCurrentTime
  */
 
 // 类型导出
@@ -38,8 +39,12 @@ export {
 	createFile,
 	deleteFile,
 	renameFile,
-	editFile
+	editFile,
+	appendToFile
 } from './modifyFile.js';
 
 // 编辑器工具
 export { getOpenEditors } from './editorTools.js';
+
+// 系统工具
+export { getSystemInfo, getCurrentTime } from './systemTools.js';

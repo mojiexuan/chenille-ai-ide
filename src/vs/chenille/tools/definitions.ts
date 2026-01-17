@@ -276,7 +276,49 @@ export const CHENILLE_FILE_TOOLS: AiTool[] = [
 				required: ['path', 'content']
 			}
 		}
-	}
+	},
+	// 系统工具
+	{
+		type: 'function',
+		function: {
+			name: 'getSystemInfo',
+			description: '获取当前操作系统信息（windows/linux/darwin）和架构。',
+			parameters: {
+				type: 'object',
+				properties: {},
+				required: []
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'getCurrentTime',
+			description: '获取当前系统时间。',
+			parameters: {
+				type: 'object',
+				properties: {
+					format: { type: 'string', description: '时间格式：iso（默认）、locale、unix' }
+				},
+				required: []
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'appendToFile',
+			description: '向文件末尾追加内容。文件不存在时自动创建。适合分批写入大文件。',
+			parameters: {
+				type: 'object',
+				properties: {
+					path: { type: 'string', description: '文件路径' },
+					content: { type: 'string', description: '要追加的内容' }
+				},
+				required: ['path', 'content']
+			}
+		}
+	},
 ];
 
 // ==================== VS Code 内置工具映射 ====================
@@ -506,16 +548,18 @@ export function getVSCodeToolId(chenilleName: string): string | undefined {
 /**
  * 构建发送给 AI 的工具定义
  * 合并 Chenille 文件工具和可用的 VS Code 内置工具
+ * @param availableVSCodeToolIds 可选，不传则包含所有 VS Code 工具
  */
-export function buildToolDefinitionsForAI(availableVSCodeToolIds: Set<string>): AiTool[] {
+export function buildToolDefinitionsForAI(availableVSCodeToolIds?: Set<string>): AiTool[] {
 	const tools: AiTool[] = [];
 
 	// 添加 Chenille 文件工具
 	tools.push(...CHENILLE_FILE_TOOLS);
 
-	// 添加可用的 VS Code 内置工具
+	// 添加 VS Code 内置工具
 	for (const def of VSCODE_TOOL_DEFINITIONS) {
-		if (availableVSCodeToolIds.has(def.vsCodeToolId)) {
+		// 不传参数则全部添加，否则只添加已注册的
+		if (!availableVSCodeToolIds || availableVSCodeToolIds.has(def.vsCodeToolId)) {
 			tools.push({
 				type: 'function',
 				function: {
@@ -565,20 +609,3 @@ export function getToolByName(name: string): AiTool | undefined {
 	return undefined;
 }
 
-// ==================== 兼容性导出 ====================
-
-/**
- * @deprecated 使用 buildToolDefinitionsForAI 代替
- * 保留用于兼容性
- */
-export const CHENILLE_TOOLS: AiTool[] = [
-	...CHENILLE_FILE_TOOLS,
-	...VSCODE_TOOL_DEFINITIONS.map(def => ({
-		type: 'function' as const,
-		function: {
-			name: def.chenilleName,
-			description: def.description,
-			parameters: def.parameters
-		}
-	}))
-];

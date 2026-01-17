@@ -314,3 +314,63 @@ export interface EditFileResult {
 	/** 原文件行数（如果是修改） */
 	originalLineCount?: number;
 }
+
+
+
+// ==================== appendToFile ====================
+
+export interface AppendToFileParams {
+	/** 文件路径 */
+	path: string;
+	/** 要追加的内容 */
+	content: string;
+}
+
+export interface AppendToFileResult {
+	success: boolean;
+	/** 追加的行数 */
+	appendedLines: number;
+	/** 文件新的总行数 */
+	newLineCount: number;
+}
+
+// ==================== getSystemInfo ====================
+
+export interface GetSystemInfoParams {
+	// 无参数
+}
+
+export interface GetSystemInfoResult {
+	/** 平台标识：win32, darwin, linux */
+	platform: string;
+	/** 友好的操作系统名称 */
+	osName: string;
+	/** CPU 架构：x64, arm64 等 */
+	arch: string;
+	/** Node.js 版本 */
+	nodeVersion: string;
+	/** 用户主目录 */
+	homeDir: string;
+	/** 默认 shell */
+	shell: string;
+}
+
+// ==================== getCurrentTime ====================
+
+export interface GetCurrentTimeParams {
+	/** 时间格式：iso, locale, date, time, timestamp */
+	format?: 'iso' | 'locale' | 'date' | 'time' | 'timestamp';
+}
+
+export interface GetCurrentTimeResult {
+	/** ISO 8601 格式时间 */
+	iso: string;
+	/** Unix 时间戳（毫秒） */
+	timestamp: number;
+	/** 按指定格式格式化的时间 */
+	formatted: string;
+	/** 时区名称 */
+	timezone: string;
+	/** 时区偏移（分钟） */
+	timezoneOffset: number;
+}

@@ -11,8 +11,8 @@ import { INotificationService, Severity } from '../../../platform/notification/c
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CHENILLE_SETTINGS_ACTION_ID } from '../settingsPanel/chenilleSettingsAction.js';
 import { localize } from '../../../nls.js';
-import { AiModelMessage, AiToolCall, TokenUsage, AiMessageContent } from '../../common/types.js';
-import { CHENILLE_TOOLS } from '../../tools/definitions.js';
+import { AiModelMessage, AiToolCall, TokenUsage, AiMessageContent, AiTool } from '../../common/types.js';
+import { buildToolDefinitionsForAI } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -237,7 +237,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		}
 
 		// 只有智能体模式才启用工具
-		const tools = (isAgentMode && request.enableTools !== false) ? CHENILLE_TOOLS : undefined;
+		const tools = (isAgentMode && request.enableTools !== false) ? buildToolDefinitionsForAI() : undefined;
 		let fullResponse = '';
 		let toolRound = 0;
 		// 累计 token 使用量
@@ -308,7 +308,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 	 */
 	private async executeOneRound(
 		messages: AiModelMessage[],
-		tools: typeof CHENILLE_TOOLS | undefined,
+		tools: AiTool[] | undefined,
 		token: CancellationToken,
 		systemPrompt?: string
 	): Promise<{ content: string; reasoning?: string; reasoning_signature?: string; toolCalls?: AiToolCall[]; usage?: TokenUsage }> {

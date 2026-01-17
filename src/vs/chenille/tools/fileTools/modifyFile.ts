@@ -22,7 +22,9 @@ import {
 	RenameFileParams,
 	RenameFileResult,
 	EditFileParams,
-	EditFileResult
+	EditFileResult,
+	AppendToFileParams,
+	AppendToFileResult,
 } from './types.js';
 import {
 	resolveFilePath,
@@ -502,6 +504,73 @@ export async function editFile(
 		return {
 			success: false,
 			error: `编辑文件失败: ${error instanceof Error ? error.message : String(error)}`,
+			errorCode: 'UNKNOWN_ERROR'
+		};
+	}
+}
+
+
+
+/**
+ * 向文件末尾追加内容
+ */
+export async function appendToFile(
+	params: AppendToFileParams,
+	fileService: IFileService,
+	workspaceService: IWorkspaceContextService
+): Promise<FileToolResult<AppendToFileResult>> {
+	try {
+		const uri = resolveFilePath(params.path, workspaceService);
+
+		let existingContent = '';
+		let fileExists = true;
+
+		// 尝试读取现有内容
+		try {
+			const fileContent = await fileService.readFile(uri);
+			existingContent = fileContent.value.toString();
+		} catch (error) {
+			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				fileExists = false;
+			} else {
+				throw error;
+			}
+		}
+
+		// 计算追加的行数
+		const appendedLines = countLines(params.content);
+
+		// 构建新内容
+		let newContent: string;
+		if (!fileExists || existingContent === '') {
+			newContent = params.content;
+		} else {
+			// 确保现有内容以换行符结尾
+			if (!existingContent.endsWith('\n') && !existingContent.endsWith('\r\n')) {
+				newContent = existingContent + '\n' + params.content;
+			} else {
+				newContent = existingContent + params.content;
+			}
+		}
+
+		const newLineCount = countLines(newContent);
+
+		// 写入文件
+		await fileService.writeFile(uri, VSBuffer.fromString(newContent));
+
+		return {
+			success: true,
+			data: {
+				success: true,
+				appendedLines,
+				newLineCount
+			}
+		};
+
+	} catch (error) {
+		return {
+			success: false,
+			error: `追加内容失败: ${error instanceof Error ? error.message : String(error)}`,
 			errorCode: 'UNKNOWN_ERROR'
 		};
 	}

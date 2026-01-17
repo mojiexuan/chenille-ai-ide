@@ -46,7 +46,13 @@ import {
 	DeleteFileParams,
 	RenameFileParams,
 	GetOpenEditorsParams,
-	EditFileParams
+	EditFileParams,
+	AppendToFileParams,
+	GetSystemInfoParams,
+	GetCurrentTimeParams,
+	appendToFile,
+	getSystemInfo,
+	getCurrentTime,
 } from './fileTools/index.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 
@@ -97,7 +103,10 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'deleteFile',
 	'renameFile',
 	'getOpenEditors',
-	'editFile'
+	'editFile',
+	'getSystemInfo',
+	'getCurrentTime',
+	'appendToFile'
 ]);
 
 /**
@@ -467,6 +476,34 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					result = await editFile(parsed.data, this.fileService, this.workspaceService);
 					break;
 				}
+
+				case 'appendToFile': {
+					const parsed = parseToolArguments<AppendToFileParams>(toolCall, ['path', 'content']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					result = await appendToFile(parsed.data, this.fileService, this.workspaceService);
+					break;
+				}
+
+				case 'getSystemInfo': {
+					const parsed = parseToolArguments<GetSystemInfoParams>(toolCall);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					result = await getSystemInfo(parsed.data);
+					break;
+				}
+
+				case 'getCurrentTime': {
+					const parsed = parseToolArguments<GetCurrentTimeParams>(toolCall);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+					result = await getCurrentTime(parsed.data);
+					break;
+				}
+
 
 				default:
 					return {
