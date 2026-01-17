@@ -21,7 +21,8 @@ export class PromptManagementPanel extends Disposable {
 	private container: HTMLElement;
 	private listContainer: HTMLElement | undefined;
 	private formContainer: HTMLElement | undefined;
-	private editingPrompt: AiPrompt | undefined;
+	private headerActions: HTMLElement | undefined;
+	private addBtn: HTMLElement | undefined;
 	private formInputs: FormInputs | undefined;
 	private isViewMode: boolean = false;
 
@@ -39,10 +40,12 @@ export class PromptManagementPanel extends Disposable {
 		const header = append(this.container, $('.chenille-panel-header'));
 		append(header, $('.chenille-panel-title')).textContent = localize('promptManagement', "提示词管理");
 
-		const addBtn = append(header, $('button.chenille-btn.chenille-btn-primary'));
-		append(addBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
-		append(addBtn, document.createTextNode(localize('addPrompt', "添加提示词")));
-		addBtn.addEventListener('click', () => this.showForm());
+		this.headerActions = append(header, $('.chenille-header-actions'));
+
+		this.addBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-primary'));
+		append(this.addBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
+		append(this.addBtn, document.createTextNode(localize('addPrompt', "添加提示词")));
+		this.addBtn.addEventListener('click', () => this.showForm());
 
 		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
@@ -112,14 +115,17 @@ export class PromptManagementPanel extends Disposable {
 	}
 
 	private showForm(prompt?: AiPrompt, viewOnly: boolean = false): void {
-		if (!this.formContainer || !this.listContainer) {
+		if (!this.formContainer || !this.listContainer || !this.addBtn) {
 			return;
 		}
 
-		this.editingPrompt = prompt;
 		this.isViewMode = viewOnly || (prompt?.isBuiltin ?? false);
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
+
+		// 隐藏添加按钮，显示取消/保存按钮
+		this.addBtn.style.display = 'none';
+		this.renderHeaderActions();
 
 		clearNode(this.formContainer);
 
@@ -150,30 +156,45 @@ export class PromptManagementPanel extends Disposable {
 			description: descInput,
 			content: contentInput,
 		};
-
-		// 活动
-		const actions = append(this.formContainer, $('.chenille-form-actions'));
-
-		if (!this.isViewMode) {
-			const saveBtn = append(actions, $('button.chenille-btn.chenille-btn-primary'));
-			saveBtn.textContent = localize('save', "保存");
-			saveBtn.addEventListener('click', () => this.savePrompt());
-		}
-
-		const cancelBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
-		cancelBtn.textContent = this.isViewMode ? localize('close', "关闭") : localize('cancel', "取消");
-		cancelBtn.addEventListener('click', () => this.hideForm());
 	}
 
-	private hideForm(): void {
-		if (!this.formContainer || !this.listContainer) {
+	private renderHeaderActions(): void {
+		if (!this.headerActions) {
 			return;
 		}
 
-		this.editingPrompt = undefined;
+		// 清除旧的操作按钮（保留添加按钮）
+		const existingActions = this.headerActions.querySelectorAll('.chenille-btn:not(:first-child)');
+		existingActions.forEach(btn => btn.remove());
+
+		// 取消按钮
+		const cancelBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-secondary'));
+		cancelBtn.textContent = this.isViewMode ? localize('close', "关闭") : localize('cancel', "取消");
+		cancelBtn.style.marginRight = '8px';
+		cancelBtn.addEventListener('click', () => this.hideForm());
+
+		// 保存按钮（仅非查看模式）
+		if (!this.isViewMode) {
+			const saveBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-primary'));
+			saveBtn.textContent = localize('save', "保存");
+			saveBtn.addEventListener('click', () => this.savePrompt());
+		}
+	}
+
+	private hideForm(): void {
+		if (!this.formContainer || !this.listContainer || !this.addBtn || !this.headerActions) {
+			return;
+		}
+
 		this.formInputs = undefined;
 		this.formContainer.style.display = 'none';
 		this.listContainer.style.display = 'flex';
+
+		// 显示添加按钮，清除取消/保存按钮
+		this.addBtn.style.display = '';
+		const existingActions = this.headerActions.querySelectorAll('.chenille-btn:not(:first-child)');
+		existingActions.forEach(btn => btn.remove());
+
 		this.renderList();
 	}
 
@@ -193,9 +214,8 @@ export class PromptManagementPanel extends Disposable {
 			return;
 		}
 
-		// 添加新时检查重复名称
-		if (!this.editingPrompt && await this.promptStorage.get(prompt.name)) {
-			alert(localize('nameDuplicate', "名称已存在"));
+		if (!prompt.content) {
+			alert(localize('contentRequired', "内容不能为空"));
 			return;
 		}
 
@@ -204,7 +224,7 @@ export class PromptManagementPanel extends Disposable {
 	}
 
 	private async deletePrompt(name: string): Promise<void> {
-		if (confirm(localize('confirmDeletePrompt', "确定要删除提示词 '{0}' 吗？", name))) {
+		if (confirm(localize('confirmDelete', "确定要删除提示词 \"{0}\" 吗？", name))) {
 			await this.promptStorage.delete(name);
 			this.renderList();
 		}
