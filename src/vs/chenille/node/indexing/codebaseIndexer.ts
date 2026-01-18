@@ -5,11 +5,9 @@
 
 import * as fs from 'fs';
 import * as path from '../../../base/common/path.js';
-import { match as globMatch } from '../../../base/common/glob.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import {
 	DEFAULT_INDEXING_CONFIG,
-	generateContentHash,
 	type ICodebaseIndexer,
 	type IVectorIndex,
 	type ICodeChunker,
@@ -33,16 +31,14 @@ import { createEmbeddingsProvider } from './embeddings/localEmbeddings.js';
 import { createCodeChunker } from './chunk/codeChunker.js';
 import { createLanceDbIndex } from './vectorIndex/lanceDbIndex.js';
 import { createIndexCache } from './cache/sqliteCache.js';
+import {
+	MerkleTree,
+	TreeBuilder,
+	TreeSerializer,
+	createTreeBuilder,
+	createTreeSerializer,
+} from './fileTree/index.js';
 
-
-/**
- * 文件信息缓存（用于增量更新判断）
- */
-interface FileInfo {
-	path: string;
-	cacheKey: string;
-	mtime: number;
-}
 
 /**
  * 简单的异步互斥锁
@@ -99,8 +95,14 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	private cache: IIndexCache;
 	private readonly config: IndexingConfig;
 
-	/** 文件信息缓存（内存中） */
-	private fileInfoCache: Map<string, Map<string, FileInfo>> = new Map();
+	/** Merkle 文件树（每个工作区一棵） */
+	private merkleTrees: Map<string, MerkleTree> = new Map();
+
+	/** 树构建器 */
+	private treeBuilder: TreeBuilder;
+
+	/** 树序列化器 */
+	private treeSerializer: TreeSerializer | undefined;
 
 	/** 当前正在索引的工作区 */
 	private indexingWorkspaces: Set<string> = new Set();
@@ -124,6 +126,23 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			this.codeChunker = createCodeChunker(this.environmentService);
 			this.cache = createIndexCache(this.embeddingsProvider.embeddingId);
 			this.vectorIndex = createLanceDbIndex(this.embeddingsProvider, this.cache);
+
+			// 初始化 Merkle 树组件
+			this.treeBuilder = createTreeBuilder({
+				includeExtensions: this.config.includeExtensions,
+				excludePatterns: this.config.excludePatterns,
+				maxFileSize: this.config.maxFileSize,
+			});
+
+			// 初始化持久化（如果有 environmentService）
+			if (this.environmentService) {
+				const cacheDir = path.join(
+					this.environmentService.cacheHome.fsPath,
+					'chenille',
+					'index-cache',
+				);
+				this.treeSerializer = createTreeSerializer(cacheDir);
+			}
 		} catch (error) {
 			throw new IndexingError(
 				IndexingErrorCode.InitFailed,
@@ -157,6 +176,82 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	 */
 	getEmbeddingId(): string {
 		return this.embeddingsProvider.embeddingId;
+	}
+
+	/**
+	 * 获取或创建工作区的 Merkle 树
+	 */
+	private async getMerkleTree(workspacePath: string): Promise<MerkleTree> {
+		// 先从内存缓存获取
+		let tree = this.merkleTrees.get(workspacePath);
+		if (tree) {
+			return tree;
+		}
+
+		// 尝试从持久化存储加载
+		if (this.treeSerializer) {
+			const loadedTree = await this.treeSerializer.load(workspacePath);
+			if (loadedTree) {
+				this.merkleTrees.set(workspacePath, loadedTree as MerkleTree);
+				return loadedTree as MerkleTree;
+			}
+		}
+
+		// 创建新树
+		tree = new MerkleTree(workspacePath);
+		this.merkleTrees.set(workspacePath, tree);
+		return tree;
+	}
+
+	/**
+	 * 保存 Merkle 树到持久化存储
+	 */
+	private async saveMerkleTree(workspacePath: string): Promise<void> {
+		if (!this.treeSerializer) {
+			return;
+		}
+
+		const tree = this.merkleTrees.get(workspacePath);
+		if (tree) {
+			await this.treeSerializer.save(tree);
+		}
+	}
+
+	/**
+	 * 将 Merkle 树变更转换为索引结果格式
+	 */
+	private convertChangesToIndexResults(
+		changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }>,
+		merkleTree: MerkleTree,
+	): RefreshIndexResults {
+		const compute: FileChangeItem[] = [];
+		const del: FileChangeItem[] = [];
+		const addTag: FileChangeItem[] = [];
+
+		for (const change of changes) {
+			const node = merkleTree.getNode(change.path);
+			const cacheKey = node?.hash || '';
+
+			if (change.type === 'add' || change.type === 'modify') {
+				compute.push({ path: change.path, cacheKey });
+			} else if (change.type === 'delete') {
+				del.push({ path: change.path, cacheKey });
+			}
+		}
+
+		// 获取所有未变更的文件作为 addTag
+		const allFiles = merkleTree.getAllFilePaths();
+		const changedPaths = new Set(changes.map(c => c.path));
+		for (const filePath of allFiles) {
+			if (!changedPaths.has(filePath)) {
+				const node = merkleTree.getNode(filePath);
+				if (node) {
+					addTag.push({ path: filePath, cacheKey: node.hash });
+				}
+			}
+		}
+
+		return { compute, del, addTag };
 	}
 
 	/**
@@ -203,22 +298,29 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			// 检查取消
 			this.checkCancellation(token);
 
-			// 1. 扫描文件
-			onProgress?.({ progress: 0, description: '正在扫描文件...' });
-			const files = await this.scanFiles(workspacePath);
-			console.log(`[CodebaseIndexer] Found ${files.length} files to index`);
+			// 1. 获取或创建 Merkle 树
+			onProgress?.({ progress: 0, description: '正在加载文件树...' });
+			const merkleTree = await this.getMerkleTree(workspacePath);
+			const oldRootHash = merkleTree.rootHash;
+
+			// 2. 扫描文件并更新 Merkle 树
+			onProgress?.({ progress: 0.05, description: '正在扫描文件...' });
+			const { changes } = await this.treeBuilder.fullScan(merkleTree);
+			console.log(`[CodebaseIndexer] Merkle tree updated, ${changes.length} changes detected`);
 
 			// 检查取消
 			this.checkCancellation(token);
 
-			if (files.length === 0) {
-				onProgress?.({ progress: 1, description: '没有需要索引的文件' });
+			if (changes.length === 0 && oldRootHash === merkleTree.rootHash) {
+				onProgress?.({ progress: 1, description: '索引已是最新' });
+				// 保存 Merkle 树
+				await this.saveMerkleTree(workspacePath);
 				return;
 			}
 
-			// 2. 计算增量更新
+			// 3. 转换变更为索引格式
 			onProgress?.({ progress: 0.1, description: '正在计算变更...' });
-			const results = await this.calculateChanges(workspacePath, files);
+			const results = this.convertChangesToIndexResults(changes, merkleTree);
 
 			// 检查取消
 			this.checkCancellation(token);
@@ -265,8 +367,8 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 					token, // 传递取消令牌
 				);
 
-				// 5. 更新文件信息缓存
-				this.updateFileInfoCache(workspacePath, files);
+				// 5. 保存 Merkle 树
+				await this.saveMerkleTree(workspacePath);
 
 				const duration = Date.now() - startTime;
 				console.log(`[CodebaseIndexer] Indexing completed in ${duration}ms`);
@@ -313,7 +415,7 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	}
 
 	/**
-	 * 处理文件变更
+	 * 处理文件变更（使用 Merkle 树增量更新）
 	 */
 	async onFilesChanged(
 		workspacePath: string,
@@ -323,33 +425,20 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			return;
 		}
 
-		console.log(`[CodebaseIndexer] Processing ${changedFiles.length} file changes`);
+		console.log(`[CodebaseIndexer] Processing ${changedFiles.length} file changes via Merkle tree`);
 
-		// 获取变更文件的信息
-		const fileInfos: FileInfo[] = [];
-		for (const filePath of changedFiles) {
-			const fullPath = path.join(workspacePath, filePath);
+		// 获取 Merkle 树
+		const merkleTree = await this.getMerkleTree(workspacePath);
 
-			try {
-				const stat = await fs.promises.stat(fullPath);
-				const content = await fs.promises.readFile(fullPath, 'utf-8');
-				fileInfos.push({
-					path: filePath,
-					cacheKey: generateContentHash(content),
-					mtime: stat.mtimeMs,
-				});
-			} catch {
-				// 文件可能已被删除，标记为删除
-				fileInfos.push({
-					path: filePath,
-					cacheKey: '',
-					mtime: 0,
-				});
-			}
+		// 使用 TreeBuilder 增量更新
+		const { changes } = await this.treeBuilder.update(merkleTree, changedFiles);
+
+		if (changes.length === 0) {
+			return;
 		}
 
-		// 计算变更
-		const results = await this.calculateChanges(workspacePath, fileInfos);
+		// 转换变更为索引格式
+		const results = this.convertChangesToIndexResults(changes, merkleTree);
 
 		if (results.compute.length === 0 && results.del.length === 0) {
 			return;
@@ -367,8 +456,10 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			(items) => this.getChunksForFiles(workspacePath, items),
 		);
 
-		// 更新文件信息缓存
-		this.updateFileInfoCache(workspacePath, fileInfos);
+		// 保存 Merkle 树
+		await this.saveMerkleTree(workspacePath);
+
+		console.log(`[CodebaseIndexer] Incremental update: ${results.compute.length} compute, ${results.del.length} delete`);
 	}
 
 	/**
@@ -381,112 +472,14 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 		};
 
 		await this.vectorIndex.deleteIndex(tag);
-		this.fileInfoCache.delete(workspacePath);
+
+		// 清理 Merkle 树缓存
+		this.merkleTrees.delete(workspacePath);
+		if (this.treeSerializer) {
+			await this.treeSerializer.delete(workspacePath);
+		}
 
 		console.log(`[CodebaseIndexer] Deleted index for ${workspacePath}`);
-	}
-
-	/**
-	 * 扫描工作区文件
-	 */
-	private async scanFiles(workspacePath: string): Promise<FileInfo[]> {
-		const extensions = new Set(this.config.includeExtensions || []);
-		const excludePatterns = this.config.excludePatterns || [];
-
-		const files: FileInfo[] = [];
-
-		// 检查文件是否应被排除
-		const shouldExclude = (relativePath: string): boolean => {
-			for (const pattern of excludePatterns) {
-				if (globMatch(pattern, relativePath)) {
-					return true;
-				}
-			}
-			return false;
-		};
-
-		// 递归扫描目录
-		const scanDir = async (dir: string, relativeDir: string): Promise<void> => {
-			try {
-				const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-				for (const entry of entries) {
-					const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
-					const fullPath = path.join(dir, entry.name);
-
-					// 检查排除模式
-					if (shouldExclude(relativePath)) {
-						continue;
-					}
-
-					if (entry.isDirectory()) {
-						await scanDir(fullPath, relativePath);
-					} else if (entry.isFile()) {
-						const ext = path.extname(entry.name).toLowerCase();
-						if (extensions.has(ext)) {
-							try {
-								const stat = await fs.promises.stat(fullPath);
-								const content = await fs.promises.readFile(fullPath, 'utf-8');
-
-								files.push({
-									path: relativePath,
-									cacheKey: generateContentHash(content),
-									mtime: stat.mtimeMs,
-								});
-							} catch (error) {
-								console.warn(`[CodebaseIndexer] Failed to read ${relativePath}:`, error);
-							}
-						}
-					}
-				}
-			} catch (error) {
-				console.warn(`[CodebaseIndexer] Failed to scan directory ${dir}:`, error);
-			}
-		};
-
-		await scanDir(workspacePath, '');
-
-		return files;
-	}
-
-	/**
-	 * 计算增量更新
-	 */
-	private async calculateChanges(
-		workspacePath: string,
-		currentFiles: FileInfo[],
-	): Promise<RefreshIndexResults> {
-		const cachedFiles = this.fileInfoCache.get(workspacePath) || new Map();
-		const currentFileMap = new Map(currentFiles.map(f => [f.path, f]));
-
-		const compute: FileChangeItem[] = [];
-		const del: FileChangeItem[] = [];
-		const addTag: FileChangeItem[] = [];
-
-		// 检查新增/修改的文件
-		for (const file of currentFiles) {
-			const cached = cachedFiles.get(file.path);
-
-			if (!cached) {
-				// 新文件
-				compute.push({ path: file.path, cacheKey: file.cacheKey });
-			} else if (cached.cacheKey !== file.cacheKey) {
-				// 文件已修改
-				compute.push({ path: file.path, cacheKey: file.cacheKey });
-			} else {
-				// 文件未变更，可以复用缓存
-				addTag.push({ path: file.path, cacheKey: file.cacheKey });
-			}
-		}
-
-		// 检查删除的文件
-		for (const [filePath, info] of cachedFiles) {
-			if (!currentFileMap.has(filePath)) {
-				del.push({ path: filePath, cacheKey: info.cacheKey });
-			}
-		}
-
-		return { compute, del, addTag };
 	}
 
 	/**
@@ -528,22 +521,6 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	}
 
 	/**
-	 * 更新文件信息缓存
-	 */
-	private updateFileInfoCache(workspacePath: string, files: FileInfo[]): void {
-		const cache = new Map<string, FileInfo>();
-
-		for (const file of files) {
-			if (file.cacheKey) {
-				// 只缓存有效文件（非删除）
-				cache.set(file.path, file);
-			}
-		}
-
-		this.fileInfoCache.set(workspacePath, cache);
-	}
-
-	/**
 	 * 获取索引状态
 	 */
 	getIndexStatus(workspacePath: string): {
@@ -551,10 +528,10 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 		fileCount: number;
 		queuedTasks: number;
 	} {
-		const cached = this.fileInfoCache.get(workspacePath);
+		const tree = this.merkleTrees.get(workspacePath);
 		return {
 			isIndexing: this.indexingWorkspaces.has(workspacePath),
-			fileCount: cached?.size || 0,
+			fileCount: tree ? tree.getAllFilePaths().length : 0,
 			queuedTasks: this.indexingMutex.waiting,
 		};
 	}
@@ -638,7 +615,7 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	 * 释放资源
 	 */
 	dispose(): void {
-		this.fileInfoCache.clear();
+		this.merkleTrees.clear();
 		this.indexingWorkspaces.clear();
 
 		const tryDispose = (obj: unknown): void => {
