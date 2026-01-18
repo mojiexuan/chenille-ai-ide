@@ -121,6 +121,7 @@ export class LanceDbIndex implements IVectorIndex {
 		getChunks: (items: FileChangeItem[]) => AsyncGenerator<CodeChunk>,
 		onProgress?: (event: IndexProgressEvent) => void,
 		token?: ICancellationToken,
+		options?: { concurrency?: number },
 	): Promise<void> {
 		await this.initialize();
 
@@ -138,6 +139,8 @@ export class LanceDbIndex implements IVectorIndex {
 					progress: totalItems > 0 ? processedItems / totalItems : 0,
 					description,
 					currentFile,
+					indexedCount: processedItems,
+					totalCount: totalItems,
 				});
 			}
 		};
@@ -146,10 +149,8 @@ export class LanceDbIndex implements IVectorIndex {
 		let table: LanceTable;
 		const existingTables = await this.connection.tableNames();
 
-		if (existingTables.includes(tableName)) {
-			table = await this.connection.openTable(tableName);
-		} else {
-			// 创建空表（需要至少一条数据）
+		// 创建新表的辅助函数
+		const createNewTable = async () => {
 			const dummyRow: VectorIndexRow = {
 				uuid: 'placeholder',
 				path: '',
@@ -158,10 +159,32 @@ export class LanceDbIndex implements IVectorIndex {
 				startLine: 0,
 				endLine: 0,
 				contents: '',
+				language: '',
 			};
-			table = await this.connection.createTable(tableName, [dummyRow]);
-			// 删除占位数据
-			await table.delete("uuid = 'placeholder'");
+			const newTable = await this.connection!.createTable(tableName, [dummyRow]);
+			await newTable.delete("uuid = 'placeholder'");
+			return newTable;
+		};
+
+		if (existingTables.includes(tableName)) {
+			table = await this.connection.openTable(tableName);
+
+			// 检查表 schema 是否有 language 字段
+			try {
+				const schema = await table.schema();
+				const fieldNames = schema.fields.map((f: { name: string }) => f.name);
+				if (!fieldNames.includes('language')) {
+					console.log(`[LanceDbIndex] 表 ${tableName} 缺少 language 字段，删除旧表重建...`);
+					await this.connection.dropTable(tableName);
+					table = await createNewTable();
+				}
+			} catch (err) {
+				console.warn('[LanceDbIndex] 检查表 schema 失败，尝试重建表:', err);
+				await this.connection.dropTable(tableName);
+				table = await createNewTable();
+			}
+		} else {
+			table = await createNewTable();
 		}
 
 		// 1. 处理删除
@@ -173,87 +196,124 @@ export class LanceDbIndex implements IVectorIndex {
 			processedItems++;
 		}
 
-		// 2. 处理未变更的文件（复用缓存）
+		// 2. 处理未变更的文件（复用缓存，缓存没有则重新计算）
 		reportProgress('正在恢复缓存向量...');
+		const needsRecompute: FileChangeItem[] = [];
 		for (const item of results.addTag) {
 			this.checkCancellation(token);
 			const cachedRows = await this.cache.getCachedVectors(item.cacheKey, this.embeddingsProvider.embeddingId);
 			if (cachedRows.length > 0) {
 				await table.add(cachedRows);
+			} else {
+				// 缓存没有向量，需要重新计算
+				needsRecompute.push(item);
 			}
 			processedItems++;
 		}
 
 		// 3. 处理需要计算的文件（批量处理）
+		// 包括原本需要计算的 + 缓存缺失需要重新计算的
 		const batchSize = 100;
-		const computeItems = results.compute;
+		const computeItems = [...results.compute, ...needsRecompute];
+		if (needsRecompute.length > 0) {
+			console.log(`[LanceDbIndex] ${needsRecompute.length} files need recompute (cache miss)`);
+		}
 
+		let failedBatches = 0;
 		for (let i = 0; i < computeItems.length; i += batchSize) {
 			// 每批次开始前检查取消
 			this.checkCancellation(token);
 
 			const batch = computeItems.slice(i, i + batchSize);
+			const batchNum = Math.floor(i / batchSize) + 1;
+			const totalBatches = Math.ceil(computeItems.length / batchSize);
+			console.log(`[LanceDbIndex] Processing batch ${batchNum}/${totalBatches}, ${batch.length} files`);
 			reportProgress(`正在索引文件 (${i + 1}-${Math.min(i + batchSize, computeItems.length)}/${computeItems.length})...`);
 
-			// 收集这批文件的所有代码块
-			const allChunks: CodeChunk[] = [];
-			for await (const chunk of getChunks(batch)) {
-				allChunks.push(chunk);
-			}
+			try {
+				// 收集这批文件的所有代码块
+				const allChunks: CodeChunk[] = [];
+				for await (const chunk of getChunks(batch)) {
+					allChunks.push(chunk);
+				}
 
-			if (allChunks.length === 0) {
-				processedItems += batch.length;
-				continue;
-			}
+				if (allChunks.length === 0) {
+					processedItems += batch.length;
+					continue;
+				}
 
-			// 先删除这些文件的旧数据
-			for (const item of batch) {
-				await this.deleteFromIndex(table, item.path);
-			}
+				// 先删除这些文件的旧数据
+				for (const item of batch) {
+					await this.deleteFromIndex(table, item.path);
+				}
 
-			// 分批生成嵌入向量（控制内存使用）
-			const embeddingBatchSize = 32; // 每批 32 个 chunks
-			const allRows: VectorIndexRow[] = [];
+				// 分批生成嵌入向量（并发控制）
+				const embeddingBatchSize = 32; // 每批 32 个 chunks
+				const concurrency = options?.concurrency ?? 3; // 使用配置的并发数，默认 3
 
-			for (let j = 0; j < allChunks.length; j += embeddingBatchSize) {
-				// 检查取消
-				this.checkCancellation(token);
+				// 准备所有批次
+				const batches: { chunkBatch: CodeChunk[]; batchIndex: number }[] = [];
+				for (let j = 0; j < allChunks.length; j += embeddingBatchSize) {
+					batches.push({
+						chunkBatch: allChunks.slice(j, j + embeddingBatchSize),
+						batchIndex: Math.floor(j / embeddingBatchSize),
+					});
+				}
 
-				const chunkBatch = allChunks.slice(j, j + embeddingBatchSize);
-				const contents = chunkBatch.map(chunk => chunk.content);
+				// 并发处理批次
+				const processBatch = async (batchInfo: { chunkBatch: CodeChunk[]; batchIndex: number }) => {
+					this.checkCancellation(token);
+					const { chunkBatch, batchIndex } = batchInfo;
+					const contents = chunkBatch.map(chunk => chunk.content);
 
-				// 生成这批 chunks 的嵌入向量
-				const vectors = await this.embeddingsProvider.embed(contents);
+					console.log(`[LanceDbIndex] Embedding batch ${batchIndex + 1}/${batches.length}, ${contents.length} chunks`);
+					const vectors = await this.embeddingsProvider.embed(contents);
+					console.log(`[LanceDbIndex] Embedding done, ${vectors.length} vectors`);
 
-				// 构建索引行
-				const rows: VectorIndexRow[] = chunkBatch.map((chunk, index) => ({
-					uuid: generateUuid(),
-					path: chunk.filepath,
-					cacheKey: chunk.digest,
-					vector: vectors[index],
-					startLine: chunk.startLine,
-					endLine: chunk.endLine,
-					contents: chunk.content,
-					language: chunk.language,
-				}));
+					// 构建索引行
+					const rows: VectorIndexRow[] = chunkBatch.map((chunk, index) => ({
+						uuid: generateUuid(),
+						path: chunk.filepath,
+						cacheKey: chunk.digest,
+						vector: vectors[index],
+						startLine: chunk.startLine,
+						endLine: chunk.endLine,
+						contents: chunk.content,
+						language: chunk.language,
+					}));
 
-				allRows.push(...rows);
+					return rows;
+				};
 
-				// 每批写入后尝试释放内存
-				// @ts-ignore - 帮助 GC
-				vectors.length = 0;
-			}
+				// 使用滑动窗口并发处理
+				for (let j = 0; j < batches.length; j += concurrency) {
+					this.checkCancellation(token);
+					const concurrentBatches = batches.slice(j, j + concurrency);
+					const results = await Promise.all(concurrentBatches.map(processBatch));
 
-			// 写入新数据
-			if (allRows.length > 0) {
-				await table.add(allRows);
-				await this.cache.saveVectors(allRows);
+					// 按顺序写入 LanceDB 和缓存
+					for (const rows of results) {
+						if (rows.length > 0) {
+							await table.add(rows);
+							await this.cache.saveVectors(rows);
+						}
+					}
+				}
+			} catch (error) {
+				// 单个批次失败不中断整个索引，继续处理下一批
+				failedBatches++;
+				console.error(`[LanceDbIndex] Batch ${batchNum}/${totalBatches} failed, continuing:`, error);
 			}
 
 			processedItems += batch.length;
 		}
 
-		reportProgress('索引完成', undefined);
+		if (failedBatches > 0) {
+			console.warn(`[LanceDbIndex] Indexing completed with ${failedBatches} failed batches`);
+		}
+
+		// 确保最后进度为 1
+		onProgress?.({ progress: 1, description: '索引完成' });
 	}
 
 	/**
@@ -406,20 +466,29 @@ export class LanceDbIndex implements IVectorIndex {
 		try {
 			const table = await this.connection.openTable(tableName);
 
-			// 获取所有行的 path 和 language 字段
+			// 只查询 path 字段，兼容旧表（可能没有 language 字段）
 			const results = await table
 				.query()
-				.select(['path', 'language'])
+				.select(['path'])
 				.toArray();
 
 			const totalChunks = results.length;
 			const uniqueFiles = new Set(results.map((r: { path: string }) => r.path)).size;
 
-			// 统计语言分布
+			// 尝试获取语言分布（新表有 language 字段）
 			const languageDistribution: Record<string, number> = {};
-			for (const row of results) {
-				const lang = (row as { language?: string }).language || 'unknown';
-				languageDistribution[lang] = (languageDistribution[lang] || 0) + 1;
+			try {
+				const langResults = await table
+					.query()
+					.select(['language'])
+					.toArray();
+				for (const row of langResults) {
+					const lang = (row as { language?: string }).language || 'unknown';
+					languageDistribution[lang] = (languageDistribution[lang] || 0) + 1;
+				}
+			} catch {
+				// 旧表没有 language 字段，忽略
+				languageDistribution['unknown'] = totalChunks;
 			}
 
 			return {

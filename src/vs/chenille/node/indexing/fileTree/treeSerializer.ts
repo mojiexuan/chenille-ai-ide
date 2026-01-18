@@ -68,6 +68,8 @@ export class TreeSerializer {
 		const backupPath = `${filePath}.bak`;
 		const tempPath = `${filePath}.tmp`;
 
+		console.log(`[TreeSerializer] 保存 Merkle 树到: ${filePath}`);
+
 		// 获取现有文件的创建时间（如果存在）
 		let createdAt = Date.now();
 		try {
@@ -136,6 +138,8 @@ export class TreeSerializer {
 	async load(workspacePath: string): Promise<IMerkleTree | null> {
 		const filePath = this.getCacheFilePath(workspacePath);
 		const backupPath = `${filePath}.bak`;
+
+		console.log(`[TreeSerializer] 尝试从文件加载 Merkle 树: ${filePath}`);
 
 		// 尝试从主文件加载
 		const mainResult = await this.tryLoadFromFile(filePath, workspacePath);

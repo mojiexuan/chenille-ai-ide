@@ -29,6 +29,7 @@ import { IStateService } from '../../platform/state/node/state.js';
 import { IndexConfigStorageService, type IWorkspaceIndexConfig } from './indexConfigStorage.js';
 import { IAiModelStorageService } from '../common/storageIpc.js';
 import { ApiEmbeddingsProvider } from '../node/indexing/embeddings/apiEmbeddings.js';
+import { LocalEmbeddingsProvider } from '../node/indexing/embeddings/localEmbeddings.js';
 
 /**
  * 工作区索引配置
@@ -81,6 +82,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	/** 已从存储加载的工作区 */
 	private loadedWorkspaces: Set<string> = new Set();
 
+	/** 正在索引的工作区 */
+	private indexingWorkspaces: Set<string> = new Set();
+
 	/** 清理定时器 */
 	private cleanupTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -96,8 +100,8 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		this.configStorage = this._register(new IndexConfigStorageService(stateService));
 		console.log('[ChenilleIndexingService] 索引服务已初始化');
 
-		// 延迟启动后台清理（避免阻塞启动）
-		setTimeout(() => this.startBackgroundCleanup(), 5000);
+		// 延迟启动后台清理（避免与启动时的索引操作冲突）
+		setTimeout(() => this.startBackgroundCleanup(), 60000);
 	}
 
 	/**
@@ -121,6 +125,12 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 * 清理孤立和过期的索引（后台静默执行）
 	 */
 	private async cleanupOrphanedIndexes(): Promise<void> {
+		// 如果有任何工作区正在索引，跳过清理
+		if (this.indexingWorkspaces.size > 0) {
+			console.log('[ChenilleIndexingService] 有工作区正在索引，跳过清理检查');
+			return;
+		}
+
 		console.log('[ChenilleIndexingService] 开始检查孤立/过期索引...');
 
 		try {
@@ -262,20 +272,36 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 
 		console.log(`[ChenilleIndexingService] 开始索引工作区: ${workspacePath}`);
 
+		// 标记为正在索引
+		this.indexingWorkspaces.add(workspacePath);
+
 		try {
-			const indexer = getCodebaseIndexer(config, this.environmentService);
+			// 从存储读取并发配置
+			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
+			const mergedConfig = {
+				...config,
+				embeddingConcurrency: savedConfig.embeddingConcurrency ?? 3,
+			};
+
+			const indexer = getCodebaseIndexer(mergedConfig, this.environmentService);
 
 			// 根据工作区配置设置嵌入提供者
 			const wsConfig = this.getWorkspaceConfig(workspacePath);
-			if (!wsConfig.useLocalModel && wsConfig.embeddingModelName) {
+			const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
+
+			if (useRemoteModel) {
 				// 使用远程 API 模型
-				const model = await this.modelStorageService.get(wsConfig.embeddingModelName);
+				const model = await this.modelStorageService.get(wsConfig.embeddingModelName!);
 				if (model) {
 					const apiProvider = new ApiEmbeddingsProvider(model);
 					indexer.setEmbeddingsProvider(apiProvider);
+					console.log(`[ChenilleIndexingService] 使用远程模型: ${wsConfig.embeddingModelName}`);
+				} else {
+					throw new Error(`无法加载远程模型: ${wsConfig.embeddingModelName}`);
 				}
-			} else if (wsConfig.useLocalModel) {
+			} else {
 				// 使用本地模型，设置下载进度回调
+				console.log(`[ChenilleIndexingService] 使用本地模型`);
 				indexer.setModelDownloadProgressCallback((progress) => {
 					this._onModelDownloadProgress.fire({
 						workspacePath,
@@ -316,6 +342,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 				console.error(`[ChenilleIndexingService] 索引失败: ${indexingError.message}`);
 			}
 			throw indexingError;
+		} finally {
+			// 无论成功失败，移除索引标记
+			this.indexingWorkspaces.delete(workspacePath);
 		}
 	}
 
@@ -405,26 +434,39 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			const hasIndex = await indexer.hasIndex(workspacePath);
 			wsConfig.hasIndex = hasIndex;
 
-			// 获取索引统计（如果存在）
-			let fileCount = status.fileCount;
-			if (hasIndex && fileCount === 0) {
+			// 获取已索引的文件数（从 LanceDB stats）
+			let indexedFileCount = 0;
+			if (hasIndex) {
 				const stats = await indexer.getIndexStats(workspacePath);
 				if (stats) {
-					fileCount = stats.rowCount;
+					indexedFileCount = stats.rowCount;
 				}
 			}
+
+			// 检查本地模型状态
+			let isLocalModelReady: boolean | undefined;
+			if (wsConfig.useLocalModel) {
+				isLocalModelReady = await LocalEmbeddingsProvider.isModelCached();
+			}
+
+			// 获取保存的并发配置
+			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 
 			return {
 				hasIndex,
 				isIndexing: status.isIndexing,
-				fileCount,
+				fileCount: indexedFileCount,
 				lastIndexedAt: this.lastIndexedTimes.get(workspacePath),
 				queuedTasks: status.queuedTasks,
 				isEnabled: wsConfig.enabled,
 				isWatching: !!wsConfig.watcher,
 				embeddingModelName: wsConfig.embeddingModelName,
 				useLocalModel: wsConfig.useLocalModel,
+				isLocalModelReady,
 				errorMessage: wsConfig.errorMessage,
+				indexedFileCount,
+				totalFileCount: status.totalFileCount,
+				embeddingConcurrency: savedConfig.embeddingConcurrency ?? 3,
 			};
 		} catch (error) {
 			console.error(`[ChenilleIndexingService] 获取索引状态失败:`, error);
@@ -438,6 +480,7 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 				isWatching: false,
 				embeddingModelName: wsConfig.embeddingModelName,
 				useLocalModel: wsConfig.useLocalModel,
+				isLocalModelReady: undefined,
 				errorMessage: wsConfig.errorMessage,
 			};
 		}
@@ -529,8 +572,7 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 				// 自动开始索引
 				this.indexWorkspace({ workspacePath }).catch(err => {
 					console.error('[ChenilleIndexingService] 自动索引失败:', err);
-					// 索引失败时禁用并设置错误
-					wsConfig.enabled = false;
+					// 保留启用状态，只记录错误（用户可以重试）
 					wsConfig.errorMessage = `索引失败: ${err.message || '未知错误'}`;
 					this.saveWorkspaceConfig(workspacePath);
 					this.fireStatusChanged(workspacePath);
@@ -597,6 +639,23 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 
 		// 保存配置到持久化存储
 		await this.saveWorkspaceConfig(workspacePath);
+
+		await this.fireStatusChanged(workspacePath);
+	}
+
+	/**
+	 * 设置 Embedding 并发数
+	 */
+	async setEmbeddingConcurrency(workspacePath: string, concurrency: number): Promise<void> {
+		// 验证范围
+		const validConcurrency = Math.max(1, Math.min(1000, concurrency));
+
+		console.log(`[ChenilleIndexingService] 设置并发数: ${workspacePath} -> ${validConcurrency} (重启生效)`);
+
+		// 保存到配置存储
+		const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
+		savedConfig.embeddingConcurrency = validConcurrency;
+		await this.configStorage.saveWorkspaceConfig(savedConfig);
 
 		await this.fireStatusChanged(workspacePath);
 	}
@@ -745,6 +804,8 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		// 同步配置到内存
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 		wsConfig.enabled = true;
+		wsConfig.useLocalModel = savedConfig.useLocalModel;
+		wsConfig.embeddingModelName = savedConfig.embeddingModelName;
 
 		// 同步最后索引时间
 		if (savedConfig.lastIndexedAt) {
@@ -753,25 +814,42 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 
 		this.loadedWorkspaces.add(workspacePath);
 
-		// 检查索引是否存在
+		// 检查模型配置
+		const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
+		if (!useRemoteModel && !wsConfig.useLocalModel) {
+			// 既没有选择远程模型，也没有启用本地模型
+			// 默认使用本地模型
+			wsConfig.useLocalModel = true;
+			console.log(`[ChenilleIndexingService] 未配置模型，默认使用本地模型: ${workspacePath}`);
+		}
+
+		// 检查索引完整性并自动修复
 		try {
 			const indexer = getCodebaseIndexer(undefined, this.environmentService);
 			const hasIndex = await indexer.hasIndex(workspacePath);
 			wsConfig.hasIndex = hasIndex;
 
-			if (!hasIndex) {
-				// 索引不存在，后台静默建立
-				console.log(`[ChenilleIndexingService] 索引不存在，后台建立: ${workspacePath}`);
-				this.indexWorkspace({ workspacePath }).catch(err => {
-					console.error('[ChenilleIndexingService] 后台建立索引失败:', err);
-				});
-			} else {
-				// 索引存在，启动文件监听（增量更新）
-				console.log(`[ChenilleIndexingService] 索引已存在，启动文件监听: ${workspacePath}`);
-				if (savedConfig.autoWatch) {
-					await this.startFileWatching(workspacePath);
-				}
+			// 启动文件监听（无论索引是否存在）
+			if (savedConfig.autoWatch) {
+				await this.startFileWatching(workspacePath);
 			}
+
+			// 无论是否有索引，都调用 indexWorkspace 进行增量检查
+			// 这样可以处理：
+			// 1. 索引不存在 → 建立索引
+			// 2. 索引存在但不完整 → 继续索引
+			// 3. 索引已是最新 → 快速返回
+			console.log(`[ChenilleIndexingService] 检查并更新索引: ${workspacePath}`);
+			this.indexWorkspace({ workspacePath }).then(() => {
+				// 索引成功，清除错误信息
+				wsConfig.errorMessage = undefined;
+				this.fireStatusChanged(workspacePath);
+			}).catch(err => {
+				console.error('[ChenilleIndexingService] 后台索引失败:', err);
+				// 保存错误信息并触发状态更新
+				wsConfig.errorMessage = err.message || '索引失败';
+				this.fireStatusChanged(workspacePath);
+			});
 		} catch (error) {
 			console.error(`[ChenilleIndexingService] 激活工作区失败:`, error);
 		}

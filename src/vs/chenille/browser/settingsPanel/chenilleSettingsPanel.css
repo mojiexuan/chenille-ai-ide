@@ -163,18 +163,21 @@
 
 /* 自定义滚动条 */
 .chenille-panel-list::-webkit-scrollbar,
-.chenille-form::-webkit-scrollbar {
+.chenille-form::-webkit-scrollbar,
+.index-management-panel::-webkit-scrollbar {
 	width: 10px;
 	height: 10px;
 }
 
 .chenille-panel-list::-webkit-scrollbar-track,
-.chenille-form::-webkit-scrollbar-track {
+.chenille-form::-webkit-scrollbar-track,
+.index-management-panel::-webkit-scrollbar-track {
 	background: transparent;
 }
 
 .chenille-panel-list::-webkit-scrollbar-thumb,
-.chenille-form::-webkit-scrollbar-thumb {
+.chenille-form::-webkit-scrollbar-thumb,
+.index-management-panel::-webkit-scrollbar-thumb {
 	background: var(--vscode-scrollbarSlider-background);
 	border-radius: 5px;
 	border: 2px solid transparent;
@@ -182,14 +185,16 @@
 }
 
 .chenille-panel-list::-webkit-scrollbar-thumb:hover,
-.chenille-form::-webkit-scrollbar-thumb:hover {
+.chenille-form::-webkit-scrollbar-thumb:hover,
+.index-management-panel::-webkit-scrollbar-thumb:hover {
 	background: var(--vscode-scrollbarSlider-hoverBackground);
 	border: 2px solid transparent;
 	background-clip: padding-box;
 }
 
 .chenille-panel-list::-webkit-scrollbar-corner,
-.chenille-form::-webkit-scrollbar-corner {
+.chenille-form::-webkit-scrollbar-corner,
+.index-management-panel::-webkit-scrollbar-corner {
 	background: transparent;
 }
 
@@ -1104,4 +1109,44 @@
 	border-radius: 4px;
 	color: var(--vscode-inputValidation-warningForeground);
 	font-size: 12px;
+}
+
+/* ========== 并发配置样式 ========== */
+
+.workspace-status .concurrency-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.workspace-status .concurrency-row .label {
+	min-width: 120px;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.workspace-status .concurrency-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+}
+
+.workspace-status .concurrency-input {
+	width: 80px !important;
+	padding: 6px 10px !important;
+	text-align: center;
+	font-size: 13px !important;
+}
+
+.workspace-status .concurrency-input::-webkit-inner-spin-button,
+.workspace-status .concurrency-input::-webkit-outer-spin-button {
+	opacity: 1;
+}
+
+.workspace-status .concurrency-wrapper .hint {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
 }

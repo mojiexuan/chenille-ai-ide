@@ -99,6 +99,10 @@ export interface IndexProgressEvent {
 	description: string;
 	/** 当前处理的文件 */
 	currentFile?: string;
+	/** 已处理的文件数 */
+	indexedCount?: number;
+	/** 总文件数 */
+	totalCount?: number;
 }
 
 /**
@@ -157,6 +161,7 @@ export interface IVectorIndex {
 	 * @param getChunks 获取代码块的函数
 	 * @param onProgress 进度回调
 	 * @param token 取消令牌
+	 * @param options 额外选项（如并发数）
 	 */
 	update(
 		tag: IndexTag,
@@ -164,6 +169,7 @@ export interface IVectorIndex {
 		getChunks: (items: FileChangeItem[]) => AsyncGenerator<CodeChunk>,
 		onProgress?: (event: IndexProgressEvent) => void,
 		token?: ICancellationToken,
+		options?: { concurrency?: number },
 	): Promise<void>;
 
 	/**
@@ -304,6 +310,8 @@ export interface IndexingConfig {
 	maxFileSize?: number;
 	/** 嵌入批次大小（控制内存使用） */
 	embeddingBatchSize?: number;
+	/** Embedding 并发数（1-1000，默认 3） */
+	embeddingConcurrency?: number;
 }
 
 /**

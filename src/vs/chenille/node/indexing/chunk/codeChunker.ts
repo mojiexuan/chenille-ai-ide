@@ -155,11 +155,21 @@ export class TreeSitterCodeChunker implements ICodeChunker {
 		}
 	}
 
+	/** Tree-sitter 是否已尝试初始化 */
+	private treeSitterInitAttempted: boolean = false;
+
 	/**
 	 * 初始化 Tree-sitter 模块
+	 * 注意：在 electron-main 进程中，AMD 模块加载可能失败
+	 * 此时静默降级到简单行切分
 	 */
 	private async initTreeSitter(): Promise<void> {
 		if (this.treeSitterModule) {
+			return;
+		}
+
+		// 已经尝试过初始化且失败了
+		if (this.treeSitterInitAttempted) {
 			return;
 		}
 
@@ -168,8 +178,10 @@ export class TreeSitterCodeChunker implements ICodeChunker {
 		}
 
 		this.initPromise = (async () => {
+			this.treeSitterInitAttempted = true;
+
 			try {
-				// 使用 VS Code 官方的加载方式
+				// 尝试使用 VS Code 官方的加载方式
 				const TreeSitter = await importAMDNodeModule<typeof import('@vscode/tree-sitter-wasm')>(
 					'@vscode/tree-sitter-wasm',
 					'wasm/tree-sitter.js'
@@ -187,7 +199,9 @@ export class TreeSitterCodeChunker implements ICodeChunker {
 				this.treeSitterModule = TreeSitter;
 				console.log('[CodeChunker] Tree-sitter initialized successfully');
 			} catch (error) {
-				console.warn('[CodeChunker] Failed to initialize Tree-sitter:', error);
+				// 在 electron-main 进程中 AMD 加载可能失败
+				// 静默降级到简单行切分，只在首次失败时打印一次警告
+				console.warn('[CodeChunker] Tree-sitter unavailable, using simple line-based chunking');
 				this.treeSitterModule = null;
 			}
 		})();
@@ -206,7 +220,7 @@ export class TreeSitterCodeChunker implements ICodeChunker {
 		// 检查是否有对应的 WASM 文件
 		const wasmName = GRAMMAR_TO_WASM[language];
 		if (!wasmName) {
-			console.warn(`[CodeChunker] No Tree-sitter grammar for ${language}`);
+			// 对于不支持的语言，这是正常行为，不需要警告
 			return null;
 		}
 

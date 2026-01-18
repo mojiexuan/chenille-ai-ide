@@ -86,7 +86,12 @@ export class LocalEmbeddingsProvider implements IEmbeddingsProvider {
 			});
 		} catch (error) {
 			console.error('[LocalEmbeddings] Failed to load model:', error);
-			throw new Error(`Failed to load embedding model: ${error}`);
+			// 提供更友好的错误信息
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			if (errorMessage.includes('fetch') || errorMessage.includes('timeout') || errorMessage.includes('network')) {
+				throw new Error(`模型下载失败：网络连接超时。请检查网络连接后重试。`);
+			}
+			throw new Error(`模型加载失败: ${errorMessage}`);
 		}
 	}
 
@@ -140,6 +145,46 @@ export class LocalEmbeddingsProvider implements IEmbeddingsProvider {
 	dispose(): void {
 		this.pipeline = null;
 		this.initPromise = null;
+	}
+
+	/**
+	 * 检查模型是否已加载（内存中）
+	 */
+	isLoaded(): boolean {
+		return this.pipeline !== null;
+	}
+
+	/**
+	 * 检查本地模型是否已缓存（磁盘上）
+	 * @param modelName 模型名称，如 'Xenova/all-MiniLM-L6-v2'
+	 */
+	static async isModelCached(modelName: string = 'Xenova/all-MiniLM-L6-v2'): Promise<boolean> {
+		try {
+			const os = await import('os');
+			const fs = await import('fs');
+			const path = await import('path');
+
+			// transformers.js 默认缓存路径
+			const cacheDir = path.join(os.homedir(), '.cache', 'huggingface', 'hub');
+			const modelDir = path.join(cacheDir, `models--${modelName.replace('/', '--')}`);
+
+			// 检查目录是否存在且包含模型文件
+			try {
+				const stat = await fs.promises.stat(modelDir);
+				if (stat.isDirectory()) {
+					// 检查是否有 snapshots 目录（表示模型已下载）
+					const snapshotsDir = path.join(modelDir, 'snapshots');
+					const snapshotsStat = await fs.promises.stat(snapshotsDir);
+					return snapshotsStat.isDirectory();
+				}
+			} catch {
+				return false;
+			}
+
+			return false;
+		} catch {
+			return false;
+		}
 	}
 }
 

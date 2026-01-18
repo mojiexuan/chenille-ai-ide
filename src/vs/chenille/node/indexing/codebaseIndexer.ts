@@ -276,19 +276,26 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 		// 先从内存缓存获取
 		let tree = this.merkleTrees.get(workspacePath);
 		if (tree) {
+			console.log(`[CodebaseIndexer] 使用内存缓存的 Merkle 树: ${workspacePath}`);
 			return tree;
 		}
 
 		// 尝试从持久化存储加载
 		if (this.treeSerializer) {
+			console.log(`[CodebaseIndexer] 尝试从持久化加载 Merkle 树: ${workspacePath}`);
 			const loadedTree = await this.treeSerializer.load(workspacePath);
 			if (loadedTree) {
+				console.log(`[CodebaseIndexer] 成功加载持久化 Merkle 树，${loadedTree.getAllFilePaths().length} 个文件`);
 				this.merkleTrees.set(workspacePath, loadedTree as MerkleTree);
 				return loadedTree as MerkleTree;
 			}
+			console.log(`[CodebaseIndexer] 持久化 Merkle 树不存在`);
+		} else {
+			console.log(`[CodebaseIndexer] treeSerializer 未初始化`);
 		}
 
 		// 创建新树
+		console.log(`[CodebaseIndexer] 创建新的 Merkle 树: ${workspacePath}`);
 		tree = new MerkleTree(workspacePath);
 		this.merkleTrees.set(workspacePath, tree);
 		return tree;
@@ -299,13 +306,35 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	 */
 	private async saveMerkleTree(workspacePath: string): Promise<void> {
 		if (!this.treeSerializer) {
+			console.log(`[CodebaseIndexer] treeSerializer 未初始化，跳过保存`);
 			return;
 		}
 
 		const tree = this.merkleTrees.get(workspacePath);
 		if (tree) {
+			console.log(`[CodebaseIndexer] 保存 Merkle 树: ${workspacePath}, ${tree.getAllFilePaths().length} 个文件`);
 			await this.treeSerializer.save(tree);
+			console.log(`[CodebaseIndexer] Merkle 树保存成功`);
 		}
+	}
+
+	/**
+	 * 创建完整重建的索引结果（所有文件放入 compute，直接重新计算）
+	 * 注意：这里不使用 addTag，因为强制重建意味着缓存也可能不完整
+	 */
+	private createFullRebuildResults(merkleTree: MerkleTree): RefreshIndexResults {
+		const compute: FileChangeItem[] = [];
+		const allFiles = merkleTree.getAllFilePaths();
+
+		for (const filePath of allFiles) {
+			const node = merkleTree.getNode(filePath);
+			if (node) {
+				compute.push({ path: filePath, cacheKey: node.hash });
+			}
+		}
+
+		console.log(`[CodebaseIndexer] 强制重建: ${compute.length} 个文件需要重新索引`);
+		return { compute, del: [], addTag: [] };
 	}
 
 	/**
@@ -410,16 +439,31 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 				// 检查取消
 				this.checkCancellation(token);
 
+				let forceRebuild = false;
 				if (changes.length === 0 && oldRootHash === merkleTree.rootHash) {
-					onProgress?.({ progress: 1, description: '索引已是最新' });
-					await this.saveMerkleTree(workspacePath);
-					this.resourceScheduler.complete(workspacePath);
-					return;
+					// 没有文件变更，但需要检查 LanceDB 是否有完整数据
+					const tag: IndexTag = {
+						directory: workspacePath,
+						artifactId: this.embeddingsProvider.embeddingId,
+					};
+					const stats = await this.vectorIndex.getIndexStats(tag);
+					const fileCount = merkleTree.getAllFilePaths().length;
+					if (stats && stats.rowCount >= fileCount * 0.9) {
+						// LanceDB 有足够数据，认为索引完整
+						onProgress?.({ progress: 1, description: '索引已是最新' });
+						await this.saveMerkleTree(workspacePath);
+						this.resourceScheduler.complete(workspacePath);
+						return;
+					}
+					console.log(`[CodebaseIndexer] LanceDB 数据不完整 (${stats?.rowCount ?? 0}/${fileCount})，强制重建索引`);
+					forceRebuild = true;
 				}
 
 				// 3. 转换变更为索引格式
 				onProgress?.({ progress: 0.1, description: '正在计算变更...' });
-				const results = this.convertChangesToIndexResults(changes, merkleTree);
+				const results = forceRebuild
+					? this.createFullRebuildResults(merkleTree)
+					: this.convertChangesToIndexResults(changes, merkleTree);
 
 				// 检查取消
 				this.checkCancellation(token);
@@ -432,6 +476,10 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 					this.resourceScheduler.complete(workspacePath);
 					return;
 				}
+
+				// 在嵌入前先保存 Merkle 树（这样即使嵌入被中断，下次也能跳过未变更文件）
+				onProgress?.({ progress: 0.12, description: '保存扫描结果...' });
+				await this.saveMerkleTree(workspacePath);
 
 				// === 嵌入阶段（串行执行）===
 				const embedStatus = this.resourceScheduler.getStatus();
@@ -463,6 +511,7 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 						});
 					},
 					token,
+					{ concurrency: this.config.embeddingConcurrency ?? 3 },
 				);
 
 				// === 保存阶段 ===
@@ -556,6 +605,9 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			tag,
 			results,
 			(items) => this.getChunksForFiles(workspacePath, items),
+			undefined, // onProgress
+			undefined, // token
+			{ concurrency: this.config.embeddingConcurrency ?? 3 },
 		);
 
 		// 保存 Merkle 树
@@ -627,13 +679,13 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	 */
 	getIndexStatus(workspacePath: string): {
 		isIndexing: boolean;
-		fileCount: number;
+		totalFileCount: number;
 		queuedTasks: number;
 	} {
 		const tree = this.merkleTrees.get(workspacePath);
 		return {
 			isIndexing: this.indexingWorkspaces.has(workspacePath),
-			fileCount: tree ? tree.getAllFilePaths().length : 0,
+			totalFileCount: tree ? tree.getAllFilePaths().length : 0,
 			queuedTasks: this.resourceScheduler.waiting,
 		};
 	}

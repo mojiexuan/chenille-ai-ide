@@ -41,16 +41,17 @@ function getCacheDbPath(): string {
 export class SqliteIndexCache implements IIndexCache {
 	private database: SqliteDatabase | null = null;
 	private initPromise: Promise<void> | null = null;
+	private initFailed = false;
 
 	constructor(
 		private readonly artifactId: string,
 	) { }
 
 	/**
-	 * 初始化数据库
+	 * 初始化数据库（失败时不抛出错误，只记录警告）
 	 */
 	private async initialize(): Promise<void> {
-		if (this.database) {
+		if (this.database || this.initFailed) {
 			return;
 		}
 
@@ -58,7 +59,10 @@ export class SqliteIndexCache implements IIndexCache {
 			return this.initPromise;
 		}
 
-		this.initPromise = this.connect();
+		this.initPromise = this.connect().catch(err => {
+			console.warn('[SqliteCache] 缓存初始化失败，将跳过缓存:', err.message);
+			this.initFailed = true;
+		});
 		await this.initPromise;
 	}
 
@@ -66,6 +70,11 @@ export class SqliteIndexCache implements IIndexCache {
 		try {
 			// 使用 VS Code 内置的 SQLite
 			const sqlite = await import('@vscode/sqlite3');
+			const SqliteDatabase = sqlite.default?.Database || sqlite.Database;
+			if (!SqliteDatabase) {
+				throw new Error('SQLite Database constructor not found');
+			}
+
 			const dbPath = getCacheDbPath();
 
 			// 确保目录存在
@@ -78,7 +87,7 @@ export class SqliteIndexCache implements IIndexCache {
 			console.log(`[SqliteCache] Opening database: ${dbPath}`);
 
 			this.database = await new Promise<SqliteDatabase>((resolve, reject) => {
-				const db = new sqlite.Database(dbPath, (err: Error | null) => {
+				const db = new SqliteDatabase(dbPath, (err: Error | null) => {
 					if (err) {
 						reject(err);
 					} else {

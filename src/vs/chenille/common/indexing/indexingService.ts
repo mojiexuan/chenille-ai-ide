@@ -64,8 +64,16 @@ export interface IIndexStatus {
 	embeddingModelName?: string;
 	/** 是否使用本地模型 */
 	useLocalModel?: boolean;
+	/** 本地模型是否已准备好（已下载） */
+	isLocalModelReady?: boolean;
 	/** 错误信息（模型不可用等） */
 	errorMessage?: string;
+	/** 已索引的文件数（LanceDB 中的唯一文件数） */
+	indexedFileCount?: number;
+	/** 总文件数（Merkle 树中的文件数） */
+	totalFileCount?: number;
+	/** Embedding 并发数（1-1000，默认 3）*/
+	embeddingConcurrency?: number;
 }
 
 /**
@@ -194,6 +202,13 @@ export interface IChenilleIndexingService {
 	setUseLocalModel(workspacePath: string, useLocal: boolean): Promise<void>;
 
 	/**
+	 * 设置 Embedding 并发数
+	 * @param workspacePath 工作区路径
+	 * @param concurrency 并发数（1-1000）
+	 */
+	setEmbeddingConcurrency(workspacePath: string, concurrency: number): Promise<void>;
+
+	/**
 	 * 启动文件监听
 	 * @param workspacePath 工作区路径
 	 */
@@ -282,6 +297,11 @@ export class ChenilleIndexingChannel implements IServerChannel {
 					args?.[0] as string,
 					args?.[1] as boolean,
 				) as Promise<T>;
+			case 'setEmbeddingConcurrency':
+				return this.service.setEmbeddingConcurrency(
+					args?.[0] as string,
+					args?.[1] as number,
+				) as Promise<T>;
 			case 'startFileWatching':
 				return this.service.startFileWatching(args?.[0] as string) as Promise<T>;
 			case 'stopFileWatching':
@@ -353,6 +373,10 @@ export class ChenilleIndexingChannelClient implements IChenilleIndexingService {
 
 	setUseLocalModel(workspacePath: string, useLocal: boolean): Promise<void> {
 		return this.channel.call<void>('setUseLocalModel', [workspacePath, useLocal]);
+	}
+
+	setEmbeddingConcurrency(workspacePath: string, concurrency: number): Promise<void> {
+		return this.channel.call<void>('setEmbeddingConcurrency', [workspacePath, concurrency]);
 	}
 
 	startFileWatching(workspacePath: string): Promise<void> {

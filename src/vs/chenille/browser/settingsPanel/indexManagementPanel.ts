@@ -76,7 +76,7 @@ export class IndexManagementPanel extends Disposable {
 
 		// 监听进度事件（所有工作区）
 		this._register(this.indexingService.onIndexProgress(event => {
-			this.updateWorkspaceProgress(event.workspacePath, event.progress, event.description);
+			this.updateWorkspaceProgress(event.workspacePath, event.progress, event.description, event.indexedCount, event.totalCount);
 		}));
 
 		// 监听模型下载进度事件
@@ -207,11 +207,16 @@ export class IndexManagementPanel extends Disposable {
 		));
 		append(localModelRow, localModelCheckbox.domNode);
 
-		// 本地模型提示
+		// 本地模型状态提示
 		if (status.useLocalModel) {
 			const localModelHint = append(statusContainer, $('.status-row.hint-row'));
 			const hint = append(localModelHint, $('span.hint'));
-			hint.textContent = localize('localModelHint', '首次使用时将从 HuggingFace 下载模型（约 23MB）');
+			if (status.isLocalModelReady) {
+				hint.textContent = localize('localModelReady', '✓ 本地模型已准备就绪');
+				hint.classList.add('ready');
+			} else {
+				hint.textContent = localize('localModelHint', '首次使用时将从 HuggingFace 下载模型（约 23MB），请保持网络畅通！');
+			}
 		}
 
 		// 嵌入模型选择行
@@ -332,6 +337,36 @@ export class IndexManagementPanel extends Disposable {
 			}
 		}));
 
+		// 并发配置行
+		const concurrencyRow = append(statusContainer, $('.status-row.concurrency-row'));
+		append(concurrencyRow, $('span.label')).textContent = localize('embeddingConcurrency', 'Embedding 并发数');
+
+		const concurrencyWrapper = append(concurrencyRow, $('.concurrency-wrapper'));
+		const concurrencyInput = append(concurrencyWrapper, $('input.chenille-form-input.concurrency-input')) as HTMLInputElement;
+		concurrencyInput.type = 'number';
+		concurrencyInput.min = '1';
+		concurrencyInput.max = '1000';
+		concurrencyInput.value = String(status.embeddingConcurrency ?? 3);
+		concurrencyInput.title = localize('concurrencyHint', '设置 Embedding API 并发请求数（1-1000），重启后生效');
+		concurrencyInput.placeholder = '3';
+
+		const concurrencyHint = append(concurrencyWrapper, $('span.hint'));
+		concurrencyHint.textContent = localize('restartRequired', '重启生效');
+
+		const onConcurrencyChange = async () => {
+			let value = parseInt(concurrencyInput.value, 10);
+			// 验证输入范围
+			if (isNaN(value) || value < 1 || value > 1000) {
+				value = 3; // 意外输入重置为默认值
+				concurrencyInput.value = '3';
+			}
+			await this.indexingService.setEmbeddingConcurrency(workspacePath, value);
+		};
+		concurrencyInput.addEventListener('change', onConcurrencyChange);
+		disposables.add({
+			dispose: () => concurrencyInput.removeEventListener('change', onConcurrencyChange)
+		});
+
 		// 状态网格
 		const statusGrid = append(statusContainer, $('.status-grid'));
 
@@ -352,11 +387,23 @@ export class IndexManagementPanel extends Disposable {
 			return value;
 		});
 
-		// 索引条目
-		this.renderStatusItem(statusGrid, localize('indexedFiles', '条目'), () => {
+		// 索引进度（已索引/总文件数）
+		this.renderStatusItem(statusGrid, localize('indexProgress', '进度'), () => {
 			const value = document.createElement('span');
 			value.className = 'value';
-			value.textContent = status.fileCount.toLocaleString();
+			value.setAttribute('data-progress-value', 'true');
+			const indexed = status.indexedFileCount ?? 0;
+			const total = status.totalFileCount ?? 0;
+			if (total > 0) {
+				value.textContent = `${indexed}/${total}`;
+				if (indexed >= total) {
+					value.classList.add('success');
+				} else {
+					value.classList.add('indexing');
+				}
+			} else {
+				value.textContent = '0';
+			}
 			return value;
 		});
 
@@ -387,8 +434,15 @@ export class IndexManagementPanel extends Disposable {
 		if (status.isIndexing) {
 			const progressContainer = append(statusContainer, $('.progress-container'));
 			uiState.progressBar = append(progressContainer, $('.progress-bar'));
+			// 使用已索引/总文件数作为进度
+			const indexed = status.indexedFileCount ?? 0;
+			const total = status.totalFileCount ?? 1;
+			const progress = total > 0 ? (indexed / total) : 0.05;
+			uiState.progressBar.style.width = `${progress * 100}%`;
 			uiState.progressText = append(progressContainer, $('span.progress-text'));
-			uiState.progressText.textContent = localize('indexingProgress', '正在索引...');
+			uiState.progressText.textContent = total > 0
+				? `${indexed}/${total} 文件`
+				: localize('indexingProgress', '正在索引...');
 		} else {
 			uiState.progressBar = undefined;
 			uiState.progressText = undefined;
@@ -427,7 +481,27 @@ export class IndexManagementPanel extends Disposable {
 			buildBtn.element.classList.add('primary', 'small');
 
 			disposables.add(buildBtn.onDidClick(async () => {
-				await this.indexingService.indexWorkspace({ workspacePath });
+				console.log(`[IndexManagementPanel] 建立索引按钮点击: ${workspacePath}`);
+				buildBtn.enabled = false;
+				buildBtn.label = localize('indexing', '索引中...');
+
+				// 立即更新状态为"正在索引"
+				if (uiState.status) {
+					uiState.status.isIndexing = true;
+					this.updateWorkspaceStatus(workspacePath);
+				}
+
+				try {
+					await this.indexingService.indexWorkspace({ workspacePath });
+					console.log(`[IndexManagementPanel] 索引请求已发送: ${workspacePath}`);
+				} catch (error) {
+					console.error(`[IndexManagementPanel] 索引失败:`, error);
+					// 恢复状态
+					if (uiState.status) {
+						uiState.status.isIndexing = false;
+						this.updateWorkspaceStatus(workspacePath);
+					}
+				}
 			}));
 		}
 
@@ -512,17 +586,34 @@ export class IndexManagementPanel extends Disposable {
 	/**
 	 * 更新工作区进度
 	 */
-	private updateWorkspaceProgress(workspacePath: string, progress: number, description: string): void {
+	private updateWorkspaceProgress(workspacePath: string, progress: number, description: string, indexedCount?: number, totalCount?: number): void {
 		const uiState = this.workspaceUIStates.get(workspacePath);
 		if (!uiState) {
 			return;
+		}
+
+		// 如果进度条不存在，动态创建
+		if (!uiState.progressBar && progress < 1) {
+			const progressContainer = append(uiState.statusContainer, $('.progress-container'));
+			uiState.progressBar = append(progressContainer, $('.progress-bar'));
+			uiState.progressText = append(progressContainer, $('span.progress-text'));
 		}
 
 		if (uiState.progressBar) {
 			uiState.progressBar.style.width = `${progress * 100}%`;
 		}
 		if (uiState.progressText) {
-			uiState.progressText.textContent = description;
+			// 如果有计数则显示，否则显示描述
+			uiState.progressText.textContent = (indexedCount !== undefined && totalCount !== undefined)
+				? `${indexedCount}/${totalCount} 文件`
+				: description;
+		}
+
+		// 同时更新状态栏中的进度显示
+		if (uiState.status && indexedCount !== undefined && totalCount !== undefined) {
+			uiState.status.indexedFileCount = indexedCount;
+			uiState.status.totalFileCount = totalCount;
+			this.updateStatusGridProgress(workspacePath, indexedCount, totalCount);
 		}
 
 		// 索引完成时刷新状态
@@ -537,6 +628,22 @@ export class IndexManagementPanel extends Disposable {
 					this.renderWorkspaceStats(workspacePath);
 				}
 			}, 500);
+		}
+	}
+
+	/**
+	 * 更新状态栏中的进度数字
+	 */
+	private updateStatusGridProgress(workspacePath: string, indexedCount: number, totalCount: number): void {
+		const uiState = this.workspaceUIStates.get(workspacePath);
+		if (!uiState) {
+			return;
+		}
+
+		// 查找状态栏中的进度值元素（使用 data 属性标记）
+		const progressValue = uiState.statusContainer.querySelector('[data-progress-value]') as HTMLElement | null;
+		if (progressValue) {
+			progressValue.textContent = `${indexedCount}/${totalCount}`;
 		}
 	}
 

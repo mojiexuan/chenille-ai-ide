@@ -29,6 +29,8 @@ export interface IWorkspaceIndexConfig {
 	embeddingModelName?: string;
 	/** 是否使用本地模型 */
 	useLocalModel?: boolean;
+	/** Embedding 并发数（1-1000，默认 3）重启生效 */
+	embeddingConcurrency?: number;
 }
 
 /**
