@@ -6,51 +6,30 @@
 import * as fs from 'fs';
 import * as path from '../../../../base/common/path.js';
 import { MerkleTree, IBuildOptions } from './merkleTree.js';
+import { DEFAULT_INDEXING_CONFIG } from '../../../common/indexing/types.js';
 
 /**
- * 默认构建选项
+ * 将 glob 模式转换为简单匹配模式
+ * 例如: ** /node_modules/** 会被转换为 node_modules
  */
-const DEFAULT_BUILD_OPTIONS: Required<IBuildOptions> = {
-	includeExtensions: [
-		'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-		'.py', '.java', '.kt', '.scala',
-		'.c', '.cpp', '.h', '.hpp', '.cc',
-		'.go', '.rs', '.rb', '.php',
-		'.cs', '.fs', '.vb',
-		'.swift', '.m', '.mm',
-		'.vue', '.svelte', '.astro',
-		'.html', '.css', '.scss', '.less',
-		'.json', '.yaml', '.yml', '.toml',
-		'.md', '.mdx', '.txt',
-		'.sql', '.graphql', '.gql',
-		'.sh', '.bash', '.zsh', '.ps1',
-		'.dockerfile', '.makefile',
-	],
-	excludePatterns: [
-		'node_modules',
-		'.git',
-		'dist',
-		'build',
-		'out',
-		'.next',
-		'.nuxt',
-		'coverage',
-		'__pycache__',
-		'.pytest_cache',
-		'.venv',
-		'venv',
-		'.idea',
-		'.vscode',
-		'*.min.js',
-		'*.min.css',
-		'*.map',
-		'*.lock',
-		'package-lock.json',
-		'yarn.lock',
-		'pnpm-lock.yaml',
-	],
-	maxFileSize: 1024 * 1024, // 1MB
-};
+function normalizeExcludePattern(pattern: string): string {
+	return pattern
+		.replace(/^\*\*\//, '')  // 移除开头的 **/
+		.replace(/\/\*\*$/, '')  // 移除结尾的 /**
+		.replace(/^\*/, '')      // 移除开头的 *
+		.replace(/\*$/, '');     // 移除结尾的 *
+}
+
+/**
+ * 从 DEFAULT_INDEXING_CONFIG 创建默认选项
+ */
+function getDefaultBuildOptions(): Required<IBuildOptions> {
+	return {
+		includeExtensions: DEFAULT_INDEXING_CONFIG.includeExtensions || [],
+		excludePatterns: (DEFAULT_INDEXING_CONFIG.excludePatterns || []).map(normalizeExcludePattern),
+		maxFileSize: DEFAULT_INDEXING_CONFIG.maxFileSize || 1024 * 1024,
+	};
+}
 
 /**
  * 树构建器
@@ -61,7 +40,8 @@ export class TreeBuilder {
 	private excludePatterns: string[];
 
 	constructor(options: IBuildOptions = {}) {
-		this.options = { ...DEFAULT_BUILD_OPTIONS, ...options };
+		const defaults = getDefaultBuildOptions();
+		this.options = { ...defaults, ...options };
 		this.includeExtSet = new Set(this.options.includeExtensions.map(e => e.toLowerCase()));
 		this.excludePatterns = this.options.excludePatterns;
 	}
@@ -116,17 +96,25 @@ export class TreeBuilder {
 	}
 
 	/**
+	 * 懒加载扫描选项
+	 */
+	private static readonly LAZY_LOAD_YIELD_INTERVAL = 100; // 每处理多少文件让出控制权
+
+	/**
 	 * 全量扫描并与现有树对比
 	 */
-	async fullScan(tree: MerkleTree): Promise<{ changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> }> {
+	async fullScan(
+		tree: MerkleTree,
+		onProgress?: (scanned: number, total: number) => void,
+	): Promise<{ changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> }> {
 		const changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> = [];
 
 		// 获取当前树中的所有文件
 		const existingFiles = new Set(tree.getAllFilePaths());
 
-		// 扫描文件系统
+		// 使用懒加载扫描文件系统
 		const currentFiles = new Map<string, { mtime: number; size: number }>();
-		await this.scanDirectoryForStats(tree.workspacePath, '', currentFiles);
+		await this.lazyLoadScan(tree.workspacePath, '', currentFiles, onProgress);
 
 		// 检查新增/修改的文件
 		for (const [filePath, stats] of Array.from(currentFiles.entries())) {
@@ -210,45 +198,129 @@ export class TreeBuilder {
 	}
 
 	/**
-	 * 扫描目录获取文件状态
+	 * 懒加载扫描 - 分批处理，避免一次性加载所有文件
 	 */
-	private async scanDirectoryForStats(
+	private async lazyLoadScan(
 		basePath: string,
 		relativePath: string,
 		result: Map<string, { mtime: number; size: number }>,
+		onProgress?: (scanned: number, total: number) => void,
 	): Promise<void> {
-		const fullPath = path.join(basePath, relativePath);
+		// 使用队列实现非递归扫描，便于控制内存
+		const dirQueue: string[] = [relativePath];
+		let processedFiles = 0;
+		let estimatedTotal = 0;
+
+		while (dirQueue.length > 0) {
+			const currentDir = dirQueue.shift()!;
+			const fullPath = path.join(basePath, currentDir);
+
+			let entries: fs.Dirent[];
+			try {
+				entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
+			} catch {
+				continue;
+			}
+
+			// 更新估计总数
+			estimatedTotal += entries.length;
+
+			for (const entry of entries) {
+				const entryRelativePath = currentDir ? `${currentDir}/${entry.name}` : entry.name;
+
+				if (this.shouldExclude(entry.name, entryRelativePath)) {
+					continue;
+				}
+
+				if (entry.isDirectory()) {
+					// 将子目录加入队列（延迟处理）
+					dirQueue.push(entryRelativePath);
+				} else if (entry.isFile() && this.shouldInclude(entry.name)) {
+					try {
+						const stat = await fs.promises.stat(path.join(fullPath, entry.name));
+						if (stat.size <= this.options.maxFileSize) {
+							result.set(entryRelativePath, {
+								mtime: stat.mtimeMs,
+								size: stat.size,
+							});
+						}
+					} catch {
+						// 跳过无法访问的文件
+					}
+
+					processedFiles++;
+
+					// 每处理一批文件，让出控制权并报告进度
+					if (processedFiles % TreeBuilder.LAZY_LOAD_YIELD_INTERVAL === 0) {
+						onProgress?.(processedFiles, estimatedTotal);
+						// 让出事件循环，避免阻塞
+						await new Promise(resolve => setImmediate(resolve));
+					}
+				}
+			}
+		}
+
+		// 最终进度报告
+		onProgress?.(processedFiles, processedFiles);
+	}
+
+	/**
+	 * 分片扫描 - 只扫描指定的目录列表
+	 */
+	async scanDirectories(
+		tree: MerkleTree,
+		directories: string[],
+	): Promise<{ changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> }> {
+		const changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> = [];
+
+		for (const dir of directories) {
+			const dirChanges = await this.scanSingleDirectory(tree, dir);
+			changes.push(...dirChanges);
+		}
+
+		return { changes };
+	}
+
+	/**
+	 * 扫描单个目录
+	 */
+	private async scanSingleDirectory(
+		tree: MerkleTree,
+		directory: string,
+	): Promise<Array<{ path: string; type: 'add' | 'modify' | 'delete' }>> {
+		const changes: Array<{ path: string; type: 'add' | 'modify' | 'delete' }> = [];
+		const fullPath = path.join(tree.workspacePath, directory);
 
 		let entries: fs.Dirent[];
 		try {
 			entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
 		} catch {
-			return;
+			return changes;
 		}
 
 		for (const entry of entries) {
-			const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+			if (entry.isFile() && this.shouldInclude(entry.name)) {
+				const relativePath = directory ? `${directory}/${entry.name}` : entry.name;
 
-			if (this.shouldExclude(entry.name, entryRelativePath)) {
-				continue;
-			}
+				if (this.shouldExclude(entry.name, relativePath)) {
+					continue;
+				}
 
-			if (entry.isDirectory()) {
-				await this.scanDirectoryForStats(basePath, entryRelativePath, result);
-			} else if (entry.isFile() && this.shouldInclude(entry.name)) {
 				try {
 					const stat = await fs.promises.stat(path.join(fullPath, entry.name));
 					if (stat.size <= this.options.maxFileSize) {
-						result.set(entryRelativePath, {
-							mtime: stat.mtimeMs,
-							size: stat.size,
-						});
+						const change = tree.upsertFile(relativePath, stat.mtimeMs, stat.size);
+						if (change) {
+							changes.push({ path: relativePath, type: change.type });
+						}
 					}
 				} catch {
 					// 跳过
 				}
 			}
 		}
+
+		return changes;
 	}
 
 	/**

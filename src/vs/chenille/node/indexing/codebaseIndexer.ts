@@ -41,38 +41,39 @@ import {
 
 
 /**
- * 简单的异步互斥锁
- * 确保嵌入计算等资源密集型操作串行执行
+ * 信号量 - 支持限制并发数量
  */
-class AsyncMutex {
-	private locked: boolean = false;
+class Semaphore {
+	private permits: number;
 	private waitQueue: Array<() => void> = [];
 
+	constructor(permits: number) {
+		this.permits = permits;
+	}
+
 	/**
-	 * 获取锁
+	 * 获取许可
 	 */
 	async acquire(): Promise<void> {
-		if (!this.locked) {
-			this.locked = true;
+		if (this.permits > 0) {
+			this.permits--;
 			return;
 		}
 
-		// 等待锁释放
 		return new Promise<void>((resolve) => {
 			this.waitQueue.push(resolve);
 		});
 	}
 
 	/**
-	 * 释放锁
+	 * 释放许可
 	 */
 	release(): void {
 		if (this.waitQueue.length > 0) {
-			// 唤醒下一个等待者
 			const next = this.waitQueue.shift()!;
 			next();
 		} else {
-			this.locked = false;
+			this.permits++;
 		}
 	}
 
@@ -81,6 +82,96 @@ class AsyncMutex {
 	 */
 	get waiting(): number {
 		return this.waitQueue.length;
+	}
+
+	/**
+	 * 获取可用许可数
+	 */
+	get available(): number {
+		return this.permits;
+	}
+}
+
+/**
+ * 资源调度器 - 管理多工作区并发索引
+ */
+class ResourceScheduler {
+	/** 文件扫描信号量（I/O 操作，允许并行） */
+	private scanSemaphore: Semaphore;
+	/** 嵌入计算互斥锁（CPU/GPU 密集，串行执行） */
+	private embedMutex: Semaphore;
+	/** 正在处理的工作区 */
+	private activeWorkspaces: Map<string, { phase: 'scan' | 'embed' | 'save' }> = new Map();
+
+	constructor(
+		maxConcurrentScans: number = 3,  // 允许同时扫描 3 个工作区
+		maxConcurrentEmbeds: number = 1,  // 嵌入计算串行
+	) {
+		this.scanSemaphore = new Semaphore(maxConcurrentScans);
+		this.embedMutex = new Semaphore(maxConcurrentEmbeds);
+	}
+
+	/**
+	 * 开始扫描阶段
+	 */
+	async startScan(workspacePath: string): Promise<void> {
+		await this.scanSemaphore.acquire();
+		this.activeWorkspaces.set(workspacePath, { phase: 'scan' });
+	}
+
+	/**
+	 * 结束扫描阶段，进入嵌入阶段
+	 */
+	async transitionToEmbed(workspacePath: string): Promise<void> {
+		this.scanSemaphore.release();
+		await this.embedMutex.acquire();
+		this.activeWorkspaces.set(workspacePath, { phase: 'embed' });
+	}
+
+	/**
+	 * 结束嵌入阶段，进入保存阶段
+	 */
+	transitionToSave(workspacePath: string): void {
+		this.embedMutex.release();
+		this.activeWorkspaces.set(workspacePath, { phase: 'save' });
+	}
+
+	/**
+	 * 完成所有阶段
+	 */
+	complete(workspacePath: string): void {
+		const info = this.activeWorkspaces.get(workspacePath);
+		if (info) {
+			// 确保释放所有可能持有的资源
+			if (info.phase === 'scan') {
+				this.scanSemaphore.release();
+			} else if (info.phase === 'embed') {
+				this.embedMutex.release();
+			}
+			this.activeWorkspaces.delete(workspacePath);
+		}
+	}
+
+	/**
+	 * 获取调度状态
+	 */
+	getStatus(): {
+		activeWorkspaces: number;
+		waitingScan: number;
+		waitingEmbed: number;
+	} {
+		return {
+			activeWorkspaces: this.activeWorkspaces.size,
+			waitingScan: this.scanSemaphore.waiting,
+			waitingEmbed: this.embedMutex.waiting,
+		};
+	}
+
+	/**
+	 * 兼容旧的互斥锁接口
+	 */
+	get waiting(): number {
+		return this.scanSemaphore.waiting + this.embedMutex.waiting;
 	}
 }
 
@@ -107,8 +198,8 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	/** 当前正在索引的工作区 */
 	private indexingWorkspaces: Set<string> = new Set();
 
-	/** 互斥锁（确保嵌入计算串行执行，避免 OOM） */
-	private indexingMutex: AsyncMutex = new AsyncMutex();
+	/** 资源调度器（管理多工作区并发） */
+	private resourceScheduler: ResourceScheduler = new ResourceScheduler();
 
 	constructor(
 		config: Partial<IndexingConfig> = {},
@@ -298,52 +389,59 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 			// 检查取消
 			this.checkCancellation(token);
 
-			// 1. 获取或创建 Merkle 树
-			onProgress?.({ progress: 0, description: '正在加载文件树...' });
-			const merkleTree = await this.getMerkleTree(workspacePath);
-			const oldRootHash = merkleTree.rootHash;
-
-			// 2. 扫描文件并更新 Merkle 树
-			onProgress?.({ progress: 0.05, description: '正在扫描文件...' });
-			const { changes } = await this.treeBuilder.fullScan(merkleTree);
-			console.log(`[CodebaseIndexer] Merkle tree updated, ${changes.length} changes detected`);
-
-			// 检查取消
-			this.checkCancellation(token);
-
-			if (changes.length === 0 && oldRootHash === merkleTree.rootHash) {
-				onProgress?.({ progress: 1, description: '索引已是最新' });
-				// 保存 Merkle 树
-				await this.saveMerkleTree(workspacePath);
-				return;
+			// === 扫描阶段（允许并行）===
+			const schedulerStatus = this.resourceScheduler.getStatus();
+			if (schedulerStatus.waitingScan > 0) {
+				onProgress?.({ progress: 0, description: `等待扫描资源（${schedulerStatus.waitingScan} 个任务排队）...` });
 			}
-
-			// 3. 转换变更为索引格式
-			onProgress?.({ progress: 0.1, description: '正在计算变更...' });
-			const results = this.convertChangesToIndexResults(changes, merkleTree);
-
-			// 检查取消
-			this.checkCancellation(token);
-
-			const totalChanges = results.compute.length + results.del.length + results.addTag.length;
-			console.log(`[CodebaseIndexer] Changes: ${results.compute.length} new/modified, ${results.del.length} deleted, ${results.addTag.length} unchanged`);
-
-			if (totalChanges === 0) {
-				onProgress?.({ progress: 1, description: '索引已是最新' });
-				return;
-			}
-
-			// 3. 获取互斥锁（确保嵌入计算串行执行）
-			const waitingCount = this.indexingMutex.waiting;
-			if (waitingCount > 0) {
-				onProgress?.({ progress: 0.15, description: `等待其他索引任务完成（队列中有 ${waitingCount} 个任务）...` });
-				console.log(`[CodebaseIndexer] Waiting for mutex, ${waitingCount} tasks in queue`);
-			}
-
-			await this.indexingMutex.acquire();
+			await this.resourceScheduler.startScan(workspacePath);
 
 			try {
-				// 检查取消（在获取锁后再次检查）
+				// 1. 获取或创建 Merkle 树
+				onProgress?.({ progress: 0.02, description: '正在加载文件树...' });
+				const merkleTree = await this.getMerkleTree(workspacePath);
+				const oldRootHash = merkleTree.rootHash;
+
+				// 2. 扫描文件并更新 Merkle 树
+				onProgress?.({ progress: 0.05, description: '正在扫描文件...' });
+				const { changes } = await this.treeBuilder.fullScan(merkleTree);
+				console.log(`[CodebaseIndexer] Merkle tree updated, ${changes.length} changes detected`);
+
+				// 检查取消
+				this.checkCancellation(token);
+
+				if (changes.length === 0 && oldRootHash === merkleTree.rootHash) {
+					onProgress?.({ progress: 1, description: '索引已是最新' });
+					await this.saveMerkleTree(workspacePath);
+					this.resourceScheduler.complete(workspacePath);
+					return;
+				}
+
+				// 3. 转换变更为索引格式
+				onProgress?.({ progress: 0.1, description: '正在计算变更...' });
+				const results = this.convertChangesToIndexResults(changes, merkleTree);
+
+				// 检查取消
+				this.checkCancellation(token);
+
+				const totalChanges = results.compute.length + results.del.length + results.addTag.length;
+				console.log(`[CodebaseIndexer] Changes: ${results.compute.length} new/modified, ${results.del.length} deleted, ${results.addTag.length} unchanged`);
+
+				if (totalChanges === 0) {
+					onProgress?.({ progress: 1, description: '索引已是最新' });
+					this.resourceScheduler.complete(workspacePath);
+					return;
+				}
+
+				// === 嵌入阶段（串行执行）===
+				const embedStatus = this.resourceScheduler.getStatus();
+				if (embedStatus.waitingEmbed > 0) {
+					onProgress?.({ progress: 0.15, description: `等待嵌入计算资源（${embedStatus.waitingEmbed} 个任务排队）...` });
+					console.log(`[CodebaseIndexer] Waiting for embed resource, ${embedStatus.waitingEmbed} tasks in queue`);
+				}
+				await this.resourceScheduler.transitionToEmbed(workspacePath);
+
+				// 检查取消（在获取资源后再次检查）
 				this.checkCancellation(token);
 
 				// 4. 更新索引（传递取消令牌）
@@ -357,17 +455,21 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 					results,
 					(items) => this.getChunksForFiles(workspacePath, items),
 					(event) => {
-						// 调整进度范围到 0.2 - 1.0
-						const adjustedProgress = 0.2 + event.progress * 0.8;
+						// 调整进度范围到 0.2 - 0.95
+						const adjustedProgress = 0.2 + event.progress * 0.75;
 						onProgress?.({
 							...event,
 							progress: adjustedProgress,
 						});
 					},
-					token, // 传递取消令牌
+					token,
 				);
 
+				// === 保存阶段 ===
+				this.resourceScheduler.transitionToSave(workspacePath);
+
 				// 5. 保存 Merkle 树
+				onProgress?.({ progress: 0.95, description: '正在保存索引...' });
 				await this.saveMerkleTree(workspacePath);
 
 				const duration = Date.now() - startTime;
@@ -378,8 +480,8 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 					description: `已索引 ${results.compute.length} 个文件，耗时 ${Math.round(duration / 1000)} 秒`,
 				});
 			} finally {
-				// 释放互斥锁
-				this.indexingMutex.release();
+				// 确保释放资源
+				this.resourceScheduler.complete(workspacePath);
 			}
 		} finally {
 			this.indexingWorkspaces.delete(workspacePath);
@@ -532,7 +634,7 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 		return {
 			isIndexing: this.indexingWorkspaces.has(workspacePath),
 			fileCount: tree ? tree.getAllFilePaths().length : 0,
-			queuedTasks: this.indexingMutex.waiting,
+			queuedTasks: this.resourceScheduler.waiting,
 		};
 	}
 
