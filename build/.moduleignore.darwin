@@ -15,3 +15,7 @@
 @vscode/windows-registry/*.txt
 @vscode/windows-registry/package.json
 !@vscode/windows-registry/dist/index.d.ts
+
+# Exclude non-Darwin onnxruntime-node binaries
+onnxruntime-node/bin/napi-v3/win32/**
+onnxruntime-node/bin/napi-v3/linux/**

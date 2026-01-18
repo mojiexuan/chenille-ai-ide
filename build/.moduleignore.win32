@@ -1,0 +1,3 @@
+# Exclude non-Windows onnxruntime-node binaries
+onnxruntime-node/bin/napi-v3/darwin/**
+onnxruntime-node/bin/napi-v3/linux/**
