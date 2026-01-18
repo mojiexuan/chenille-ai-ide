@@ -1,12 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Chenille - 开源自由的 AI 编程助手</title>
+		<title>Chenille - 用自己的 AI，写自己的代码</title>
 		<meta
 			name="description"
-			content="Chenille 是完全开源的 AI 编程助手，隐私优先，自由接入任意 AI 后端，你的代码你做主。"
+			content="Chenille 是开源 AI IDE，不绑定服务商、不上传代码、不收订阅费。用任意大模型 API 获得顶级智能编程体验。"
 		/>
 		<link rel="stylesheet" href="style.css" />
 		<link rel="icon" type="image/x-icon" href="favicon.ico" />
@@ -34,9 +34,13 @@
 
 		<section class="hero">
 			<div class="hero-content">
-				<h1>开源自由的<br /><span class="gradient-text">AI 编程助手</span></h1>
+				<h1>
+					用自己的 AI<br /><span class="gradient-text">写自己的代码</span>
+				</h1>
+				<p class="hero-slogan">代码笔墨，心若星河，创意通灵</p>
 				<p class="hero-subtitle">
-					基于 VS Code · 隐私优先 · 自由接入任意 AI 后端<br />你的代码，你做主
+					不绑定服务商 · 不上传代码 · 不收订阅费<br />用任意大模型
+					API，获得顶级智能编程体验
 				</p>
 				<div class="hero-buttons">
 					<a href="#download" class="btn btn-primary">
@@ -98,38 +102,51 @@
 		<section id="features" class="features">
 			<div class="section-header">
 				<h2>为什么选择 Chenille</h2>
-				<p>开源自由，隐私优先，你的 AI 你做主</p>
+				<p>不绑定、不上传、不黑盒</p>
 			</div>
 			<div class="features-grid">
 				<div class="feature-card">
-					<div class="feature-icon">🔓</div>
-					<h3>完全开源</h3>
-					<p>代码透明，社区驱动，无商业绑定，100% 可审计</p>
-				</div>
-				<div class="feature-card">
-					<div class="feature-icon">🔌</div>
-					<h3>自由接入</h3>
-					<p>支持自定义 BaseURL，不强绑定任何服务商，接入你喜欢的 AI 后端</p>
+					<div class="feature-icon">🔧</div>
+					<h3>模型管理</h3>
+					<p>
+						可视化配置多个 AI 模型，支持 OpenAI、Anthropic、Google 及所有兼容
+						API
+					</p>
 				</div>
 				<div class="feature-card">
 					<div class="feature-icon">📝</div>
-					<h3>自定义提示词</h3>
-					<p>完全掌控 System Prompt，打造专属于你的编程助手</p>
+					<h3>提示词管理</h3>
+					<p>创建多个 System Prompt，按场景切换，完全掌控 AI 行为</p>
 				</div>
 				<div class="feature-card">
-					<div class="feature-icon">🔒</div>
-					<h3>隐私保护</h3>
-					<p>代码不上传云端，数据留在本地，安全可控</p>
+					<div class="feature-icon">🤖</div>
+					<h3>智能体配置</h3>
+					<p>为代码编写、补全、Commit 生成分别配置专属的模型 + 提示词组合</p>
 				</div>
 				<div class="feature-card">
-					<div class="feature-icon">🌐</div>
-					<h3>离线可用</h3>
-					<p>搭配本地模型（如 Ollama），无需联网即可使用</p>
+					<div class="feature-icon">📏</div>
+					<h3>规则系统</h3>
+					<p>两级规则体系（全局 + 项目），精细控制 AI 行为</p>
+				</div>
+				<div class="feature-card">
+					<div class="feature-icon">🎯</div>
+					<h3>技能系统</h3>
+					<p>为 AI 赋予专业技能，全局技能 + 项目技能，可复用可分享</p>
+				</div>
+				<div class="feature-card">
+					<div class="feature-icon">🔍</div>
+					<h3>本地代码索引</h3>
+					<p>基于 LanceDB 的向量索引，本地构建，语义搜索代码库</p>
 				</div>
 				<div class="feature-card">
 					<div class="feature-icon">🧩</div>
-					<h3>MCP 支持</h3>
-					<p>完整支持 Model Context Protocol，自定义工具无限扩展</p>
+					<h3>MCP 协议</h3>
+					<p>可视化管理 MCP 服务器，让 AI 调用数据库、API、本地工具</p>
+				</div>
+				<div class="feature-card">
+					<div class="feature-icon">🔒</div>
+					<h3>隐私优先</h3>
+					<p>代码直连你配置的 API，不经过我们，支持纯离线使用</p>
 				</div>
 			</div>
 		</section>
@@ -179,7 +196,7 @@
 					<img src="favicon.ico" alt="Chenille" />
 					<span>Chenille</span>
 				</div>
-				<p>完全开源的 AI 编程助手，隐私优先，自由可控</p>
+				<p>用自己的 AI，写自己的代码</p>
 				<div class="footer-links">
 					<a href="https://github.com/mojiexuan/chenille-ai-ide" target="_blank"
 						>GitHub</a
