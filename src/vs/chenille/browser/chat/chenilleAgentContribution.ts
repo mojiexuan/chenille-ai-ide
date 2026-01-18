@@ -324,12 +324,20 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 		// 2. 检查是否有有效内容
 		if (!responseText && toolInvocations.length === 0) {
-			return { valid: false, reason: '响应为空' };
+			// 响应完全为空，但仍然保留用户消息上下文
+			result.push({ role: 'user', content: entry.request.message });
+			result.push({ role: 'assistant', content: '[上一次请求未能获得响应]' });
+			this.logService.debug('[Chenille] 响应为空，生成占位响应以保留上下文');
+			return { valid: true, messages: result };
 		}
 
 		// 3. 检查是否只有错误
 		if (this.hasOnlyErrors(response)) {
-			return { valid: false, reason: '只包含错误信息' };
+			// 只有错误信息，但仍然保留用户消息上下文
+			result.push({ role: 'user', content: entry.request.message });
+			result.push({ role: 'assistant', content: `[上一次请求发生错误: ${responseText || '未知错误'}]` });
+			this.logService.debug('[Chenille] 只有错误信息，生成错误响应以保留上下文');
+			return { valid: true, messages: result };
 		}
 
 		// 4. 添加用户消息
@@ -340,13 +348,15 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			const toolValidation = this.validateToolCalls(toolInvocations);
 
 			if (!toolValidation.valid) {
-				// 工具调用不完整，只保留文本部分
-				if (responseText && responseText.trim()) {
-					result.push({ role: 'assistant', content: responseText });
-					this.logService.debug(`[Chenille] 工具调用不完整，只保留文本: ${toolValidation.reason}`);
-					return { valid: true, messages: result };
-				}
-				return { valid: false, reason: toolValidation.reason };
+				// 工具调用不完整时，生成合成响应而不是跳过整个条目
+				// 这样可以保留用户消息上下文，避免 AI 丢失对话历史
+				const syntheticContent = responseText && responseText.trim()
+					? responseText
+					: `[上一次请求中的工具调用未完成: ${toolValidation.reason}]`;
+
+				result.push({ role: 'assistant', content: syntheticContent });
+				this.logService.debug(`[Chenille] 工具调用不完整，生成合成响应: ${toolValidation.reason}`);
+				return { valid: true, messages: result };
 			}
 
 			// 添加带 tool_calls 的 assistant 消息

@@ -60,6 +60,10 @@ class ChenilleIndexingServiceImpl implements IChenilleIndexingService {
 		return this.delegate.setUseLocalModel(workspacePath, useLocal);
 	}
 
+	setEmbeddingConcurrency(workspacePath: string, concurrency: number) {
+		return this.delegate.setEmbeddingConcurrency(workspacePath, concurrency);
+	}
+
 	retrieve(options: Parameters<IChenilleIndexingService['retrieve']>[0]) {
 		return this.delegate.retrieve(options);
 	}
