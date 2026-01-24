@@ -11,14 +11,14 @@ import { AIClient } from '../node/ai/aiClient.js';
 import { AgentType } from '../common/types.js';
 import { IAiAgentMainService } from './agentService.js';
 
-/** diff 最大字符数限制（约 2000 tokens） */
-const MAX_DIFF_LENGTH = 8000;
+/** diff 最大字符数限制（约 4000 tokens，作为最后防线） */
+const MAX_DIFF_LENGTH = 16000;
 
 /** diff 截断后保留的头部字符数 */
-const TRUNCATE_HEAD_LENGTH = 6000;
+const TRUNCATE_HEAD_LENGTH = 12000;
 
 /** diff 截断后保留的尾部字符数 */
-const TRUNCATE_TAIL_LENGTH = 1000;
+const TRUNCATE_TAIL_LENGTH = 2000;
 
 /**
  * 提交消息生成服务实现（主进程）

@@ -123,6 +123,7 @@
 
 | Chenille AI IDE | Code -OSS 版本                                               | 日期                      |
 | --------------- | ------------------------------------------------------------ | ------------------------- |
+| v0.0.3          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026年                    |
 | v0.0.3          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 15 日 23:18  |
 | v0.0.2          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 14 日 06:49  |
 | v0.0.1          | [v1.107.1](https://github.com/microsoft/vscode/tree/1.107.1) | 2026 年 1 月 11 日        |
@@ -154,7 +155,7 @@
 
 直接去下载包
 
-[electron-v39.2.3-win32-x64.zip](https://github.com/electron/electron/releases)
+[electron-v39.2.3-win32-x64.zip](https://github.com/electron/electron/releases/tag/v39.2.3)
 
 下载后将压缩包放进
 

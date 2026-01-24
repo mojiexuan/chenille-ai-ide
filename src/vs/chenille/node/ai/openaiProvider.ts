@@ -161,6 +161,9 @@ export class OpenAIProvider implements IAIProvider {
 			tools: toOpenAITools(options),
 			tool_choice: options.tool_choice,
 			stream: false,
+			// 防止模型重复输出
+			frequency_penalty: 0.3,
+			presence_penalty: 0.1,
 		});
 
 		if (response.choices.length === 0) {
@@ -200,6 +203,9 @@ export class OpenAIProvider implements IAIProvider {
 			tool_choice: options.tool_choice,
 			stream: true,
 			stream_options: { include_usage: true },
+			// 防止模型重复输出
+			frequency_penalty: 0.3,
+			presence_penalty: 0.1,
 		});
 
 		// 累积工具调用（流式 API 中工具调用是增量发送的）

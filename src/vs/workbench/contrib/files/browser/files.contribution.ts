@@ -225,7 +225,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('eol.CRLF', "CRLF"),
 				nls.localize('eol.auto', "Uses operating system specific end of line character.")
 			],
-			'default': 'auto',
+			'default': '\n',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},

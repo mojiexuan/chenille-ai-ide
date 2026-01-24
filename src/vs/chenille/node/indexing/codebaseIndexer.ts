@@ -209,7 +209,7 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 		this.config = { ...DEFAULT_INDEXING_CONFIG, ...config };
 
 		try {
-			// 初始化组件
+			// 初始化组件（延迟初始化嵌入提供者，避免启动时阻塞）
 			this.embeddingsProvider = embeddingsProvider || createEmbeddingsProvider(
 				'local',
 				this.config.localModelName,
@@ -227,14 +227,21 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 
 			// 初始化持久化（如果有 environmentService）
 			if (this.environmentService) {
-				const cacheDir = path.join(
-					this.environmentService.cacheHome.fsPath,
-					'chenille',
-					'index-cache',
-				);
-				this.treeSerializer = createTreeSerializer(cacheDir);
+				try {
+					const cacheDir = path.join(
+						this.environmentService.cacheHome.fsPath,
+						'chenille',
+						'index-cache',
+					);
+					this.treeSerializer = createTreeSerializer(cacheDir);
+				} catch (error) {
+					console.warn('[CodebaseIndexer] Failed to initialize tree serializer:', error);
+					// 继续运行，只是没有持久化
+				}
 			}
 		} catch (error) {
+			// 记录错误但不抛出，允许服务继续运行
+			console.error('[CodebaseIndexer] Initialization error:', error);
 			throw new IndexingError(
 				IndexingErrorCode.InitFailed,
 				error,
@@ -257,8 +264,9 @@ export class CodebaseIndexer implements ICodebaseIndexer {
 	 */
 	setModelDownloadProgressCallback(callback: (progress: { status: string; file?: string; progress?: number }) => void): void {
 		// 如果是 LocalEmbeddingsProvider，设置进度回调
-		if (this.embeddingsProvider && 'setProgressCallback' in this.embeddingsProvider) {
-			(this.embeddingsProvider as { setProgressCallback: (cb: typeof callback) => void }).setProgressCallback(callback);
+		const provider = this.embeddingsProvider as { setProgressCallback?: (cb: typeof callback) => void };
+		if (provider && typeof provider.setProgressCallback === 'function') {
+			provider.setProgressCallback(callback);
 		}
 	}
 

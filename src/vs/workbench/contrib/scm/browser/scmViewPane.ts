@@ -110,6 +110,8 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { ICommitMessageService } from '../../../../chenille/common/commitMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -1368,6 +1370,18 @@ const enum SCMInputWidgetStorageKey {
 	LastActionId = 'scm.input.lastActionId'
 }
 
+/** 生成提交消息的限制常量 */
+const COMMIT_MESSAGE_LIMITS = {
+	/** 最大处理文件数 */
+	MAX_FILES: 20,
+	/** 单个文件 diff 最大行数 */
+	MAX_DIFF_LINES_PER_FILE: 100,
+	/** 新文件预览最大行数 */
+	MAX_NEW_FILE_LINES: 50,
+	/** 总 diff 内容最大字符数 */
+	MAX_TOTAL_CHARS: 12000,
+};
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1392,6 +1406,8 @@ registerAction2(class extends Action2 {
 		const commitMessageService = accessor.get(ICommitMessageService);
 		const fileService = accessor.get(IFileService);
 		const logService = accessor.get(ILogService);
+		const textModelService = accessor.get(ITextModelService);
+		const editorWorkerService = accessor.get(IEditorWorkerService);
 
 		// 找到对应的 repository
 		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === provider.toString());
@@ -1425,11 +1441,22 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
+		// 限制文件数量
+		const truncatedFiles = fileChanges.length > COMMIT_MESSAGE_LIMITS.MAX_FILES;
+		const filesToProcess = fileChanges.slice(0, COMMIT_MESSAGE_LIMITS.MAX_FILES);
+
 		try {
 			// 构建变更摘要
 			const diffParts: string[] = [];
+			let totalChars = 0;
+			let reachedLimit = false;
 
-			for (const change of fileChanges) {
+			for (const change of filesToProcess) {
+				if (reachedLimit) {
+					diffParts.push(`... 以及其他 ${filesToProcess.length - diffParts.length} 个文件的变更`);
+					break;
+				}
+
 				try {
 					// 判断文件状态
 					const isStaged = change.groupId.includes('index') || change.groupId.includes('staged');
@@ -1445,28 +1472,137 @@ registerAction2(class extends Action2 {
 						fileExists = false;
 					}
 
+					let diffContent = '';
+
 					if (isUntracked) {
-						// 新文件（未跟踪）
+						// 新文件（未跟踪）- 显示部分内容预览
 						if (currentContent) {
 							const lines = currentContent.split('\n');
-							const maxLines = 80;
+							const maxLines = COMMIT_MESSAGE_LIMITS.MAX_NEW_FILE_LINES;
 							const preview = lines.slice(0, maxLines).map(l => `+ ${l}`).join('\n');
-							const suffix = lines.length > maxLines ? `\n... (还有 ${lines.length - maxLines} 行)` : '';
-							diffParts.push(`--- /dev/null\n+++ b/${change.relativePath}\n@@ -0,0 +1,${lines.length} @@\n${preview}${suffix}`);
+							const suffix = lines.length > maxLines ? `\n+... (还有 ${lines.length - maxLines} 行)` : '';
+							diffContent = `--- /dev/null\n+++ b/${change.relativePath}\n@@ -0,0 +1,${Math.min(lines.length, maxLines)} @@\n${preview}${suffix}`;
 						} else {
-							diffParts.push(`新文件: ${change.relativePath} (无法读取内容)`);
+							diffContent = `新文件: ${change.relativePath} (二进制或无法读取)`;
 						}
 					} else if (!fileExists) {
-						// 删除的文件
-						diffParts.push(`删除文件: ${change.relativePath}`);
+						// 删除的文件 - 尝试获取原始内容
+						try {
+							const originalUri = await repository.provider.getOriginalResource(change.uri);
+							if (originalUri) {
+								const originalRef = await textModelService.createModelReference(originalUri);
+								try {
+									const originalContent = originalRef.object.textEditorModel.getValue();
+									const lines = originalContent.split('\n');
+									const maxLines = COMMIT_MESSAGE_LIMITS.MAX_NEW_FILE_LINES;
+									const preview = lines.slice(0, maxLines).map(l => `- ${l}`).join('\n');
+									const suffix = lines.length > maxLines ? `\n-... (还有 ${lines.length - maxLines} 行)` : '';
+									diffContent = `--- a/${change.relativePath}\n+++ /dev/null\n@@ -1,${Math.min(lines.length, maxLines)} +0,0 @@\n${preview}${suffix}`;
+								} finally {
+									originalRef.dispose();
+								}
+							} else {
+								diffContent = `删除文件: ${change.relativePath}`;
+							}
+						} catch {
+							diffContent = `删除文件: ${change.relativePath}`;
+						}
 					} else {
-						// 修改的文件 - 显示当前内容摘要
-						const lines = currentContent.split('\n');
-						const maxLines = 60;
-						const preview = lines.slice(0, maxLines).join('\n');
-						const suffix = lines.length > maxLines ? `\n... (文件共 ${lines.length} 行，已省略部分内容)` : '';
+						// 修改的文件 - 计算真正的 diff
+						try {
+							const originalUri = await repository.provider.getOriginalResource(change.uri);
+							if (originalUri) {
+								// 获取原始文件内容
+								const originalRef = await textModelService.createModelReference(originalUri);
+								try {
+									const originalModel = originalRef.object.textEditorModel;
 
-						diffParts.push(`修改文件: ${change.relativePath}${isStaged ? ' (已暂存)' : ''}\n当前内容预览:\n\`\`\`\n${preview}${suffix}\n\`\`\``);
+									// 创建当前内容的临时模型用于比较
+									const modifiedUri = change.uri;
+
+									// 使用 editorWorkerService 计算 diff
+									const diffResult = await editorWorkerService.computeDiff(
+										originalUri,
+										modifiedUri,
+										{ computeMoves: false, ignoreTrimWhitespace: true, maxComputationTimeMs: 5000 },
+										'advanced'
+									);
+
+									if (diffResult && diffResult.changes.length > 0) {
+										// 构建 unified diff 格式
+										const originalLines = originalModel.getLinesContent();
+										const modifiedContent = currentContent.split('\n');
+										const diffLines: string[] = [`--- a/${change.relativePath}`, `+++ b/${change.relativePath}`];
+
+										let lineCount = 0;
+										for (const change2 of diffResult.changes) {
+											if (lineCount >= COMMIT_MESSAGE_LIMITS.MAX_DIFF_LINES_PER_FILE) {
+												diffLines.push(`... (diff 过长，已省略剩余 ${diffResult.changes.length} 处变更)`);
+												break;
+											}
+
+											const origStart = change2.original.startLineNumber;
+											const origCount = change2.original.endLineNumberExclusive - change2.original.startLineNumber;
+											const modStart = change2.modified.startLineNumber;
+											const modCount = change2.modified.endLineNumberExclusive - change2.modified.startLineNumber;
+
+											diffLines.push(`@@ -${origStart},${origCount} +${modStart},${modCount} @@`);
+
+											// 添加删除的行
+											for (let i = origStart; i < change2.original.endLineNumberExclusive && lineCount < COMMIT_MESSAGE_LIMITS.MAX_DIFF_LINES_PER_FILE; i++) {
+												if (i <= originalLines.length) {
+													diffLines.push(`- ${originalLines[i - 1]}`);
+													lineCount++;
+												}
+											}
+
+											// 添加新增的行
+											for (let i = modStart; i < change2.modified.endLineNumberExclusive && lineCount < COMMIT_MESSAGE_LIMITS.MAX_DIFF_LINES_PER_FILE; i++) {
+												if (i <= modifiedContent.length) {
+													diffLines.push(`+ ${modifiedContent[i - 1]}`);
+													lineCount++;
+												}
+											}
+										}
+
+										diffContent = diffLines.join('\n');
+									} else {
+										diffContent = `修改文件: ${change.relativePath}${isStaged ? ' (已暂存)' : ''} (无实质性变更或 diff 计算失败)`;
+									}
+								} finally {
+									originalRef.dispose();
+								}
+							} else {
+								// 无法获取原始文件，回退到显示当前内容摘要
+								const lines = currentContent.split('\n');
+								const maxLines = 30;
+								const preview = lines.slice(0, maxLines).join('\n');
+								const suffix = lines.length > maxLines ? `\n... (文件共 ${lines.length} 行)` : '';
+								diffContent = `修改文件: ${change.relativePath}${isStaged ? ' (已暂存)' : ''}\n当前内容:\n${preview}${suffix}`;
+							}
+						} catch (e) {
+							logService.warn(`[Chenille] 计算 diff 失败 ${change.relativePath}: ${e}`);
+							// 回退方案
+							const lines = currentContent.split('\n');
+							const maxLines = 30;
+							const preview = lines.slice(0, maxLines).join('\n');
+							const suffix = lines.length > maxLines ? `\n... (文件共 ${lines.length} 行)` : '';
+							diffContent = `修改文件: ${change.relativePath}${isStaged ? ' (已暂存)' : ''}\n当前内容:\n${preview}${suffix}`;
+						}
+					}
+
+					// 检查总字符数限制
+					if (totalChars + diffContent.length > COMMIT_MESSAGE_LIMITS.MAX_TOTAL_CHARS) {
+						// 截断当前 diff
+						const remaining = COMMIT_MESSAGE_LIMITS.MAX_TOTAL_CHARS - totalChars;
+						if (remaining > 200) {
+							diffContent = diffContent.substring(0, remaining) + '\n... (内容过长，已截断)';
+							diffParts.push(diffContent);
+						}
+						reachedLimit = true;
+					} else {
+						diffParts.push(diffContent);
+						totalChars += diffContent.length;
 					}
 				} catch (e) {
 					logService.warn(`[Chenille] 处理文件 ${change.relativePath} 失败: ${e}`);
@@ -1474,7 +1610,16 @@ registerAction2(class extends Action2 {
 				}
 			}
 
-			const diffSummary = `以下是本次提交的变更信息：\n\n变更文件数: ${fileChanges.length}\n\n${diffParts.join('\n\n---\n\n')}`;
+			// 构建最终摘要
+			let summary = `变更文件数: ${fileChanges.length}`;
+			if (truncatedFiles) {
+				summary += ` (仅分析前 ${COMMIT_MESSAGE_LIMITS.MAX_FILES} 个文件)`;
+			}
+			if (reachedLimit) {
+				summary += '\n注意: 变更内容较多，部分 diff 已省略';
+			}
+
+			const diffSummary = `${summary}\n\n${diffParts.join('\n\n---\n\n')}`;
 
 			// 清空当前输入
 			repository.input.setValue('', false);
@@ -2799,7 +2944,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private getSelectedResources(): (ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
-		return this.tree.getSelection().filter(r => isSCMResourceGroup(r) || isSCMResource(r) || isSCMResourceNode(r));
+		return this.tree.getSelection().filter((r): r is ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup> => isSCMResourceGroup(r) || isSCMResource(r) || isSCMResourceNode(r));
 	}
 
 	private getViewMode(): ViewMode {
@@ -2984,7 +3129,7 @@ export class SCMViewPane extends ViewPane {
 
 		const treeHasDomFocus = isActiveElement(this.tree.getHTMLElement());
 		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
-		const focusedResourceGroup = this.tree.getFocus().find(e => isSCMResourceGroup(e));
+		const focusedResourceGroup = this.tree.getFocus().find((e): e is ISCMResourceGroup => isSCMResourceGroup(e));
 		const focusedResourceGroupIndex = treeHasDomFocus && focusedResourceGroup ? resourceGroups.indexOf(focusedResourceGroup) : -1;
 
 		let resourceGroupNext: ISCMResourceGroup | undefined;

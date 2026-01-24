@@ -99,7 +99,12 @@ export class LocalEmbeddingsProvider implements IEmbeddingsProvider {
 	 * 生成文本嵌入向量
 	 */
 	async embed(texts: string[]): Promise<number[][]> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch (error) {
+			console.error('[LocalEmbeddings] 初始化失败:', error);
+			throw error;
+		}
 
 		if (!this.pipeline) {
 			throw new Error('Embedding model not initialized');
@@ -111,8 +116,16 @@ export class LocalEmbeddingsProvider implements IEmbeddingsProvider {
 		const batchSize = 32;
 		for (let i = 0; i < texts.length; i += batchSize) {
 			const batch = texts.slice(i, i + batchSize);
-			const batchResults = await this.embedBatch(batch);
-			results.push(...batchResults);
+			try {
+				const batchResults = await this.embedBatch(batch);
+				results.push(...batchResults);
+			} catch (error) {
+				console.error(`[LocalEmbeddings] 批次 ${i / batchSize + 1} 嵌入失败:`, error);
+				// 对于失败的批次，生成零向量作为占位符，避免整个索引失败
+				for (let j = 0; j < batch.length; j++) {
+					results.push(new Array(this.dimensions).fill(0));
+				}
+			}
 		}
 
 		return results;
@@ -235,7 +248,12 @@ export class JinaCodeEmbeddingsProvider implements IEmbeddingsProvider {
 	}
 
 	async embed(texts: string[]): Promise<number[][]> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch (error) {
+			console.error('[JinaCodeEmbeddings] 初始化失败:', error);
+			throw error;
+		}
 
 		if (!this.pipeline) {
 			throw new Error('Jina code embedding model not initialized');
@@ -249,11 +267,17 @@ export class JinaCodeEmbeddingsProvider implements IEmbeddingsProvider {
 		const results: number[][] = [];
 
 		for (const text of texts) {
-			const output = await pipelineFn(text, {
-				pooling: 'mean',
-				normalize: true,
-			});
-			results.push(Array.from(output.data));
+			try {
+				const output = await pipelineFn(text, {
+					pooling: 'mean',
+					normalize: true,
+				});
+				results.push(Array.from(output.data));
+			} catch (error) {
+				console.error('[JinaCodeEmbeddings] 单条文本嵌入失败:', error);
+				// 生成零向量作为占位符
+				results.push(new Array(this.dimensions).fill(0));
+			}
 		}
 
 		return results;

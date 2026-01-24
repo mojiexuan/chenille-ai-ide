@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Chenille. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -67,6 +67,8 @@ function getTableName(tag: IndexTag): string {
 export class LanceDbIndex implements IVectorIndex {
 	private connection: LanceConnection | null = null;
 	private initPromise: Promise<void> | null = null;
+	private initFailed: boolean = false;
+	private initError: string | null = null;
 
 	constructor(
 		private readonly embeddingsProvider: IEmbeddingsProvider,
@@ -77,6 +79,15 @@ export class LanceDbIndex implements IVectorIndex {
 	 * 初始化 LanceDB 连接
 	 */
 	private async initialize(): Promise<void> {
+		// 如果之前初始化失败，直接返回（避免重复尝试）
+		if (this.initFailed) {
+			throw new IndexingError(
+				IndexingErrorCode.VectorIndexFailed,
+				this.initError,
+				`LanceDB 初始化失败: ${this.initError}`
+			);
+		}
+
 		if (this.connection) {
 			return;
 		}
@@ -86,7 +97,14 @@ export class LanceDbIndex implements IVectorIndex {
 		}
 
 		this.initPromise = this.connect();
-		await this.initPromise;
+		try {
+			await this.initPromise;
+		} catch (error) {
+			this.initFailed = true;
+			this.initError = error instanceof Error ? error.message : String(error);
+			this.initPromise = null;
+			throw error;
+		}
 	}
 
 	private async connect(): Promise<void> {
@@ -94,13 +112,36 @@ export class LanceDbIndex implements IVectorIndex {
 			const lancedb = await import('@lancedb/lancedb');
 			const dbPath = getLanceDbPath();
 
+			// 确保目录存在
+			const fs = await import('fs');
+			const path = await import('path');
+			try {
+				await fs.promises.mkdir(path.dirname(dbPath), { recursive: true });
+			} catch {
+				// 目录可能已存在，忽略
+			}
+
 			console.log(`[LanceDbIndex] Connecting to ${dbPath}`);
 			this.connection = await lancedb.connect(dbPath);
 			console.log('[LanceDbIndex] Connected successfully');
 		} catch (error) {
 			console.error('[LanceDbIndex] Failed to connect:', error);
-			throw new Error(`Failed to connect to LanceDB: ${error}`);
+			throw new IndexingError(
+				IndexingErrorCode.VectorIndexFailed,
+				error,
+				`无法连接到向量数据库: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
+	}
+
+	/**
+	 * 重置初始化状态（用于重试）
+	 */
+	resetInitState(): void {
+		this.initFailed = false;
+		this.initError = null;
+		this.initPromise = null;
+		this.connection = null;
 	}
 
 	/**
@@ -162,7 +203,7 @@ export class LanceDbIndex implements IVectorIndex {
 				language: '',
 			};
 			const newTable = await this.connection!.createTable(tableName, [dummyRow]);
-			await newTable.delete("uuid = 'placeholder'");
+			await newTable.delete('uuid = \'placeholder\'');
 			return newTable;
 		};
 
@@ -322,7 +363,7 @@ export class LanceDbIndex implements IVectorIndex {
 	private async deleteFromIndex(table: LanceTable, filePath: string): Promise<void> {
 		try {
 			// LanceDB 使用 SQL-like 的过滤语法
-			await table.delete(`path = '${filePath.replace(/'/g, "''")}'`);
+			await table.delete(`path = '${filePath.replace(/'/g, '\'\'')}'`);
 		} catch (error) {
 			console.warn(`[LanceDbIndex] Failed to delete ${filePath}:`, error);
 		}
@@ -332,71 +373,97 @@ export class LanceDbIndex implements IVectorIndex {
 	 * 检索相似代码
 	 */
 	async retrieve(query: string, topK: number, tags: IndexTag[]): Promise<RetrievalResult[]> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch (error) {
+			// 初始化失败时返回空结果，不影响其他功能
+			console.error('[LanceDbIndex] Initialize failed during retrieve:', error);
+			return [];
+		}
 
 		if (!this.connection) {
-			throw new Error('LanceDB not initialized');
+			return [];
 		}
 
-		// 生成查询向量
-		const queryVectors = await this.embeddingsProvider.embed([query]);
-		const queryVector = queryVectors[0];
+		try {
+			// 生成查询向量
+			const queryVectors = await this.embeddingsProvider.embed([query]);
+			const queryVector = queryVectors[0];
 
-		const allResults: RetrievalResult[] = [];
+			const allResults: RetrievalResult[] = [];
 
-		// 在所有相关表中搜索
-		for (const tag of tags) {
-			const tableName = getTableName(tag);
-			const existingTables = await this.connection.tableNames();
-
-			if (!existingTables.includes(tableName)) {
-				continue;
-			}
-
-			try {
-				const table = await this.connection.openTable(tableName);
-				const results = await table
-					.search(queryVector)
-					.limit(topK)
-					.toArray();
-
-				for (const rawRow of results) {
-					const row = rawRow as LanceSearchResult;
-					allResults.push({
-						filepath: row.path,
-						content: row.contents,
-						startLine: row.startLine,
-						endLine: row.endLine,
-						score: row._distance,
-						language: row.language,
-					});
+			// 在所有相关表中搜索
+			for (const tag of tags) {
+				const tableName = getTableName(tag);
+				let existingTables: string[];
+				try {
+					existingTables = await this.connection.tableNames();
+				} catch (error) {
+					console.warn('[LanceDbIndex] Failed to get table names:', error);
+					continue;
 				}
-			} catch (error) {
-				console.warn(`[LanceDbIndex] Failed to search in ${tableName}:`, error);
-			}
-		}
 
-		// 按相似度排序并截取
-		allResults.sort((a, b) => a.score - b.score);
-		return allResults.slice(0, topK);
+				if (!existingTables.includes(tableName)) {
+					continue;
+				}
+
+				try {
+					const table = await this.connection.openTable(tableName);
+					const results = await table
+						.search(queryVector)
+						.limit(topK)
+						.toArray();
+
+					for (const rawRow of results) {
+						const row = rawRow as LanceSearchResult;
+						allResults.push({
+							filepath: row.path,
+							content: row.contents,
+							startLine: row.startLine,
+							endLine: row.endLine,
+							score: row._distance,
+							language: row.language,
+						});
+					}
+				} catch (error) {
+					console.warn(`[LanceDbIndex] Failed to search in ${tableName}:`, error);
+				}
+			}
+
+			// 按相似度排序并截取
+			allResults.sort((a, b) => a.score - b.score);
+			return allResults.slice(0, topK);
+		} catch (error) {
+			console.error('[LanceDbIndex] Retrieve failed:', error);
+			return [];
+		}
 	}
 
 	/**
 	 * 删除索引
 	 */
 	async deleteIndex(tag: IndexTag): Promise<void> {
-		await this.initialize();
-
-		if (!this.connection) {
-			throw new Error('LanceDB not initialized');
+		try {
+			await this.initialize();
+		} catch (error) {
+			console.warn('[LanceDbIndex] Initialize failed during deleteIndex:', error);
+			return; // 初始化失败时静默返回
 		}
 
-		const tableName = getTableName(tag);
-		const existingTables = await this.connection.tableNames();
+		if (!this.connection) {
+			return;
+		}
 
-		if (existingTables.includes(tableName)) {
-			await this.connection.dropTable(tableName);
-			console.log(`[LanceDbIndex] Deleted table: ${tableName}`);
+		try {
+			const tableName = getTableName(tag);
+			const existingTables = await this.connection.tableNames();
+
+			if (existingTables.includes(tableName)) {
+				await this.connection.dropTable(tableName);
+				console.log(`[LanceDbIndex] Deleted table: ${tableName}`);
+			}
+		} catch (error) {
+			console.warn('[LanceDbIndex] Failed to delete index:', error);
 		}
 	}
 
@@ -404,40 +471,53 @@ export class LanceDbIndex implements IVectorIndex {
 	 * 检查索引是否存在
 	 */
 	async hasIndex(tag: IndexTag): Promise<boolean> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch {
+			return false; // 初始化失败时返回 false
+		}
 
 		if (!this.connection) {
 			return false;
 		}
 
-		const tableName = getTableName(tag);
-		const existingTables = await this.connection.tableNames();
-		return existingTables.includes(tableName);
+		try {
+			const tableName = getTableName(tag);
+			const existingTables = await this.connection.tableNames();
+			return existingTables.includes(tableName);
+		} catch (error) {
+			console.warn('[LanceDbIndex] Failed to check index:', error);
+			return false;
+		}
 	}
 
 	/**
 	 * 获取索引统计信息（基础）
 	 */
 	async getIndexStats(tag: IndexTag): Promise<{ rowCount: number } | null> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch {
+			return null;
+		}
 
 		if (!this.connection) {
 			return null;
 		}
 
-		const tableName = getTableName(tag);
-		const existingTables = await this.connection.tableNames();
-
-		if (!existingTables.includes(tableName)) {
-			return null;
-		}
-
 		try {
+			const tableName = getTableName(tag);
+			const existingTables = await this.connection.tableNames();
+
+			if (!existingTables.includes(tableName)) {
+				return null;
+			}
+
 			const table = await this.connection.openTable(tableName);
 			const rowCount = await table.countRows();
 			return { rowCount };
 		} catch (error) {
-			console.warn(`[LanceDbIndex] Failed to get stats for ${tableName}:`, error);
+			console.warn(`[LanceDbIndex] Failed to get stats:`, error);
 			return null;
 		}
 	}
@@ -450,20 +530,24 @@ export class LanceDbIndex implements IVectorIndex {
 		uniqueFiles: number;
 		languageDistribution: Record<string, number>;
 	} | null> {
-		await this.initialize();
+		try {
+			await this.initialize();
+		} catch {
+			return null;
+		}
 
 		if (!this.connection) {
 			return null;
 		}
 
-		const tableName = getTableName(tag);
-		const existingTables = await this.connection.tableNames();
-
-		if (!existingTables.includes(tableName)) {
-			return null;
-		}
-
 		try {
+			const tableName = getTableName(tag);
+			const existingTables = await this.connection.tableNames();
+
+			if (!existingTables.includes(tableName)) {
+				return null;
+			}
+
 			const table = await this.connection.openTable(tableName);
 
 			// 只查询 path 字段，兼容旧表（可能没有 language 字段）
@@ -497,7 +581,7 @@ export class LanceDbIndex implements IVectorIndex {
 				languageDistribution,
 			};
 		} catch (error) {
-			console.warn(`[LanceDbIndex] Failed to get detailed stats for ${tableName}:`, error);
+			console.warn(`[LanceDbIndex] Failed to get detailed stats:`, error);
 			return null;
 		}
 	}

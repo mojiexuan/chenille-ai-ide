@@ -550,11 +550,19 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 				}
 
 				// 测试远程模型是否可用
-				const testResult = await this.testEmbeddingModel(wsConfig.embeddingModelName);
-				if (!testResult.success) {
-					wsConfig.errorMessage = `模型不可用: ${testResult.error}`;
+				try {
+					const testResult = await this.testEmbeddingModel(wsConfig.embeddingModelName);
+					if (!testResult.success) {
+						wsConfig.errorMessage = `模型不可用: ${testResult.error}`;
+						wsConfig.enabled = false;
+						console.log(`[ChenilleIndexingService] 启用失败，模型不可用: ${workspacePath}`);
+						await this.saveWorkspaceConfig(workspacePath);
+						await this.fireStatusChanged(workspacePath);
+						return;
+					}
+				} catch (error) {
+					wsConfig.errorMessage = `模型测试失败: ${error instanceof Error ? error.message : String(error)}`;
 					wsConfig.enabled = false;
-					console.log(`[ChenilleIndexingService] 启用失败，模型不可用: ${workspacePath}`);
 					await this.saveWorkspaceConfig(workspacePath);
 					await this.fireStatusChanged(workspacePath);
 					return;
@@ -569,20 +577,24 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		if (enabled && !wasEnabled) {
 			// 刚启用：检查是否需要建立索引，启动文件监听
 			if (!wsConfig.hasIndex) {
-				// 自动开始索引
+				// 自动开始索引（异步，不阻塞）
 				this.indexWorkspace({ workspacePath }).catch(err => {
 					console.error('[ChenilleIndexingService] 自动索引失败:', err);
 					// 保留启用状态，只记录错误（用户可以重试）
 					wsConfig.errorMessage = `索引失败: ${err.message || '未知错误'}`;
-					this.saveWorkspaceConfig(workspacePath);
-					this.fireStatusChanged(workspacePath);
+					this.saveWorkspaceConfig(workspacePath).catch(() => { });
+					this.fireStatusChanged(workspacePath).catch(() => { });
 				});
 			}
-			// 启动文件监听
-			await this.startFileWatching(workspacePath);
+			// 启动文件监听（捕获错误）
+			this.startFileWatching(workspacePath).catch(err => {
+				console.error('[ChenilleIndexingService] 启动文件监听失败:', err);
+			});
 		} else if (!enabled && wasEnabled) {
 			// 刚禁用：停止文件监听（但保留索引）
-			await this.stopFileWatching(workspacePath);
+			await this.stopFileWatching(workspacePath).catch(err => {
+				console.error('[ChenilleIndexingService] 停止文件监听失败:', err);
+			});
 		}
 
 		// 保存配置到持久化存储
@@ -793,65 +805,73 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	async activateWorkspace(workspacePath: string): Promise<void> {
 		console.log(`[ChenilleIndexingService] 激活工作区: ${workspacePath}`);
 
-		// 加载保存的配置
-		const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
-
-		if (!savedConfig.enabled) {
-			console.log(`[ChenilleIndexingService] 工作区索引未启用，跳过: ${workspacePath}`);
-			return;
-		}
-
-		// 同步配置到内存
-		const wsConfig = this.getWorkspaceConfig(workspacePath);
-		wsConfig.enabled = true;
-		wsConfig.useLocalModel = savedConfig.useLocalModel;
-		wsConfig.embeddingModelName = savedConfig.embeddingModelName;
-
-		// 同步最后索引时间
-		if (savedConfig.lastIndexedAt) {
-			this.lastIndexedTimes.set(workspacePath, savedConfig.lastIndexedAt);
-		}
-
-		this.loadedWorkspaces.add(workspacePath);
-
-		// 检查模型配置
-		const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
-		if (!useRemoteModel && !wsConfig.useLocalModel) {
-			// 既没有选择远程模型，也没有启用本地模型
-			// 默认使用本地模型
-			wsConfig.useLocalModel = true;
-			console.log(`[ChenilleIndexingService] 未配置模型，默认使用本地模型: ${workspacePath}`);
-		}
-
-		// 检查索引完整性并自动修复
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			const hasIndex = await indexer.hasIndex(workspacePath);
-			wsConfig.hasIndex = hasIndex;
+			// 加载保存的配置
+			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 
-			// 启动文件监听（无论索引是否存在）
-			if (savedConfig.autoWatch) {
-				await this.startFileWatching(workspacePath);
+			if (!savedConfig.enabled) {
+				console.log(`[ChenilleIndexingService] 工作区索引未启用，跳过: ${workspacePath}`);
+				return;
 			}
 
-			// 无论是否有索引，都调用 indexWorkspace 进行增量检查
-			// 这样可以处理：
-			// 1. 索引不存在 → 建立索引
-			// 2. 索引存在但不完整 → 继续索引
-			// 3. 索引已是最新 → 快速返回
-			console.log(`[ChenilleIndexingService] 检查并更新索引: ${workspacePath}`);
-			this.indexWorkspace({ workspacePath }).then(() => {
-				// 索引成功，清除错误信息
-				wsConfig.errorMessage = undefined;
-				this.fireStatusChanged(workspacePath);
-			}).catch(err => {
-				console.error('[ChenilleIndexingService] 后台索引失败:', err);
-				// 保存错误信息并触发状态更新
-				wsConfig.errorMessage = err.message || '索引失败';
-				this.fireStatusChanged(workspacePath);
-			});
+			// 同步配置到内存
+			const wsConfig = this.getWorkspaceConfig(workspacePath);
+			wsConfig.enabled = true;
+			wsConfig.useLocalModel = savedConfig.useLocalModel;
+			wsConfig.embeddingModelName = savedConfig.embeddingModelName;
+
+			// 同步最后索引时间
+			if (savedConfig.lastIndexedAt) {
+				this.lastIndexedTimes.set(workspacePath, savedConfig.lastIndexedAt);
+			}
+
+			this.loadedWorkspaces.add(workspacePath);
+
+			// 检查模型配置
+			const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
+			if (!useRemoteModel && !wsConfig.useLocalModel) {
+				// 既没有选择远程模型，也没有启用本地模型
+				// 默认使用本地模型
+				wsConfig.useLocalModel = true;
+				console.log(`[ChenilleIndexingService] 未配置模型，默认使用本地模型: ${workspacePath}`);
+			}
+
+			// 检查索引完整性并自动修复
+			try {
+				const indexer = getCodebaseIndexer(undefined, this.environmentService);
+				const hasIndex = await indexer.hasIndex(workspacePath);
+				wsConfig.hasIndex = hasIndex;
+
+				// 启动文件监听（无论索引是否存在）
+				if (savedConfig.autoWatch) {
+					this.startFileWatching(workspacePath).catch(err => {
+						console.error('[ChenilleIndexingService] 启动文件监听失败:', err);
+					});
+				}
+
+				// 无论是否有索引，都调用 indexWorkspace 进行增量检查
+				// 这样可以处理：
+				// 1. 索引不存在 → 建立索引
+				// 2. 索引存在但不完整 → 继续索引
+				// 3. 索引已是最新 → 快速返回
+				console.log(`[ChenilleIndexingService] 检查并更新索引: ${workspacePath}`);
+				this.indexWorkspace({ workspacePath }).then(() => {
+					// 索引成功，清除错误信息
+					wsConfig.errorMessage = undefined;
+					this.fireStatusChanged(workspacePath).catch(() => { });
+				}).catch(err => {
+					console.error('[ChenilleIndexingService] 后台索引失败:', err);
+					// 保存错误信息并触发状态更新
+					wsConfig.errorMessage = err.message || '索引失败';
+					this.fireStatusChanged(workspacePath).catch(() => { });
+				});
+			} catch (error) {
+				console.error(`[ChenilleIndexingService] 激活工作区索引检查失败:`, error);
+				wsConfig.errorMessage = `索引检查失败: ${error instanceof Error ? error.message : String(error)}`;
+			}
 		} catch (error) {
 			console.error(`[ChenilleIndexingService] 激活工作区失败:`, error);
+			// 不抛出异常，避免影响其他功能
 		}
 	}
 
