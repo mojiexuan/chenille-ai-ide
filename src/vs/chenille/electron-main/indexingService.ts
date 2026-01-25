@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * 主进程索引服务实现
+ * 使用 Utility Process 隔离索引工作，避免阻塞主进程
+ */
+
 import * as fs from 'fs';
 import * as path from '../../base/common/path.js';
 import { Emitter, Event } from '../../base/common/event.js';
@@ -20,19 +25,15 @@ import type {
 	IModelDownloadProgress,
 } from '../common/indexing/indexingService.js';
 import { DEFAULT_INDEXING_CONFIG, type RetrievalResult, type IndexProgressEvent } from '../common/indexing/types.js';
-import {
-	IndexingErrorCode,
-	wrapError,
-} from '../common/indexing/errors.js';
-import { getCodebaseIndexer } from '../node/indexing/codebaseIndexer.js';
+import { IndexingErrorCode, wrapError } from '../common/indexing/errors.js';
 import { IStateService } from '../../platform/state/node/state.js';
 import { IndexConfigStorageService, type IWorkspaceIndexConfig } from './indexConfigStorage.js';
 import { IAiModelStorageService } from '../common/storageIpc.js';
-import { ApiEmbeddingsProvider } from '../node/indexing/embeddings/apiEmbeddings.js';
-import { LocalEmbeddingsProvider } from '../node/indexing/embeddings/localEmbeddings.js';
+import { IndexingWorkerHost } from './indexingWorkerHost.js';
+
 
 /**
- * 工作区索引配置
+ * 工作区索引配置（内存中的运行时状态）
  */
 interface WorkspaceIndexConfig {
 	/** 是否启用索引 */
@@ -51,6 +52,7 @@ interface WorkspaceIndexConfig {
 
 /**
  * 主进程索引服务实现
+ * 所有索引工作都委托给 Utility Process 执行
  */
 export class ChenilleIndexingService extends Disposable implements IChenilleIndexingService {
 	declare readonly _serviceBrand: undefined;
@@ -69,6 +71,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		new Emitter<{ workspacePath: string; progress: IModelDownloadProgress }>()
 	);
 	readonly onModelDownloadProgress: Event<{ workspacePath: string; progress: IModelDownloadProgress }> = this._onModelDownloadProgress.event;
+
+	/** Worker 宿主 */
+	private workerHost: IndexingWorkerHost | null = null;
 
 	/** 最后索引时间缓存 */
 	private lastIndexedTimes: Map<string, number> = new Map();
@@ -98,22 +103,51 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	) {
 		super();
 		this.configStorage = this._register(new IndexConfigStorageService(stateService));
-		console.log('[ChenilleIndexingService] 索引服务已初始化');
+		console.log('[ChenilleIndexingService] 索引服务已初始化（使用 Utility Process）');
 
-		// 延迟启动后台清理（避免与启动时的索引操作冲突）
+		// 延迟启动后台清理
 		setTimeout(() => this.startBackgroundCleanup(), 60000);
 	}
+
+	/**
+	 * 获取或创建 Worker 宿主
+	 */
+	private async getWorkerHost(): Promise<IndexingWorkerHost> {
+		if (!this.workerHost) {
+			this.workerHost = new IndexingWorkerHost({
+				cacheHome: path.join(this.environmentService.cacheHome.fsPath, 'chenille', 'index-cache'),
+			});
+
+			// 转发进度事件
+			this._register(this.workerHost.onIndexProgress((e) => {
+				this._onIndexProgress.fire({
+					...e.event,
+					workspacePath: e.workspacePath,
+				});
+			}));
+
+			// 转发模型下载进度
+			this._register(this.workerHost.onModelDownloadProgress((e) => {
+				this._onModelDownloadProgress.fire(e);
+			}));
+
+			// 监听 Worker 错误
+			this._register(this.workerHost.onWorkerError((err) => {
+				console.error('[ChenilleIndexingService] Worker error:', err);
+			}));
+		}
+		return this.workerHost;
+	}
+
 
 	/**
 	 * 启动后台清理任务
 	 */
 	private startBackgroundCleanup(): void {
-		// 立即执行一次清理
 		this.cleanupOrphanedIndexes().catch(err => {
 			console.error('[ChenilleIndexingService] 后台清理失败:', err);
 		});
 
-		// 每 24 小时检查一次
 		this.cleanupTimer = setInterval(() => {
 			this.cleanupOrphanedIndexes().catch(err => {
 				console.error('[ChenilleIndexingService] 定时清理失败:', err);
@@ -122,12 +156,10 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	}
 
 	/**
-	 * 清理孤立和过期的索引（后台静默执行）
+	 * 清理孤立和过期的索引
 	 */
 	private async cleanupOrphanedIndexes(): Promise<void> {
-		// 如果有任何工作区正在索引，跳过清理
 		if (this.indexingWorkspaces.size > 0) {
-			console.log('[ChenilleIndexingService] 有工作区正在索引，跳过清理检查');
 			return;
 		}
 
@@ -140,18 +172,14 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 
 			for (const config of allConfigs) {
 				const wsPath = config.workspacePath;
-
-				// 检查路径是否存在
 				const pathExists = fs.existsSync(wsPath);
 
 				if (!pathExists) {
-					// 孤立索引：路径不存在，删除
 					console.log(`[ChenilleIndexingService] 发现孤立索引，正在清理: ${wsPath}`);
 					await this.deleteIndexAndConfig(wsPath);
 					continue;
 				}
 
-				// 检查是否过期（未启用且超过30天未更新）
 				if (!config.enabled && config.lastIndexedAt) {
 					const age = now - config.lastIndexedAt;
 					if (age > expiryThreshold) {
@@ -160,8 +188,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 					}
 				}
 			}
-
-			console.log('[ChenilleIndexingService] 索引清理检查完成');
 		} catch (error) {
 			console.error('[ChenilleIndexingService] 清理检查出错:', error);
 		}
@@ -172,14 +198,10 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 */
 	private async deleteIndexAndConfig(workspacePath: string): Promise<void> {
 		try {
-			// 删除 LanceDB 索引
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			await indexer.deleteWorkspaceIndex(workspacePath);
-
-			// 删除配置
+			const worker = await this.getWorkerHost();
+			await worker.deleteIndex(workspacePath);
 			await this.configStorage.deleteWorkspaceConfig(workspacePath);
 
-			// 清理内存状态
 			this.workspaceConfigs.delete(workspacePath);
 			this.loadedWorkspaces.delete(workspacePath);
 			this.lastIndexedTimes.delete(workspacePath);
@@ -189,15 +211,12 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	}
 
 	/**
-	 * 获取或创建工作区配置（内存中的运行时配置）
+	 * 获取或创建工作区配置
 	 */
 	private getWorkspaceConfig(workspacePath: string): WorkspaceIndexConfig {
 		let config = this.workspaceConfigs.get(workspacePath);
 		if (!config) {
-			config = {
-				enabled: false,  // 默认关闭
-				hasIndex: false,
-			};
+			config = { enabled: false, hasIndex: false };
 			this.workspaceConfigs.set(workspacePath, config);
 		}
 		return config;
@@ -208,34 +227,29 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 */
 	private async loadWorkspaceConfig(workspacePath: string): Promise<void> {
 		if (this.loadedWorkspaces.has(workspacePath)) {
-			return; // 已加载
+			return;
 		}
 
 		const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 
-		// 同步保存的配置到内存
 		wsConfig.enabled = savedConfig.enabled;
 		wsConfig.embeddingModelName = savedConfig.embeddingModelName;
 		wsConfig.useLocalModel = savedConfig.useLocalModel;
 
-		// 同步最后索引时间
 		if (savedConfig.lastIndexedAt) {
 			this.lastIndexedTimes.set(workspacePath, savedConfig.lastIndexedAt);
 		}
 
 		this.loadedWorkspaces.add(workspacePath);
 
-		console.log(`[ChenilleIndexingService] 已加载工作区配置: ${workspacePath}, enabled=${savedConfig.enabled}, model=${savedConfig.embeddingModelName || 'none'}`);
-
-		// 如果启用了索引且启用了自动监听，则启动文件监听
 		if (savedConfig.enabled && savedConfig.autoWatch) {
 			await this.startFileWatching(workspacePath);
 		}
 	}
 
 	/**
-	 * 保存工作区配置到持久化存储
+	 * 保存工作区配置
 	 */
 	private async saveWorkspaceConfig(workspacePath: string): Promise<void> {
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
@@ -243,14 +257,13 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		const configToSave: IWorkspaceIndexConfig = {
 			workspacePath,
 			enabled: wsConfig.enabled,
-			autoWatch: !!wsConfig.watcher, // 如果有 watcher，说明自动监听开启
+			autoWatch: !!wsConfig.watcher,
 			lastIndexedAt: this.lastIndexedTimes.get(workspacePath),
 			embeddingModelName: wsConfig.embeddingModelName,
 			useLocalModel: wsConfig.useLocalModel,
 		};
 
 		await this.configStorage.saveWorkspaceConfig(configToSave);
-		console.log(`[ChenilleIndexingService] 已保存工作区配置: ${workspacePath}`);
 	}
 
 	/**
@@ -261,81 +274,68 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		this._onIndexStatusChanged.fire({ workspacePath, status });
 	}
 
-	/**
-	 * 索引工作区
-	 */
-	async indexWorkspace(
-		request: IIndexWorkspaceRequest,
-		token?: CancellationToken,
-	): Promise<void> {
-		const { workspacePath, config } = request;
 
+	/**
+	 * 索引工作区（委托给 Worker）
+	 */
+	async indexWorkspace(request: IIndexWorkspaceRequest, token?: CancellationToken): Promise<void> {
+		const { workspacePath, config } = request;
 		console.log(`[ChenilleIndexingService] 开始索引工作区: ${workspacePath}`);
 
-		// 标记为正在索引
 		this.indexingWorkspaces.add(workspacePath);
 
 		try {
-			// 从存储读取并发配置
 			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
-			const mergedConfig = {
-				...config,
-				embeddingConcurrency: savedConfig.embeddingConcurrency ?? 3,
-			};
-
-			const indexer = getCodebaseIndexer(mergedConfig, this.environmentService);
-
-			// 根据工作区配置设置嵌入提供者
 			const wsConfig = this.getWorkspaceConfig(workspacePath);
+
+			// 准备嵌入模型配置
+			let embeddingModel: { baseUrl: string; apiKey: string; modelId: string; modelName: string } | undefined;
 			const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
 
 			if (useRemoteModel) {
-				// 使用远程 API 模型
 				const model = await this.modelStorageService.get(wsConfig.embeddingModelName!);
 				if (model) {
-					const apiProvider = new ApiEmbeddingsProvider(model);
-					indexer.setEmbeddingsProvider(apiProvider);
-					console.log(`[ChenilleIndexingService] 使用远程模型: ${wsConfig.embeddingModelName}`);
+					embeddingModel = {
+						baseUrl: model.baseUrl,
+						apiKey: model.apiKey,
+						modelId: model.model,
+						modelName: model.name,
+					};
 				} else {
 					throw new Error(`无法加载远程模型: ${wsConfig.embeddingModelName}`);
 				}
-			} else {
-				// 使用本地模型，设置下载进度回调
-				console.log(`[ChenilleIndexingService] 使用本地模型`);
-				indexer.setModelDownloadProgressCallback((progress) => {
-					this._onModelDownloadProgress.fire({
-						workspacePath,
-						progress: {
-							status: progress.status as IModelDownloadProgress['status'],
-							file: progress.file,
-							progress: progress.progress,
-						},
-					});
-				});
 			}
 
-			// 直接传递取消令牌到底层，支持批次级别的取消
-			await indexer.indexWorkspace(
-				workspacePath,
-				(event) => {
-					// 发送进度事件
-					this._onIndexProgress.fire({
-						...event,
+			const worker = await this.getWorkerHost();
+
+			// 监听取消
+			if (token) {
+				const cancelListener = token.onCancellationRequested(() => {
+					worker.cancelIndexing(workspacePath).catch(() => { });
+				});
+				try {
+					await worker.indexWorkspace(
 						workspacePath,
-					});
-				},
-				token, // 传递取消令牌
-			);
+						{ ...config, embeddingConcurrency: savedConfig.embeddingConcurrency ?? 3 },
+						embeddingModel,
+						wsConfig.useLocalModel,
+					);
+				} finally {
+					cancelListener.dispose();
+				}
+			} else {
+				await worker.indexWorkspace(
+					workspacePath,
+					{ ...config, embeddingConcurrency: savedConfig.embeddingConcurrency ?? 3 },
+					embeddingModel,
+					wsConfig.useLocalModel,
+				);
+			}
 
-			// 记录最后索引时间
 			this.lastIndexedTimes.set(workspacePath, Date.now());
-			console.log(`[ChenilleIndexingService] 索引完成: ${workspacePath}`);
-
-			// 保存配置（包括 lastIndexedAt）
 			await this.saveWorkspaceConfig(workspacePath);
 		} catch (error) {
 			const indexingError = wrapError(error);
-			// 取消不算错误，只是静默终止
 			if (indexingError.code === IndexingErrorCode.Cancelled) {
 				console.log(`[ChenilleIndexingService] 索引已取消: ${workspacePath}`);
 			} else {
@@ -343,7 +343,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			}
 			throw indexingError;
 		} finally {
-			// 无论成功失败，移除索引标记
 			this.indexingWorkspaces.delete(workspacePath);
 		}
 	}
@@ -353,12 +352,11 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 */
 	async retrieve(request: IRetrieveRequest): Promise<RetrievalResult[]> {
 		const { query, workspacePath, topK } = request;
-
 		console.log(`[ChenilleIndexingService] 检索: "${query.slice(0, 50)}..."`);
 
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			return await indexer.retrieve(query, workspacePath, topK);
+			const worker = await this.getWorkerHost();
+			return await worker.retrieve(query, workspacePath, topK);
 		} catch (error) {
 			const indexingError = wrapError(error, IndexingErrorCode.RetrieveFailed);
 			console.error(`[ChenilleIndexingService] 检索失败: ${indexingError.message}`);
@@ -377,10 +375,8 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		console.log(`[ChenilleIndexingService] 文件变更: ${changedFiles.length} 个文件`);
 
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			await indexer.onFilesChanged(workspacePath, changedFiles);
-
-			// 更新最后索引时间
+			const worker = await this.getWorkerHost();
+			await worker.onFilesChanged(workspacePath, changedFiles);
 			this.lastIndexedTimes.set(workspacePath, Date.now());
 		} catch (error) {
 			const indexingError = wrapError(error);
@@ -396,11 +392,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		console.log(`[ChenilleIndexingService] 删除索引: ${workspacePath}`);
 
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			await indexer.deleteWorkspaceIndex(workspacePath);
-
+			const worker = await this.getWorkerHost();
+			await worker.deleteIndex(workspacePath);
 			this.lastIndexedTimes.delete(workspacePath);
-			console.log(`[ChenilleIndexingService] 索引已删除: ${workspacePath}`);
 		} catch (error) {
 			const indexingError = wrapError(error);
 			console.error(`[ChenilleIndexingService] 删除索引失败: ${indexingError.message}`);
@@ -408,53 +402,52 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		}
 	}
 
+
 	/**
 	 * 获取索引状态
 	 */
 	async getIndexStatus(workspacePath: string): Promise<IIndexStatus> {
-		// 先从持久化存储加载配置（如果还没加载）
 		await this.loadWorkspaceConfig(workspacePath);
-
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
+			const worker = await this.getWorkerHost();
 
-			// 根据配置设置正确的嵌入提供者（用于检查正确的索引表）
-			if (wsConfig.embeddingModelName) {
+			// 设置正确的嵌入提供者
+			if (wsConfig.embeddingModelName && !wsConfig.useLocalModel) {
 				const model = await this.modelStorageService.get(wsConfig.embeddingModelName);
 				if (model) {
-					indexer.setEmbeddingsProvider(new ApiEmbeddingsProvider(model));
+					await worker.setEmbeddingsProvider({
+						baseUrl: model.baseUrl,
+						apiKey: model.apiKey,
+						modelId: model.model,
+						modelName: model.name,
+					}, false);
 				}
 			}
 
-			const status = indexer.getIndexStatus(workspacePath);
-
-			// 真正检查 LanceDB 是否有索引（使用正确的嵌入模型）
-			const hasIndex = await indexer.hasIndex(workspacePath);
+			const status = await worker.getIndexStatus(workspacePath);
+			const hasIndex = await worker.hasIndex(workspacePath);
 			wsConfig.hasIndex = hasIndex;
 
-			// 获取已索引的文件数（从 LanceDB stats）
 			let indexedFileCount = 0;
 			if (hasIndex) {
-				const stats = await indexer.getIndexStats(workspacePath);
+				const stats = await worker.getIndexStats(workspacePath);
 				if (stats) {
 					indexedFileCount = stats.rowCount;
 				}
 			}
 
-			// 检查本地模型状态
 			let isLocalModelReady: boolean | undefined;
 			if (wsConfig.useLocalModel) {
-				isLocalModelReady = await LocalEmbeddingsProvider.isModelCached();
+				isLocalModelReady = await worker.isLocalModelCached();
 			}
 
-			// 获取保存的并发配置
 			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 
 			return {
 				hasIndex,
-				isIndexing: status.isIndexing,
+				isIndexing: status.isIndexing || this.indexingWorkspaces.has(workspacePath),
 				fileCount: indexedFileCount,
 				lastIndexedAt: this.lastIndexedTimes.get(workspacePath),
 				queuedTasks: status.queuedTasks,
@@ -472,7 +465,7 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			console.error(`[ChenilleIndexingService] 获取索引状态失败:`, error);
 			return {
 				hasIndex: false,
-				isIndexing: false,
+				isIndexing: this.indexingWorkspaces.has(workspacePath),
 				fileCount: 0,
 				lastIndexedAt: undefined,
 				queuedTasks: 0,
@@ -491,8 +484,8 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 */
 	async getIndexStats(workspacePath: string): Promise<IIndexStats | null> {
 		try {
-			const indexer = getCodebaseIndexer(undefined, this.environmentService);
-			const stats = await indexer.getDetailedStats(workspacePath);
+			const worker = await this.getWorkerHost();
+			const stats = await worker.getDetailedStats(workspacePath);
 
 			if (!stats) {
 				return null;
@@ -518,14 +511,14 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 */
 	async isAvailable(): Promise<boolean> {
 		try {
-			// 尝试初始化索引器
-			getCodebaseIndexer(undefined, this.environmentService);
+			await this.getWorkerHost();
 			return true;
 		} catch (error) {
 			console.error('[ChenilleIndexingService] 索引服务不可用:', error);
 			return false;
 		}
 	}
+
 
 	/**
 	 * 启用/禁用工作区索引
@@ -534,28 +527,23 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 		const wasEnabled = wsConfig.enabled;
 
-		// 清除之前的错误
 		wsConfig.errorMessage = undefined;
 
 		if (enabled) {
-			// 如果不是本地模型，检查远程模型配置
 			if (!wsConfig.useLocalModel) {
 				if (!wsConfig.embeddingModelName) {
 					wsConfig.errorMessage = '请先选择嵌入模型或启用本地模型';
 					wsConfig.enabled = false;
-					console.log(`[ChenilleIndexingService] 启用失败，未配置嵌入模型: ${workspacePath}`);
 					await this.saveWorkspaceConfig(workspacePath);
 					await this.fireStatusChanged(workspacePath);
 					return;
 				}
 
-				// 测试远程模型是否可用
 				try {
 					const testResult = await this.testEmbeddingModel(wsConfig.embeddingModelName);
 					if (!testResult.success) {
 						wsConfig.errorMessage = `模型不可用: ${testResult.error}`;
 						wsConfig.enabled = false;
-						console.log(`[ChenilleIndexingService] 启用失败，模型不可用: ${workspacePath}`);
 						await this.saveWorkspaceConfig(workspacePath);
 						await this.fireStatusChanged(workspacePath);
 						return;
@@ -568,38 +556,24 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 					return;
 				}
 			}
-			// 本地模型不需要预先测试，会在索引时下载
 		}
 
 		wsConfig.enabled = enabled;
-		console.log(`[ChenilleIndexingService] 索引${enabled ? '已启用' : '已禁用'}: ${workspacePath}`);
 
 		if (enabled && !wasEnabled) {
-			// 刚启用：检查是否需要建立索引，启动文件监听
 			if (!wsConfig.hasIndex) {
-				// 自动开始索引（异步，不阻塞）
 				this.indexWorkspace({ workspacePath }).catch(err => {
-					console.error('[ChenilleIndexingService] 自动索引失败:', err);
-					// 保留启用状态，只记录错误（用户可以重试）
 					wsConfig.errorMessage = `索引失败: ${err.message || '未知错误'}`;
 					this.saveWorkspaceConfig(workspacePath).catch(() => { });
 					this.fireStatusChanged(workspacePath).catch(() => { });
 				});
 			}
-			// 启动文件监听（捕获错误）
-			this.startFileWatching(workspacePath).catch(err => {
-				console.error('[ChenilleIndexingService] 启动文件监听失败:', err);
-			});
+			this.startFileWatching(workspacePath).catch(() => { });
 		} else if (!enabled && wasEnabled) {
-			// 刚禁用：停止文件监听（但保留索引）
-			await this.stopFileWatching(workspacePath).catch(err => {
-				console.error('[ChenilleIndexingService] 停止文件监听失败:', err);
-			});
+			await this.stopFileWatching(workspacePath).catch(() => { });
 		}
 
-		// 保存配置到持久化存储
 		await this.saveWorkspaceConfig(workspacePath);
-
 		await this.fireStatusChanged(workspacePath);
 	}
 
@@ -609,13 +583,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	async setEmbeddingModel(workspacePath: string, modelName: string): Promise<void> {
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 		wsConfig.embeddingModelName = modelName;
-		wsConfig.errorMessage = undefined; // 清除之前的错误
+		wsConfig.errorMessage = undefined;
 
-		console.log(`[ChenilleIndexingService] 设置嵌入模型: ${workspacePath} -> ${modelName}`);
-
-		// 保存配置到持久化存储
 		await this.saveWorkspaceConfig(workspacePath);
-
 		await this.fireStatusChanged(workspacePath);
 	}
 
@@ -629,6 +599,8 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 				return { success: false, error: `模型 "${modelName}" 不存在` };
 			}
 
+			// 简单测试：尝试获取嵌入
+			const { ApiEmbeddingsProvider } = await import('../node/indexing/embeddings/apiEmbeddings.js');
 			const provider = new ApiEmbeddingsProvider(model);
 			return await provider.test();
 		} catch (error) {
@@ -645,13 +617,9 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	async setUseLocalModel(workspacePath: string, useLocal: boolean): Promise<void> {
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 		wsConfig.useLocalModel = useLocal;
-		wsConfig.errorMessage = undefined; // 清除之前的错误
+		wsConfig.errorMessage = undefined;
 
-		console.log(`[ChenilleIndexingService] 设置本地模型: ${workspacePath} -> ${useLocal}`);
-
-		// 保存配置到持久化存储
 		await this.saveWorkspaceConfig(workspacePath);
-
 		await this.fireStatusChanged(workspacePath);
 	}
 
@@ -659,18 +627,15 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	 * 设置 Embedding 并发数
 	 */
 	async setEmbeddingConcurrency(workspacePath: string, concurrency: number): Promise<void> {
-		// 验证范围
 		const validConcurrency = Math.max(1, Math.min(1000, concurrency));
 
-		console.log(`[ChenilleIndexingService] 设置并发数: ${workspacePath} -> ${validConcurrency} (重启生效)`);
-
-		// 保存到配置存储
 		const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 		savedConfig.embeddingConcurrency = validConcurrency;
 		await this.configStorage.saveWorkspaceConfig(savedConfig);
 
 		await this.fireStatusChanged(workspacePath);
 	}
+
 
 	/**
 	 * 启动文件监听
@@ -679,7 +644,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		const wsConfig = this.getWorkspaceConfig(workspacePath);
 
 		if (wsConfig.watcher) {
-			console.log(`[ChenilleIndexingService] 文件监听已在运行: ${workspacePath}`);
 			return;
 		}
 
@@ -687,7 +651,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 
 		wsConfig.watcher = new DisposableStore();
 
-		// 使用节流器避免频繁触发索引更新
 		const throttler = new Throttler();
 		const pendingChanges: Set<string> = new Set();
 		let flushTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -709,19 +672,15 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			});
 		};
 
-		// 获取排除和包含模式
 		const excludePatterns = DEFAULT_INDEXING_CONFIG.excludePatterns || [];
 		const includeExtensions = new Set(DEFAULT_INDEXING_CONFIG.includeExtensions || []);
 
-		// 检查文件是否应该被索引
 		const shouldIndex = (filename: string): boolean => {
-			// 检查扩展名
 			const ext = path.extname(filename).toLowerCase();
 			if (!includeExtensions.has(ext)) {
 				return false;
 			}
 
-			// 检查排除模式（简化检查）
 			for (const pattern of excludePatterns) {
 				if (pattern.includes('node_modules') && filename.includes('node_modules')) {
 					return false;
@@ -738,7 +697,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 		};
 
 		try {
-			// 使用 fs.watch 监听目录变化
 			const watcher = fs.watch(
 				workspacePath,
 				{ recursive: true },
@@ -747,15 +705,12 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 						return;
 					}
 
-					// 过滤不需要索引的文件
 					if (!shouldIndex(filename)) {
 						return;
 					}
 
-					console.log(`[ChenilleIndexingService] 文件${eventType === 'rename' ? '新增/删除' : '修改'}: ${filename}`);
 					pendingChanges.add(filename);
 
-					// 防抖：500ms 内的变更合并处理
 					if (flushTimeout) {
 						clearTimeout(flushTimeout);
 					}
@@ -769,8 +724,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 					clearTimeout(flushTimeout);
 				}
 			}));
-
-			console.log(`[ChenilleIndexingService] 文件监听已启动: ${workspacePath}`);
 		} catch (error) {
 			console.error(`[ChenilleIndexingService] 启动文件监听失败:`, error);
 			wsConfig.watcher.dispose();
@@ -790,8 +743,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			return;
 		}
 
-		console.log(`[ChenilleIndexingService] 停止文件监听: ${workspacePath}`);
-
 		wsConfig.watcher.dispose();
 		wsConfig.watcher = undefined;
 
@@ -799,84 +750,59 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 	}
 
 	/**
-	 * 激活工作区索引（打开工作区时调用）
-	 * 如果该工作区已启用索引，会自动恢复索引功能
+	 * 激活工作区索引
 	 */
 	async activateWorkspace(workspacePath: string): Promise<void> {
 		console.log(`[ChenilleIndexingService] 激活工作区: ${workspacePath}`);
 
 		try {
-			// 加载保存的配置
 			const savedConfig = await this.configStorage.getWorkspaceConfig(workspacePath);
 
 			if (!savedConfig.enabled) {
-				console.log(`[ChenilleIndexingService] 工作区索引未启用，跳过: ${workspacePath}`);
 				return;
 			}
 
-			// 同步配置到内存
 			const wsConfig = this.getWorkspaceConfig(workspacePath);
 			wsConfig.enabled = true;
 			wsConfig.useLocalModel = savedConfig.useLocalModel;
 			wsConfig.embeddingModelName = savedConfig.embeddingModelName;
 
-			// 同步最后索引时间
 			if (savedConfig.lastIndexedAt) {
 				this.lastIndexedTimes.set(workspacePath, savedConfig.lastIndexedAt);
 			}
 
 			this.loadedWorkspaces.add(workspacePath);
 
-			// 检查模型配置
-			const useRemoteModel = !wsConfig.useLocalModel && wsConfig.embeddingModelName;
-			if (!useRemoteModel && !wsConfig.useLocalModel) {
-				// 既没有选择远程模型，也没有启用本地模型
-				// 默认使用本地模型
+			if (!wsConfig.embeddingModelName && !wsConfig.useLocalModel) {
 				wsConfig.useLocalModel = true;
-				console.log(`[ChenilleIndexingService] 未配置模型，默认使用本地模型: ${workspacePath}`);
 			}
 
-			// 检查索引完整性并自动修复
 			try {
-				const indexer = getCodebaseIndexer(undefined, this.environmentService);
-				const hasIndex = await indexer.hasIndex(workspacePath);
+				const worker = await this.getWorkerHost();
+				const hasIndex = await worker.hasIndex(workspacePath);
 				wsConfig.hasIndex = hasIndex;
 
-				// 启动文件监听（无论索引是否存在）
 				if (savedConfig.autoWatch) {
-					this.startFileWatching(workspacePath).catch(err => {
-						console.error('[ChenilleIndexingService] 启动文件监听失败:', err);
-					});
+					this.startFileWatching(workspacePath).catch(() => { });
 				}
 
-				// 无论是否有索引，都调用 indexWorkspace 进行增量检查
-				// 这样可以处理：
-				// 1. 索引不存在 → 建立索引
-				// 2. 索引存在但不完整 → 继续索引
-				// 3. 索引已是最新 → 快速返回
-				console.log(`[ChenilleIndexingService] 检查并更新索引: ${workspacePath}`);
 				this.indexWorkspace({ workspacePath }).then(() => {
-					// 索引成功，清除错误信息
 					wsConfig.errorMessage = undefined;
 					this.fireStatusChanged(workspacePath).catch(() => { });
 				}).catch(err => {
-					console.error('[ChenilleIndexingService] 后台索引失败:', err);
-					// 保存错误信息并触发状态更新
 					wsConfig.errorMessage = err.message || '索引失败';
 					this.fireStatusChanged(workspacePath).catch(() => { });
 				});
 			} catch (error) {
-				console.error(`[ChenilleIndexingService] 激活工作区索引检查失败:`, error);
 				wsConfig.errorMessage = `索引检查失败: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		} catch (error) {
 			console.error(`[ChenilleIndexingService] 激活工作区失败:`, error);
-			// 不抛出异常，避免影响其他功能
 		}
 	}
 
 	/**
-	 * 获取存储统计信息（供管理页面使用）
+	 * 获取存储统计信息
 	 */
 	async getStorageStats(): Promise<IStorageStats> {
 		const allConfigs = await this.configStorage.getAllWorkspaces();
@@ -887,18 +813,15 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			const wsPath = config.workspacePath;
 			const isOrphaned = !fs.existsSync(wsPath);
 
-			// 获取索引大小（近似）
 			let sizeBytes = 0;
 			if (!isOrphaned) {
 				try {
-					const indexer = getCodebaseIndexer(undefined, this.environmentService);
-					const stats = await indexer.getIndexStats(wsPath);
+					const worker = await this.getWorkerHost();
+					const stats = await worker.getIndexStats(wsPath);
 					if (stats) {
-						sizeBytes = stats.rowCount * 1024; // 假设每条记录约 1KB
+						sizeBytes = stats.rowCount * 1024;
 					}
-				} catch {
-					// 忽略错误
-				}
+				} catch { }
 			}
 
 			totalSizeBytes += sizeBytes;
@@ -912,29 +835,28 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			});
 		}
 
-		// 按大小排序
 		workspaces.sort((a, b) => b.sizeBytes - a.sizeBytes);
 
-		return {
-			totalSizeBytes,
-			indexCount: workspaces.length,
-			workspaces,
-		};
+		return { totalSizeBytes, indexCount: workspaces.length, workspaces };
 	}
 
 	override dispose(): void {
-		// 清理定时器
 		if (this.cleanupTimer) {
 			clearInterval(this.cleanupTimer);
 			this.cleanupTimer = undefined;
 		}
 
-		// 清理所有文件监听器
 		for (const [, config] of this.workspaceConfigs) {
 			config.watcher?.dispose();
 		}
 		this.workspaceConfigs.clear();
 		this.lastIndexedTimes.clear();
+
+		if (this.workerHost) {
+			this.workerHost.dispose();
+			this.workerHost = null;
+		}
+
 		super.dispose();
 	}
 }

@@ -40,6 +40,13 @@ export enum IndexingErrorCode {
 	RetrieveFailed = 1500,
 	QueryTooLong = 1501,
 	NoIndexAvailable = 1502,
+
+	// Worker 进程错误 (1600-1699)
+	WorkerNotReady = 1600,
+	WorkerCrashed = 1601,
+	WorkerTimeout = 1602,
+	Disposed = 1603,
+	IndexFailed = 1604,
 }
 
 /**
@@ -79,6 +86,13 @@ const ERROR_MESSAGES: Record<IndexingErrorCode, string> = {
 	[IndexingErrorCode.RetrieveFailed]: '检索失败',
 	[IndexingErrorCode.QueryTooLong]: '查询文本过长',
 	[IndexingErrorCode.NoIndexAvailable]: '该工作区尚未建立索引',
+
+	// Worker 进程错误
+	[IndexingErrorCode.WorkerNotReady]: 'Worker 进程未就绪',
+	[IndexingErrorCode.WorkerCrashed]: 'Worker 进程崩溃',
+	[IndexingErrorCode.WorkerTimeout]: 'Worker 请求超时',
+	[IndexingErrorCode.Disposed]: '服务已释放',
+	[IndexingErrorCode.IndexFailed]: '索引失败',
 };
 
 /**
