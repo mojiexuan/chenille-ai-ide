@@ -30,6 +30,7 @@ import { IStateService } from '../../platform/state/node/state.js';
 import { IndexConfigStorageService, type IWorkspaceIndexConfig } from './indexConfigStorage.js';
 import { IAiModelStorageService } from '../common/storageIpc.js';
 import { IndexingWorkerHost } from './indexingWorkerHost.js';
+import { ApiEmbeddingsProvider } from '../node/indexing/embeddings/apiEmbeddings.js';
 
 
 /**
@@ -600,7 +601,6 @@ export class ChenilleIndexingService extends Disposable implements IChenilleInde
 			}
 
 			// 简单测试：尝试获取嵌入
-			const { ApiEmbeddingsProvider } = await import('../node/indexing/embeddings/apiEmbeddings.js');
 			const provider = new ApiEmbeddingsProvider(model);
 			return await provider.test();
 		} catch (error) {
