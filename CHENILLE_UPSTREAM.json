@@ -1,0 +1,29 @@
+{
+	"upstream": {
+		"name": "Visual Studio Code",
+		"version": "1.144.0",
+		"commit": "b3fceafbb67da0ff86ce6417d371474d08e5a538",
+		"tag": "vendor-1.144.0"
+	},
+	"isolation": {
+		"owned": [
+			"src/vs/chenille/"
+		],
+		"allowedUpstreamChanges": {
+			"build/next/resources.ts": "复制 Chenille 静态资源",
+			"eslint.config.js": "Chenille 导入规则、版权头与分层例外",
+			"package.json": "Chenille 产品元数据与 AI SDK 依赖",
+			"product.json": { "reason": "Chenille 品牌与产品配置", "maxChangedLines": 200 },
+			"src/vs/code/electron-main/app.ts": "注册 Chenille 主进程服务与 IPC 通道",
+			"src/vs/workbench/contrib/scm/browser/scmInput.ts": "把提交消息生成委托给 Chenille 命令",
+			"src/vs/workbench/workbench.desktop.main.ts": "加载 Chenille 贡献"
+		},
+		"allowedNewPaths": [
+			"UPGRADING.md",
+			"CHENILLE_UPSTREAM.json",
+			"scripts/chenille/*",
+			".github/workflows/chenille-*.yml"
+		],
+		"maxChangedLinesPerUpstreamFile": 80
+	}
+}
