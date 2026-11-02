@@ -1172,6 +1172,15 @@ export default defineConfig(
 			'local/code-amd-node-module': 'warn'
 		}
 	},
+	// chenille common/ai layer - allow direct npm imports for AI SDKs
+	{
+		files: [
+			'src/vs/chenille/common/ai/**/*.ts'
+		],
+		rules: {
+			'local/code-amd-node-module': 'off'
+		}
+	},
 	// node/electron layer
 	{
 		files: [
@@ -1759,6 +1768,40 @@ export default defineConfig(
 				// It is possible to use /~ in the restrictions property even without using it in
 				// the target property by adding a layer property.
 				{
+					'target': 'src/vs/chenille/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/chat/~',
+						'vs/workbench/contrib/chat/**',
+						'vs/chenille/~',
+						'vs/chenille/**',
+						'openai',
+						'openai/resources/index',
+						'openai/streaming',
+						'@anthropic-ai/sdk',
+						'@anthropic-ai/sdk/resources/messages',
+						'@google/genai'
+					]
+				},
+				{
+					'target': 'src/vs/chenille/tools/**',
+					'restrictions': [
+						'vs/base/common/**',
+						'vs/platform/*/common/**',
+						'vs/editor/common/**',
+						'vs/chenille/**',
+						'vs/workbench/services/*/common/**',
+						'vs/workbench/common/**',
+						'vs/workbench/contrib/chat/common/**'
+					]
+				},
+				{
 					'target': 'src/vs/base/~',
 					'restrictions': [
 						'vs/base/~'
@@ -2009,6 +2052,7 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/code/~',
+						'vs/chenille/~',
 						{
 							'when': 'hasBrowser',
 							'pattern': 'vs/workbench/workbench.web.main.js'
@@ -2138,7 +2182,8 @@ export default defineConfig(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/workbench.common.main.js'
+						'vs/workbench/workbench.common.main.js',
+						'vs/chenille/~'
 					]
 				},
 				{
@@ -2364,6 +2409,24 @@ export default defineConfig(
 						} // node module allowed even in /browser/
 					]
 				},
+			]
+		}
+	},
+	// chenille files carry the Chenille copyright header instead of the Microsoft one
+	{
+		files: [
+			'src/vs/chenille/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}'
+		],
+		rules: {
+			'header/header': [
+				2,
+				'block',
+				[
+					'---------------------------------------------------------------------------------------------',
+					' *  Copyright (c) Chenille. All rights reserved.',
+					' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+					' *--------------------------------------------------------------------------------------------'
+				]
 			]
 		}
 	},
