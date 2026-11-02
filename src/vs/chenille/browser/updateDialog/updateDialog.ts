@@ -49,7 +49,7 @@ export class ChenilleUpdateDialog extends Disposable {
 		// 图标（使用 Chenille 图标）
 		const iconContainer = append(content, $('.chenille-update-icon'));
 		const iconImg = append(iconContainer, $('img')) as HTMLImageElement;
-		const iconUri = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/media/chenille-icon.png');
+		const iconUri = FileAccess.asBrowserUri('vs/chenille/browser/media/chenille-icon.png');
 		iconImg.src = iconUri.toString(true);
 		iconImg.alt = 'Chenille';
 

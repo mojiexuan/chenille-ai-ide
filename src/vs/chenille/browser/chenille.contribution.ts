@@ -11,8 +11,12 @@ import { IChenilleToolDispatcher, ChenilleToolDispatcher } from '../tools/dispat
 import { IChenilleChatProvider } from '../common/chatProvider.js';
 import { IChenilleChatModeService, ChenilleChatModeService } from '../common/chatMode.js';
 import { IContextCollapseService, ContextCollapseService } from './chat/contextCollapseService.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { ChenilleAgentContribution } from './chat/chenilleAgentContribution.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { ChenilleInlineCompletionProvider } from './inlineCompletions/chenilleInlineCompletionProvider.js';
+import { ChenilleVersionCheckUIService } from './versionCheck.contribution.js';
 import { IChenilleDiffSessionService, ChenilleDiffSessionService } from './diffSession/index.js';
 import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesService.js';
 import { IProjectSkillsService, ProjectSkillsService } from './skills/projectSkillsService.js';
@@ -21,6 +25,9 @@ import { SkillService } from './skills/skillService.js';
 
 // 导入 diff actions（自动注册）
 import './diffSession/chenilleDiffActions.js';
+
+// 导入 SCM 提交消息 action（自动注册）
+import './scm/commitMessageAction.js';
 
 // 导入 CSS 样式
 import './diffSession/chenilleDiffSession.css';
@@ -46,3 +53,31 @@ registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
 
 // 注册 Chenille Agent 到 VS Code Chat 系统
 registerWorkbenchContribution2(ChenilleAgentContribution.ID, ChenilleAgentContribution, WorkbenchPhase.AfterRestored);
+
+// 注册内联补全
+class ChenilleInlineCompletionContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'chenille.inlineCompletion';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(instantiationService.createInstance(ChenilleInlineCompletionProvider));
+	}
+}
+
+registerWorkbenchContribution2(ChenilleInlineCompletionContribution.ID, ChenilleInlineCompletionContribution, WorkbenchPhase.AfterRestored);
+
+// 注册版本检查 UI
+class ChenilleVersionCheckContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'chenille.versionCheck';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(instantiationService.createInstance(ChenilleVersionCheckUIService));
+	}
+}
+
+registerWorkbenchContribution2(ChenilleVersionCheckContribution.ID, ChenilleVersionCheckContribution, WorkbenchPhase.Eventually);

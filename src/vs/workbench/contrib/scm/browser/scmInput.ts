@@ -11,7 +11,7 @@ import { InputValidationType, ISCMInput, IInputValidation, ISCMViewService, SCMI
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextViewService, IContextMenuService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, Action2 } from '../../../../platform/actions/common/actions.js';
 import { IAction, ActionRunner, Action } from '../../../../base/common/actions.js';
@@ -858,6 +858,12 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const commandService = accessor.get(ICommandService);
+
+		// Chenille: prefer the Chenille commit message action when it is registered
+		if (CommandsRegistry.getCommand('chenille.scm.generateCommitMessage')) {
+			await commandService.executeCommand('chenille.scm.generateCommitMessage', ...args);
+			return;
+		}
 
 		const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, { telemetrySource: 'scm' });
 		if (!result) {
