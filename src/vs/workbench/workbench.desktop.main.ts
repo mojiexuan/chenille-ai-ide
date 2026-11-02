@@ -220,6 +220,10 @@ import './contrib/keybindingsExport/electron-browser/keybindingsExport.contribut
 // System-wide (OS global) Keybindings
 import './contrib/keybindings/electron-browser/systemWideKeybindings.contribution.js';
 
+// Chenille
+import '../chenille/browser/chenille.contribution.js';
+import '../chenille/electron-browser/chenille.contribution.js';
+
 //#endregion
 
 

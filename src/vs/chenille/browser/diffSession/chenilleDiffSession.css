@@ -1,0 +1,161 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ==================== 插入行样式 ==================== */
+
+/* Chenille Diff 插入行高亮 */
+.chenille-diff-inserted-line {
+	background-color: var(
+		--vscode-chenille-diffInserted,
+		rgba(156, 204, 101, 0.2)
+	);
+}
+
+/* Chenille Diff 插入范围高亮（更深的颜色） */
+.chenille-diff-inserted-range {
+	background-color: var(
+		--vscode-chenille-diffInserted,
+		rgba(156, 204, 101, 0.35)
+	);
+	border-radius: 2px;
+}
+
+/* ==================== 删除行样式 ==================== */
+
+/* Chenille Diff 删除内容 ViewZone */
+.chenille-diff-deleted-zone {
+	background-color: var(--vscode-chenille-diffRemoved, rgba(244, 67, 54, 0.15));
+	border-left: 3px solid var(--vscode-chenille-diffRemovedOutline, #f44336);
+	padding: 0 4px;
+	opacity: 0.85;
+}
+
+.chenille-diff-deleted-zone .view-line {
+	text-decoration: line-through;
+	text-decoration-color: var(
+		--vscode-editorGutter-deletedBackground,
+		rgba(244, 67, 54, 0.6)
+	);
+}
+
+/* ==================== Hunk 操作按钮样式 ==================== */
+
+/* 操作按钮容器 */
+.chenille-hunk-actions-container {
+	display: flex;
+	align-items: center;
+	padding: 2px 0;
+}
+
+.chenille-hunk-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px 8px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.2));
+	border-radius: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.16));
+}
+
+/* 分隔符 */
+.chenille-hunk-actions .separator {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.5;
+}
+
+/* 操作链接 */
+.chenille-hunk-actions .action-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	padding: 2px 4px;
+	border-radius: 3px;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chenille-hunk-actions .action-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background-color: var(
+		--vscode-toolbar-hoverBackground,
+		rgba(90, 93, 94, 0.31)
+	);
+}
+
+.chenille-hunk-actions .action-link:active {
+	background-color: var(
+		--vscode-toolbar-activeBackground,
+		rgba(99, 102, 103, 0.31)
+	);
+}
+
+/* 操作标签（非交互） */
+.chenille-hunk-actions .action-label {
+	color: var(--vscode-descriptionForeground);
+	padding: 2px 4px;
+}
+
+/* Codicon 图标 */
+.chenille-hunk-actions .codicon {
+	font-size: inherit;
+	line-height: inherit;
+}
+
+/* Accept 按钮特殊样式 */
+.chenille-hunk-actions .action-link:first-of-type {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.chenille-hunk-actions .action-link:first-of-type:hover {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+/* Reject 按钮特殊样式 */
+.chenille-hunk-actions .action-link:nth-of-type(2) {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+.chenille-hunk-actions .action-link:nth-of-type(2):hover {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+/* ==================== 动画效果 ==================== */
+
+/* 淡入动画 */
+@keyframes chenille-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.chenille-hunk-actions {
+	animation: chenille-fade-in 0.15s ease-out;
+}
+
+/* ==================== 高对比度主题支持 ==================== */
+
+.hc-black .chenille-diff-inserted-line,
+.hc-light .chenille-diff-inserted-line {
+	background-color: transparent;
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.hc-black .chenille-diff-deleted-zone,
+.hc-light .chenille-diff-deleted-zone {
+	background-color: transparent;
+	border: 1px dashed var(--vscode-contrastBorder);
+}
+
+.hc-black .chenille-hunk-actions,
+.hc-light .chenille-hunk-actions {
+	border: 1px solid var(--vscode-contrastBorder);
+}

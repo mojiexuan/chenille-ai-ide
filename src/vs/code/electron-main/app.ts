@@ -156,6 +156,7 @@ import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetr
 import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
 import { createRemoteResourceRequestHandler } from '../../platform/protocol/electron-main/remoteResourceProtocol.js';
 import { logNodeCompileCacheStatus, markNodeCompileCacheReady, waitForNodeCompileCacheReady } from '../../base/node/nodeCompileCache.js';
+import { registerChenilleMainChannels, registerChenilleMainServices } from '../../chenille/electron-main/chenilleMain.js';
 
 type OSProxyConfigEvent = {
 	readonly success: boolean;
@@ -1361,6 +1362,9 @@ export class CodeApplication extends Disposable {
 		]));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
+		// Chenille
+		registerChenilleMainServices(services);
+
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
@@ -1530,6 +1534,9 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Chenille
+		registerChenilleMainChannels(accessor, mainProcessElectronServer);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
