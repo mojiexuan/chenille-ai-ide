@@ -10,7 +10,7 @@ import * as typeConverters from '../../typeConverters';
 
 export interface IFilePathToResourceConverter {
 	/**
-	 * Convert a typescript filepath to a Chenille resource.
+	 * Convert a typescript filepath to a VS Code resource.
 	 */
 	toResource(filepath: string): vscode.Uri;
 }
@@ -40,7 +40,7 @@ function getTagBodyText(
 
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
-			if (captionTagMatches && captionTagMatches.index === 0) {
+			if (captionTagMatches?.index === 0) {
 				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);
@@ -157,7 +157,7 @@ function convertLinkTags(
 					if (currentLink.target) {
 						const file = filePathConverter.toResource(currentLink.target.file);
 						const args: OpenJsDocLinkCommand_Args = {
-							file: { ...file.toJSON(), $mid: undefined }, // Prevent Chenille from trying to transform the uri,
+							file: { ...file.toJSON(), $mid: undefined }, // Prevent VS Code from trying to transform the uri,
 							position: typeConverters.Position.fromLocation(currentLink.target.start)
 						};
 						const command = `command:${OpenJsDocLinkCommand.id}?${encodeURIComponent(JSON.stringify([args]))}`;

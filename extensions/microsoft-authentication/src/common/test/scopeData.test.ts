@@ -33,7 +33,7 @@ suite('ScopeData', () => {
 		assert.deepStrictEqual(scopeData.scopesToSend, ['email', 'offline_access', 'openid', 'profile', 'User.Read']);
 	});
 
-	test('should filter out internal Chenille scopes for scopesToSend', () => {
+	test('should filter out internal VS Code scopes for scopesToSend', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_CLIENT_ID:some_id']);
 		assert.deepStrictEqual(scopeData.scopesToSend, ['custom_scope']);
 	});
@@ -107,5 +107,28 @@ suite('ScopeData', () => {
 		const authorizationServer = Uri.parse('https://login.microsoftonline.com/tenant123');
 		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
 		assert.strictEqual(scopeData.tenant, 'tenant123');
+	});
+
+	test('should use explicit clientId when provided', () => {
+		const scopeData = new ScopeData(['custom_scope'], undefined, undefined, 'my-custom-client-id');
+		assert.strictEqual(scopeData.clientId, 'my-custom-client-id');
+	});
+
+	test('should use explicit clientId over VSCODE_CLIENT_ID scope', () => {
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_CLIENT_ID:scope_id'], undefined, undefined, 'override-id');
+		assert.strictEqual(scopeData.clientId, 'override-id');
+	});
+
+	test('should ignore empty or whitespace-only clientId and fall back to default', () => {
+		const empty = new ScopeData(['custom_scope'], undefined, undefined, '');
+		assert.strictEqual(empty.clientId, 'aebc6443-996d-45c2-90f0-388ff96faa56');
+
+		const whitespace = new ScopeData(['custom_scope'], undefined, undefined, '   ');
+		assert.strictEqual(whitespace.clientId, 'aebc6443-996d-45c2-90f0-388ff96faa56');
+	});
+
+	test('should ignore empty clientId and fall back to VSCODE_CLIENT_ID scope', () => {
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_CLIENT_ID:scope_id'], undefined, undefined, '');
+		assert.strictEqual(scopeData.clientId, 'scope_id');
 	});
 });

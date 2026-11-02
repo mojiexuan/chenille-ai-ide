@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -29,14 +29,19 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
-import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits } from './reviewEdits.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatCopyKind, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatCopyKind, IChatService } from '../../common/chatService/chatService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
-import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../codeBlockPart.js';
+import { ChatCopyActionViewItem } from './chatCopyActions.js';
+import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
 
@@ -59,7 +64,7 @@ export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockAct
 }
 
 export function isCodeCompareBlockActionContext(thing: unknown): thing is ICodeCompareBlockActionContext {
-	return typeof thing === 'object' && thing !== null && 'element' in thing;
+	return typeof thing === 'object' && thing !== null && 'element' in thing && 'diffEditor' in thing && 'toggleDiffViewMode' in thing;
 }
 
 function isResponseFiltered(context: ICodeBlockActionContext) {
@@ -102,6 +107,14 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		const copyCodeBlockActionRendering = this._register(actionViewItemService.register(MenuId.ChatCodeBlock, 'workbench.action.chat.copyCodeBlock', (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+
+			return instantiationService.createInstance(ChatCopyActionViewItem, action, options);
+		}));
+
 		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -111,7 +124,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 					const context = this._context;
 					if (isCodeBlockActionContext(context) && context.codemapperUri) {
 						const label = labelService.getUriLabel(context.codemapperUri, { relative: true });
-						return localize('interactive.applyInEditorWithURL.label', "应用到 {0}", label);
+						return localize('interactive.applyInEditorWithURL.label', "Apply to {0}", label);
 					}
 					return super.getTooltip();
 				}
@@ -123,6 +136,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 		});
 
 		// Reduces flicker a bit on reload/restart
+		markAsSingleton(copyCodeBlockActionRendering);
 		markAsSingleton(disposable);
 	}
 }
@@ -132,7 +146,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.copyCodeBlock',
-				title: localize2('interactive.copyCodeBlock.label', "复制"),
+				title: localize2('interactive.copyCodeBlock.label', "Copy"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.copy,
@@ -144,7 +158,7 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: unknown[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
@@ -152,10 +166,12 @@ export function registerChatCodeBlockActions() {
 
 			const clipboardService = accessor.get(IClipboardService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
-			clipboardService.writeText(context.code);
+			const chatService = accessor.get(IChatService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
+			await clipboardService.writeText(context.code);
 
 			if (isResponseVM(context.element)) {
-				const chatService = accessor.get(IChatService);
 				const requestId = context.element.requestId;
 				const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 				chatService.notifyUserAction({
@@ -185,11 +201,15 @@ export function registerChatCodeBlockActions() {
 					editDeltaInfo: EditDeltaInfo.fromText(context.code),
 					feature: 'sideBarChat',
 					languageId: context.languageId,
-					modeId: context.element.model.request?.modeInfo?.modeId,
+					modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: requestId,
+					...sessionTelemetry,
+					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}
@@ -218,11 +238,15 @@ export function registerChatCodeBlockActions() {
 			editor.getSelections()?.reduce((acc, selection) => acc + editorModel.getValueInRange(selection), '') ?? '';
 		const totalCharacters = editorModel.getValueLength();
 
-		// Report copy to extensions
 		const chatService = accessor.get(IChatService);
 		const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
-		const element = context.element as IChatResponseViewModel | undefined;
-		if (isResponseVM(element)) {
+		const chatSessionsService = accessor.get(IChatSessionsService);
+		const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
+		const element = context.element;
+		const reportCopy = () => {
+			if (!isResponseVM(element)) {
+				return;
+			}
 			const requestId = element.requestId;
 			const request = element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 			chatService.notifyUserAction({
@@ -252,20 +276,28 @@ export function registerChatCodeBlockActions() {
 				editDeltaInfo: EditDeltaInfo.fromText(copiedText),
 				feature: 'sideBarChat',
 				languageId: context.languageId,
-				modeId: element.model.request?.modeInfo?.modeId,
+				modeId: element.model.request?.modeInfo?.telemetryModeId,
 				modelId: request?.modelId,
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: requestId,
+				...sessionTelemetry,
+				isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
+				provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource), chatSessionsService),
 			});
-		}
+		};
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
-			accessor.get(IClipboardService).writeText(context.code);
-			return true;
+			const clipboardService = accessor.get(IClipboardService);
+			return (async () => {
+				await clipboardService.writeText(context.code);
+				reportCopy();
+			})();
 		}
 
+		reportCopy();
 		return false;
 	});
 
@@ -276,9 +308,9 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: APPLY_IN_EDITOR_ID,
-				title: localize2('interactive.applyInEditor.label', "在编辑器中应用"),
+				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
 				precondition: ChatContextKeys.enabled,
-				f1: true,
+				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
@@ -319,7 +351,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: localize2('interactive.insertCodeBlock.label', "在光标处插入"),
+				title: localize2('interactive.insertCodeBlock.label', "Insert At Cursor"),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -355,7 +387,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
-				title: localize2('interactive.insertIntoNewFile.label', "插入到新文件"),
+				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -378,10 +410,12 @@ export function registerChatCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			const aiEditTelemetryService = accessor.get(IAiEditTelemetryService);
+			const chatSessionsService = accessor.get(IChatSessionsService);
+			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 
-			editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
+			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 
-			if (isResponseVM(context.element)) {
+			if (editor && isResponseVM(context.element)) {
 				const requestId = context.element.requestId;
 				const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
 				chatService.notifyUserAction({
@@ -409,11 +443,15 @@ export function registerChatCodeBlockActions() {
 					editDeltaInfo: EditDeltaInfo.fromText(context.code),
 					feature: 'sideBarChat',
 					languageId: context.languageId,
-					modeId: context.element.model.request?.modeInfo?.modeId,
+					modeId: context.element.model.request?.modeInfo?.telemetryModeId,
 					modelId: request?.modelId,
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: requestId,
+					...sessionTelemetry,
+					isAgentHostSession: isAgentHostSessionResource(context.element.sessionResource),
+					provider: getAgentHostProviderForTelemetry(getChatSessionType(context.element.sessionResource), chatSessionsService),
 				});
 			}
 		}
@@ -423,7 +461,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
-				title: localize2('interactive.runInTerminal.label', "插入到终端"),
+				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -468,19 +506,20 @@ export function registerChatCodeBlockActions() {
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 
-			let terminal = await terminalService.getActiveOrCreateInstance();
+			let terminal = await terminalService.getActiveOrCreateInstance({ acceptsInput: true });
 
 			// isFeatureTerminal = debug terminal or task terminal
-			const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
-			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
+			if (terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal) {
+				terminal = await terminalService.createAndFocusTerminal({ location: TerminalLocation.Panel });
+			} else {
+				await terminalService.focusInstance(terminal);
+			}
 
-			terminalService.setActiveInstance(terminal);
-			await terminal.focusWhenReady(true);
 			if (terminal.target === TerminalLocation.Editor) {
 				const existingEditors = editorService.findEditors(terminal.resource);
 				terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
 			} else {
-				terminalGroupService.showPanel(true);
+				await terminalGroupService.showPanel(true);
 			}
 
 			terminal.runCommand(context.code, false);
@@ -519,7 +558,7 @@ export function registerChatCodeBlockActions() {
 		const elementId = curCodeBlockInfo?.elementId;
 		const element = elementId ? widget.viewModel?.getItems().find(item => item.id === elementId) : undefined;
 		const currentResponse = element ??
-			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+			(focusedResponse ?? widget.viewModel?.getItems().findLast((item): item is IChatResponseViewModel => isResponseVM(item)));
 		if (!currentResponse || !isResponseVM(currentResponse)) {
 			return;
 		}
@@ -537,7 +576,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.nextCodeBlock',
-				title: localize2('interactive.nextCodeBlock.label', "下一个代码块"),
+				title: localize2('interactive.nextCodeBlock.label', "Next Code Block"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
@@ -559,7 +598,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.previousCodeBlock',
-				title: localize2('interactive.previousCodeBlock.label', "上一个代码块"),
+				title: localize2('interactive.previousCodeBlock.label', "Previous Code Block"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
@@ -630,15 +669,16 @@ export function registerChatCodeCompareBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.applyCompareEdits',
-				title: localize2('interactive.compare.apply', "应用编辑"),
+				title: localize2('interactive.compare.apply', "Apply Edits"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate(), EditorContextKeys.readOnly.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
-					order: 1,
+					order: 10,
+					when: EditorContextKeys.readOnly.negate(),
 				}
 			});
 		}
@@ -666,7 +706,7 @@ export function registerChatCodeCompareBlockActions() {
 			if (!firstEdit) {
 				return false;
 			}
-			const textEdits = AsyncIterableObject.fromArray(item.edits);
+			const textEdits = AsyncIterableProducer.fromArray(item.edits);
 
 			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
 			if (editorToApply) {
@@ -683,15 +723,16 @@ export function registerChatCodeCompareBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.discardCompareEdits',
-				title: localize2('interactive.compare.discard', "放弃编辑"),
+				title: localize2('interactive.compare.discard', "Discard Edits"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.trash,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate(), EditorContextKeys.readOnly.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
-					order: 2,
+					order: 11,
+					when: EditorContextKeys.readOnly.negate(),
 				}
 			});
 		}
@@ -701,6 +742,61 @@ export function registerChatCodeCompareBlockActions() {
 			const instaService = accessor.get(IInstantiationService);
 			const editor = instaService.createInstance(DefaultChatTextEditor);
 			editor.discard(context.element, context.edit);
+		}
+	});
+
+	registerAction2(class ToggleDiffViewModeAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleCompareBlockDiffViewMode',
+				title: localize2('interactive.compare.toggleDiffViewMode', "Toggle Inline/Side-by-Side Diff"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.diffSingle,
+				toggled: {
+					condition: EditorContextKeys.diffEditorInlineMode,
+					icon: Codicon.diff,
+				},
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 1,
+				}
+			});
+		}
+
+		runWithContext(_accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): void {
+			context.toggleDiffViewMode();
+		}
+	});
+
+	registerAction2(class OpenCompareBlockInDiffEditor extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openCompareBlockInDiffEditor',
+				title: localize2('interactive.compare.openInDiffEditor', "Open in Diff Editor"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.goToFile,
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 2,
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const model = context.diffEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			await editorService.openEditor({
+				original: { resource: model.original.uri },
+				modified: { resource: model.modified.uri },
+			});
 		}
 	});
 }

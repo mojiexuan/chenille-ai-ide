@@ -19,6 +19,7 @@ import { IWalkthroughsService } from './gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -31,6 +32,8 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
+import { AgentSessionsWelcomePage } from '../../welcomeAgentSessions/browser/agentSessionsWelcome.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -38,7 +41,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize2('miWelcome', '欢迎'),
+			title: localize2('miWelcome', 'Welcome'),
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -47,7 +50,7 @@ registerAction2(class extends Action2 {
 				order: 1,
 			},
 			metadata: {
-				description: localize2('minWelcomeDescription', '打开演练以帮助你开始使用 Chenille。')
+				description: localize2('minWelcomeDescription', 'Opens a Walkthrough to help you get started in VS Code.')
 			}
 		});
 	}
@@ -59,45 +62,53 @@ registerAction2(class extends Action2 {
 	) {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
 
 		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
 		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 		const activeEditor = editorService.activeEditor;
 
-		if (walkthroughID) {
-			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
-			let selectedStep: string | undefined;
-			if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
-				selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
-			} else {
-				selectedStep = undefined;
-			}
-
-			// If the walkthrough is already open just reveal the step
-			if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
-				activeEditor.showWelcome = false;
-				commandService.executeCommand('walkthroughs.selectStep', selectedStep);
-				return;
-			}
-
-			let options: GettingStartedEditorOptions;
-			if (selectedCategory) {
-				// Otherwise open the walkthrough editor with the selected category and step
-				options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
-			} else {
-				// Open Welcome page
-				options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
-			}
-			editorService.openEditor({
-				resource: GettingStartedInput.RESOURCE,
-				options
-			}, toSide ? SIDE_GROUP : undefined);
-
+		// If no specific walkthrough is requested and agent sessions welcome is preferred, open that instead
+		if (!walkthroughID && !chatEntitlementService.sentiment.hidden && configurationService.getValue<string>('workbench.startupEditor') === 'agentSessionsWelcomePage') {
+			commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
+			return;
 		} else {
-			editorService.openEditor({
-				resource: GettingStartedInput.RESOURCE,
-				options: { preserveFocus: toSide ?? false, inactive }
-			}, toSide ? SIDE_GROUP : undefined);
+			if (walkthroughID) {
+				const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
+				let selectedStep: string | undefined;
+				if (typeof walkthroughID === 'object' && 'category' in walkthroughID && 'step' in walkthroughID) {
+					selectedStep = `${walkthroughID.category}#${walkthroughID.step}`;
+				} else {
+					selectedStep = undefined;
+				}
+
+				// If the walkthrough is already open just reveal the step
+				if (selectedStep && activeEditor instanceof GettingStartedInput && activeEditor.selectedCategory === selectedCategory) {
+					activeEditor.showWelcome = false;
+					commandService.executeCommand('walkthroughs.selectStep', selectedStep);
+					return;
+				}
+
+				let options: GettingStartedEditorOptions;
+				if (selectedCategory) {
+					// Otherwise open the walkthrough editor with the selected category and step
+					options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+				} else {
+					// Open Welcome page
+					options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
+				}
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options
+				}, toSide ? SIDE_GROUP : undefined);
+
+			} else {
+				editorService.openEditor({
+					resource: GettingStartedInput.RESOURCE,
+					options: { preserveFocus: toSide ?? false, inactive }
+				}, toSide ? SIDE_GROUP : undefined);
+			}
 		}
 	}
 });
@@ -107,20 +118,20 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('welcome', "欢迎")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize2('welcome', "欢迎");
+const category = localize2('welcome', "Welcome");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.goBack',
-			title: localize2('welcome.goBack', '返回'),
+			title: localize2('welcome.goBack', 'Go Back'),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
@@ -158,7 +169,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.markStepComplete',
-			title: localize('welcome.markStepComplete', "标记步骤为已完成"),
+			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,
 		});
 	}
@@ -174,7 +185,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.markStepIncomplete',
-			title: localize('welcome.markStepInomplete', "标记步骤为未完成"),
+			title: localize('welcome.markStepInomplete', "Mark Step Incomplete"),
 			category,
 		});
 	}
@@ -190,7 +201,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showAllWalkthroughs',
-			title: localize2('welcome.showAllWalkthroughs', '打开演练...'),
+			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
 			menu: {
@@ -228,7 +239,7 @@ registerAction2(class extends Action2 {
 		quickPick.canSelectMany = false;
 		quickPick.matchOnDescription = true;
 		quickPick.matchOnDetail = true;
-		quickPick.placeholder = localize('pickWalkthroughs', '选择要打开的演练');
+		quickPick.placeholder = localize('pickWalkthroughs', 'Select a walkthrough to open');
 		quickPick.items = await this.getQuickPickItems(contextService, gettingStartedService);
 		quickPick.busy = true;
 		disposables.add(quickPick.onDidAccept(() => {
@@ -256,7 +267,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "当前工作区的平台，在远程或无服务器上下文中可能与 UI 的平台不同"));
+export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
 
 	static readonly ID = 'workbench.contrib.workspacePlatform';
@@ -301,29 +312,42 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: true,
-			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "启用后，安装扩展时将打开该扩展的演练。")
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
 		},
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,
 			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal'],
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'terminal', 'agentSessionsWelcomePage'],
 			'enumDescriptions': [
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "启动时不打开编辑器。"),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "打开欢迎页面，其中包含帮助你开始使用 Chenille 和扩展的内容。"),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "打开包含 README 的文件夹时打开 README，否则回退到 'welcomePage'。注意: 这仅作为全局配置生效，如果在工作区或文件夹配置中设置将被忽略。"),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "打开新的无标题文本文件(仅在打开空窗口时适用)。"),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "打开空工作台时打开欢迎页面。"),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "在编辑器区域打开新终端。"),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled text file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page. Will override the workbench secondary side bar visibility settings."),
 			],
 			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "控制启动时显示哪个编辑器(如果没有从上一个会话恢复)。")
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
+			'experiment': { mode: 'auto' },
+			agentsWindow: { default: 'none', readOnly: true },
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: false,
-			deprecationMessage: localize('deprecationMessage', "已弃用，请使用全局设置 `workbench.reduceMotion`。"),
-			description: localize('workbench.welcomePage.preferReducedMotion', "启用后，减少欢迎页面中的动画效果。")
+			deprecationMessage: localize('deprecationMessage', "Deprecated, use the global `workbench.reduceMotion`."),
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
+		},
+		'workbench.welcomePage.experimentalOnboarding': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			description: localize('workbench.welcomePage.experimentalOnboarding', "When enabled, show the new onboarding experience instead of the classic walkthrough on first launch."),
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });

@@ -16,8 +16,8 @@ import { enumeratePowerShellInstallations } from '../../../base/node/powershell.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
-import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 const enum Constants {
 	UnixShellsPath = '/etc/shells'
@@ -78,7 +78,7 @@ async function detectAvailableWindowsProfiles(
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
-	// when the 32-bit version of Chenille is running on a 64-bit machine.
+	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
 	// module doesn't work if this is not the case. See #27915.
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
@@ -86,7 +86,7 @@ async function detectAvailableWindowsProfiles(
 
 	// WSL 2 released in the May 2020 Update, this is where the `-d` flag was added that we depend
 	// upon
-	const allowWslDiscovery = getWindowsBuildNumber() >= 19041;
+	const allowWslDiscovery = await getWindowsBuildNumberAsync() >= 19041;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 
@@ -359,8 +359,7 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 	if (!distroOutput) {
 		return [];
 	}
-	const regex = new RegExp(/[\r?\n]/);
-	const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
+	const distroNames = distroOutput.split(/\r?\n/).filter(t => t.trim().length > 0);
 	for (const distroName of distroNames) {
 		// Skip empty lines
 		if (distroName === '') {

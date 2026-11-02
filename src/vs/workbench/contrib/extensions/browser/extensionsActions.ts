@@ -7,11 +7,11 @@ import './media/extensionActions.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { IAction, Action, Separator, SubmenuAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
-import * as DOM from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -26,10 +26,11 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExtensionService, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -75,6 +76,7 @@ import { IAuthenticationUsageService } from '../../../services/authentication/br
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -107,13 +109,13 @@ export class PromptExtensionInstallFailureAction extends Action {
 		this.logService.error(this.error);
 
 		if (this.error.name === ExtensionManagementErrorCode.Unsupported) {
-			const productName = isWeb ? localize('Chenille for Web', "Web 版 {0}", this.productService.nameLong) : this.productService.nameLong;
-			const message = localize('cannot be installed', "扩展'{0}'在 {1} 中不可用。点击'详细信息'了解更多。", this.extension.displayName || this.extension.identifier.id, productName);
+			const productName = isWeb ? localize('VS Code for Web', "{0} for the Web", this.productService.nameLong) : this.productService.nameLong;
+			const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", this.extension.displayName || this.extension.identifier.id, productName);
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Info,
 				message,
-				primaryButton: localize({ key: 'more information', comment: ['&& denotes a mnemonic'] }, "详细信息"),
-				cancelButton: localize('close', "关闭")
+				primaryButton: localize({ key: 'more information', comment: ['&& denotes a mnemonic'] }, "&&More Information"),
+				cancelButton: localize('close', "Close")
 			});
 			if (confirmed) {
 				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-web-extensions-guide') : URI.parse('https://aka.ms/vscode-remote'));
@@ -126,19 +128,19 @@ export class PromptExtensionInstallFailureAction extends Action {
 				type: 'error',
 				message: getErrorMessage(this.error),
 				buttons: [{
-					label: localize('install prerelease', "安装预发布版"),
+					label: localize('install prerelease', "Install Pre-Release"),
 					run: () => {
 						const installAction = this.instantiationService.createInstance(InstallAction, { installPreReleaseVersion: true });
 						installAction.extension = this.extension;
 						return installAction.run();
 					}
 				}],
-				cancelButton: localize('cancel', "取消")
+				cancelButton: localize('cancel', "Cancel")
 			});
 			return;
 		}
 
-		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleApi, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.Deprecated].includes(<ExtensionManagementErrorCode>this.error.name)) {
+		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleApi, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.Deprecated, ExtensionManagementErrorCode.NotAllowed].includes(<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.info(getErrorMessage(this.error));
 			return;
 		}
@@ -146,10 +148,10 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (ExtensionManagementErrorCode.PackageNotSigned === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
-				message: localize('not signed', `"{0}"是来自未知来源的扩展。确定要安装吗？`, this.extension.displayName),
+				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
 				detail: getErrorMessage(this.error),
 				buttons: [{
-					label: localize('install anyway', "仍然安装"),
+					label: localize('install anyway', "Install Anyway"),
 					run: () => {
 						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
 						installAction.extension = this.extension;
@@ -164,13 +166,13 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (ExtensionManagementErrorCode.SignatureVerificationFailed === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
-				message: localize('verification failed', `无法安装扩展"{0}"，因为 {1} 无法验证扩展签名`, this.extension.displayName, this.productService.nameLong),
+				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
 				detail: getErrorMessage(this.error),
 				buttons: [{
-					label: localize('learn more', "了解更多"),
+					label: localize('learn more', "Learn More"),
 					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
 				}, {
-					label: localize('install donot verify', "仍然安装(不验证签名)"),
+					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
 					run: () => {
 						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
 						installAction.extension = this.extension;
@@ -185,19 +187,19 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (ExtensionManagementErrorCode.SignatureVerificationInternal === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
-				message: localize('verification failed', `无法安装扩展"{0}"，因为 {1} 无法验证扩展签名`, this.extension.displayName, this.productService.nameLong),
+				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
 				detail: getErrorMessage(this.error),
 				buttons: [{
-					label: localize('learn more', "了解更多"),
+					label: localize('learn more', "Learn More"),
 					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
 				}, {
-					label: localize('report issue', "报告问题"),
+					label: localize('report issue', "Report Issue"),
 					run: () => this.workbenchIssueService.openReporter({
-						issueTitle: localize('report issue title', "扩展签名验证失败: {0}", this.extension.displayName),
-						issueBody: localize('report issue body', "请在下方包含以下日志 `F1 > 打开视图... > 共享`。\n\n")
+						issueTitle: localize('report issue title', "Extension Signature Verification Failed: {0}", this.extension.displayName),
+						issueBody: localize('report issue body', "Please include following log `F1 > Open View... > Shared` below.\n\n")
 					})
 				}, {
-					label: localize('install donot verify', "仍然安装(不验证签名)"),
+					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
 					run: () => {
 						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
 						installAction.extension = this.extension;
@@ -209,22 +211,25 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', `更新扩展"{ 0}"时出错。`, this.extension.displayName || this.extension.identifier.id)
-			: localize('install operation', `安装扩展"{0}"时出错。`, this.extension.displayName || this.extension.identifier.id);
-		let additionalMessage;
+		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
+			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
+		let additionalMessage: NotificationText | undefined;
 		const promptChoices: IPromptChoice[] = [];
 
 		const downloadUrl = await this.getDownloadUrl();
 		if (downloadUrl) {
-			additionalMessage = localize('check logs', "请查看[日志]({0})了解更多详情。", createCommandUri(showWindowLogActionId).toString());
+			additionalMessage = NotificationText.format(
+				localize('check logs linked', "Please check the {0} for more details."),
+				NotificationText.link(localize('check logs label', "log"), createCommandUri(showWindowLogActionId).toString()),
+			);
 			promptChoices.push({
-				label: localize('download', "尝试手动下载..."),
+				label: localize('download', "Try Downloading Manually..."),
 				run: () => this.openerService.open(downloadUrl).then(() => {
 					this.notificationService.prompt(
 						Severity.Info,
-						localize('install vsix', '下载完成后，请手动安装"{0}"的 VSIX 文件。', this.extension.identifier.id),
+						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
 						[{
-							label: localize('installVSIX', "从 VSIX 安装..."),
+							label: localize('installVSIX', "Install from VSIX..."),
 							run: () => this.commandService.executeCommand(SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID)
 						}]
 					);
@@ -232,7 +237,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
+		const message = additionalMessage ? NotificationText.concat(operationMessage, ' ', additionalMessage) : operationMessage;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
 
@@ -290,7 +295,6 @@ export abstract class ExtensionAction extends Action implements IExtensionContai
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
 	static readonly LABEL_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} label`;
-	static readonly PROMINENT_LABEL_ACTION_CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent`;
 	static readonly ICON_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} icon`;
 
 	private _extension: IExtension | null = null;
@@ -436,7 +440,7 @@ export class InstallAction extends ExtensionAction {
 		this.updateLabel();
 	}
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 	public readonly options: InstallOptions;
 
 	constructor(
@@ -453,7 +457,7 @@ export class InstallAction extends ExtensionAction {
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
 	) {
-		super('extensions.install', localize('install', "安装"), InstallAction.CLASS, false);
+		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
 		this.options = { isMachineScoped: false, ...options };
 		this.update();
@@ -503,11 +507,11 @@ export class InstallAction extends ExtensionAction {
 		if (this.extension.gallery && !this.extension.gallery.isSigned && shouldRequireRepositorySignatureFor(this.extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest())) {
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('not signed', `"{0}"是来自未知来源的扩展。确定要安装吗？`, this.extension.displayName),
-				detail: localize('not signed detail', "扩展未签名。"),
+				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
+				detail: localize('not signed detail', "Extension is not signed."),
 				buttons: [
 					{
-						label: localize('install anyway', "仍然安装"),
+						label: localize('install anyway', "Install Anyway"),
 						run: () => {
 							this.options.donotVerifySignature = true;
 							return true;
@@ -524,7 +528,7 @@ export class InstallAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
-			let detail: string | MarkdownString = localize('deprecated message', "此扩展已弃用，因为它不再维护。");
+			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			enum DeprecationChoice {
 				InstallAnyway = 0,
 				ShowAlternateExtension = 1,
@@ -533,17 +537,17 @@ export class InstallAction extends ExtensionAction {
 			}
 			const buttons: IPromptButton<DeprecationChoice>[] = [
 				{
-					label: localize('install anyway', "仍然安装"),
+					label: localize('install anyway', "Install Anyway"),
 					run: () => DeprecationChoice.InstallAnyway
 				}
 			];
 
 			if (this.extension.deprecationInfo.extension) {
-				detail = localize('deprecated with alternate extension message', "此扩展已弃用。请改用 {0} 扩展。", this.extension.deprecationInfo.extension.displayName);
+				detail = localize('deprecated with alternate extension message', "This extension is deprecated. Use the {0} extension instead.", this.extension.deprecationInfo.extension.displayName);
 
 				const alternateExtension = this.extension.deprecationInfo.extension;
 				buttons.push({
-					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "打开 {0}(&&O)", this.extension.deprecationInfo.extension.displayName),
+					label: localize({ key: 'Show alternate extension', comment: ['&& denotes a mnemonic'] }, "&&Open {0}", this.extension.deprecationInfo.extension.displayName),
 					run: async () => {
 						const [extension] = await this.extensionsWorkbenchService.getExtensions([{ id: alternateExtension.id, preRelease: alternateExtension.preRelease }], CancellationToken.None);
 						await this.extensionsWorkbenchService.open(extension);
@@ -552,11 +556,11 @@ export class InstallAction extends ExtensionAction {
 					}
 				});
 			} else if (this.extension.deprecationInfo.settings) {
-				detail = localize('deprecated with alternate settings message', "此扩展已弃用，因为此功能现已内置于 Chenille 中。");
+				detail = localize('deprecated with alternate settings message', "This extension is deprecated as this functionality is now built-in to VS Code.");
 
 				const settings = this.extension.deprecationInfo.settings;
 				buttons.push({
-					label: localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "配置设置(&&C)"),
+					label: localize({ key: 'configure in settings', comment: ['&& denotes a mnemonic'] }, "&&Configure Settings"),
 					run: async () => {
 						await this.preferencesService.openSettings({ query: settings.map(setting => `@id:${setting}`).join(' ') });
 
@@ -569,7 +573,7 @@ export class InstallAction extends ExtensionAction {
 
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('install confirmation', `确定要安装"{0}"吗？`, this.extension.displayName),
+				message: localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
 				detail: isString(detail) ? detail : undefined,
 				custom: isString(detail) ? undefined : {
 					markdownDetails: [{
@@ -588,7 +592,7 @@ export class InstallAction extends ExtensionAction {
 
 		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.options.installPreReleaseVersion });
 
-		alert(localize('installExtensionStart', "正在安装扩展 {0}。已打开编辑器显示此扩展的更多详情", this.extension.displayName));
+		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 
 		/* __GDPR__
 			"extensions:action:install" : {
@@ -604,7 +608,7 @@ export class InstallAction extends ExtensionAction {
 		const extension = await this.install(this.extension);
 
 		if (extension?.local) {
-			alert(localize('installExtensionComplete', "扩展 {0} 安装完成。", this.extension.displayName));
+			alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
 			const runningExtension = await this.getRunningExtension(extension.local);
 			if (runningExtension && !(runningExtension.activationEvents && runningExtension.activationEvents.some(activationEent => activationEent.startsWith('onLanguage')))) {
 				const action = await this.getThemeAction(extension);
@@ -671,17 +675,17 @@ export class InstallAction extends ExtensionAction {
 
 	getLabel(primary?: boolean): string {
 		if (this.extension?.isWorkspaceScoped && this.extension.resourceExtension && this.contextService.isInsideWorkspace(this.extension.resourceExtension.location)) {
-			return localize('install workspace version', "安装工作区扩展");
+			return localize('install workspace version', "Install Workspace Extension");
 		}
 		/* install pre-release version */
 		if (this.options.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
-			return primary ? localize('install pre-release', "安装预发布版") : localize('install pre-release version', "安装预发布版本");
+			return primary ? localize('install pre-release', "Install Pre-Release") : localize('install pre-release version', "Install Pre-Release Version");
 		}
 		/* install released version that has a pre release version */
 		if (this.extension?.hasPreReleaseVersion) {
-			return primary ? localize('install', "安装") : localize('install release version', "安装正式版本");
+			return primary ? localize('install', "Install") : localize('install release version', "Install Release Version");
 		}
-		return localize('install', "安装");
+		return localize('install', "Install");
 	}
 
 }
@@ -713,7 +717,7 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 
 export class InstallingLabelAction extends ExtensionAction {
 
-	private static readonly LABEL = localize('installing', "正在安装");
+	private static readonly LABEL = localize('installing', "Installing");
 	private static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
 
 	constructor() {
@@ -727,8 +731,8 @@ export class InstallingLabelAction extends ExtensionAction {
 
 export abstract class InstallInOtherServerAction extends ExtensionAction {
 
-	protected static readonly INSTALL_LABEL = localize('install', "安装");
-	protected static readonly INSTALLING_LABEL = localize('installing', "正在安装");
+	protected static readonly INSTALL_LABEL = localize('install', "Install");
+	protected static readonly INSTALLING_LABEL = localize('installing', "Installing");
 
 	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install-other-server`;
 	private static readonly InstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} install-other-server installing`;
@@ -826,7 +830,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			return;
 		}
 		this.extensionsWorkbenchService.open(this.extension);
-		alert(localize('installExtensionStart', "正在安装扩展 {0}。已打开编辑器显示此扩展的更多详情", this.extension.displayName));
+		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 		return this.extensionsWorkbenchService.installInServer(this.extension, this.server);
 	}
 
@@ -846,7 +850,7 @@ export class RemoteInstallAction extends InstallInOtherServerAction {
 
 	protected getInstallLabel(): string {
 		return this.extensionManagementServerService.remoteExtensionManagementServer
-			? localize({ key: 'install in remote', comment: ['This is the name of the action to install an extension in remote server. Placeholder is for the name of remote server.'] }, "安装到 {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+			? localize({ key: 'install in remote', comment: ['This is the name of the action to install an extension in remote server. Placeholder is for the name of remote server.'] }, "Install in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label)
 			: InstallInOtherServerAction.INSTALL_LABEL;
 	}
 
@@ -863,7 +867,7 @@ export class LocalInstallAction extends InstallInOtherServerAction {
 	}
 
 	protected getInstallLabel(): string {
-		return localize('install locally', "本地安装");
+		return localize('install locally', "Install Locally");
 	}
 
 }
@@ -879,15 +883,15 @@ export class WebInstallAction extends InstallInOtherServerAction {
 	}
 
 	protected getInstallLabel(): string {
-		return localize('install browser', "在浏览器中安装");
+		return localize('install browser', "Install in Browser");
 	}
 
 }
 
 export class UninstallAction extends ExtensionAction {
 
-	static readonly UninstallLabel = localize('uninstallAction', "卸载");
-	private static readonly UninstallingLabel = localize('Uninstalling', "正在卸载");
+	static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
+	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
 	static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
 	private static readonly UnInstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall uninstalling`;
@@ -916,7 +920,7 @@ export class UninstallAction extends ExtensionAction {
 			return;
 		}
 
-		this.label = this.extension.local?.isApplicationScoped && this.userDataProfilesService.profiles.length > 1 ? localize('uninstallAll', "卸载(所有配置文件)") : UninstallAction.UninstallLabel;
+		this.label = this.extension.local?.isApplicationScoped && this.userDataProfilesService.profiles.length > 1 ? localize('uninstallAll', "Uninstall (All Profiles)") : UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
 		this.tooltip = UninstallAction.UninstallLabel;
 
@@ -937,11 +941,11 @@ export class UninstallAction extends ExtensionAction {
 		if (!this.extension) {
 			return;
 		}
-		alert(localize('uninstallExtensionStart', "正在卸载扩展 {0}。", this.extension.displayName));
+		alert(localize('uninstallExtensionStart', "Uninstalling extension {0} started.", this.extension.displayName));
 
 		try {
 			await this.extensionsWorkbenchService.uninstall(this.extension);
-			alert(localize('uninstallExtensionComplete', "请重新加载 Visual Studio Code 以完成扩展 {0} 的卸载。", this.extension.displayName));
+			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.dialogService.error(getErrorMessage(error));
@@ -952,10 +956,10 @@ export class UninstallAction extends ExtensionAction {
 
 export class UpdateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} prominent update`;
+	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} update`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		private readonly verbose: boolean,
@@ -964,14 +968,14 @@ export class UpdateAction extends ExtensionAction {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(`extensions.update`, localize('update', "更新"), UpdateAction.DisabledClass, false);
+		super(`extensions.update`, localize('update', "Update"), UpdateAction.DisabledClass, false);
 		this.update();
 	}
 
 	update(): void {
 		this.updateThrottler.queue(() => this.computeAndUpdateEnablement());
 		if (this.extension) {
-			this.label = this.verbose ? localize('update to', "更新到 v{0}", this.extension.latestVersion) : localize('update', "更新");
+			this.label = this.verbose ? localize('update to', "Update to v{0}", this.extension.latestVersion) : localize('update', "Update");
 		}
 	}
 
@@ -1003,16 +1007,16 @@ export class UpdateAction extends ExtensionAction {
 		if (consent) {
 			const { result } = await this.dialogService.prompt<'update' | 'review' | 'cancel'>({
 				type: 'warning',
-				title: localize('updateExtensionConsentTitle', "更新 {0} 扩展", this.extension.displayName),
-				message: localize('updateExtensionConsent', "{0}\n\n是否要更新此扩展？", consent),
+				title: localize('updateExtensionConsentTitle', "Update {0} Extension", this.extension.displayName),
+				message: localize('updateExtensionConsent', "{0}\n\nWould you like to update the extension?", consent),
 				buttons: [{
-					label: localize('update', "更新"),
+					label: localize('update', "Update"),
 					run: () => 'update'
 				}, {
-					label: localize('review', "查看"),
+					label: localize('review', "Review"),
 					run: () => 'review'
 				}, {
-					label: localize('cancel', "取消"),
+					label: localize('cancel', "Cancel"),
 					run: () => 'cancel'
 				}]
 			});
@@ -1038,9 +1042,9 @@ export class UpdateAction extends ExtensionAction {
 			installOptions.installPreReleaseVersion = true;
 		}
 		try {
-			alert(localize('updateExtensionStart', "正在将扩展 {0} 更新到版本 {1}。", this.extension.displayName, this.extension.latestVersion));
+			alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
 			await this.extensionsWorkbenchService.install(this.extension, installOptions);
-			alert(localize('updateExtensionComplete', "扩展 {0} 已更新到版本 {1}。", this.extension.displayName, this.extension.latestVersion));
+			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
 		} catch (err) {
 			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, installOptions, this.extension.latestVersion, InstallOperation.Update, err).run();
 		}
@@ -1050,7 +1054,7 @@ export class UpdateAction extends ExtensionAction {
 export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdateForExtension';
-	static readonly LABEL = localize2('enableAutoUpdateLabel', "自动更新");
+	static readonly LABEL = localize2('enableAutoUpdateLabel', "Auto Update");
 
 	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} auto-update`;
 	private static readonly DisabledClass = `${this.EnabledClass} hide`;
@@ -1088,7 +1092,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'on' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
 			return;
 		}
 		this.enabled = true;
@@ -1105,9 +1109,9 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension, enableAutoUpdate);
 
 		if (enableAutoUpdate) {
-			alert(localize('enableAutoUpdate', "已为 {0} 启用自动更新", this.extension.displayName));
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
 		} else {
-			alert(localize('disableAutoUpdate', "已为 {0} 禁用自动更新", this.extension.displayName));
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
 		}
 	}
 }
@@ -1115,7 +1119,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdatesForPublisher';
-	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "自动更新全部(来自此发布者)");
+	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update All (From Publisher)");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
@@ -1129,13 +1133,13 @@ export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
 		if (!this.extension) {
 			return;
 		}
-		alert(localize('ignoreExtensionUpdatePublisher', "忽略来自 {0} 的更新。", this.extension.publisherDisplayName));
+		alert(localize('ignoreExtensionUpdatePublisher', "Ignoring updates published by {0}.", this.extension.publisherDisplayName));
 		const enableAutoUpdate = !this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
 		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension.publisher, enableAutoUpdate);
 		if (enableAutoUpdate) {
-			alert(localize('enableAutoUpdate', "已为 {0} 启用自动更新", this.extension.displayName));
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
 		} else {
-			alert(localize('disableAutoUpdate', "已为 {0} 禁用自动更新", this.extension.displayName));
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
 		}
 	}
 }
@@ -1149,7 +1153,7 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 		private readonly small: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensionsAction.migrateDeprecatedExtension', localize('migrateExtension', "迁移"), MigrateDeprecatedExtensionAction.DisabledClass, false);
+		super('extensionsAction.migrateDeprecatedExtension', localize('migrateExtension', "Migrate"), MigrateDeprecatedExtensionAction.DisabledClass, false);
 		this.update();
 	}
 
@@ -1171,8 +1175,8 @@ export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 		}
 		this.enabled = true;
 		this.class = MigrateDeprecatedExtensionAction.EnabledClass;
-		this.tooltip = localize('migrate to', "迁移到 {0}", this.extension.deprecationInfo.extension.displayName);
-		this.label = this.small ? localize('migrate', "迁移") : this.tooltip;
+		this.tooltip = localize('migrate to', "Migrate to {0}", this.extension.deprecationInfo.extension.displayName);
+		this.label = this.small ? localize('migrate', "Migrate") : this.tooltip;
 	}
 
 	override async run(): Promise<any> {
@@ -1223,10 +1227,8 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	public showMenu(menuActionGroups: IAction[][]): void {
 		if (this.element) {
 			const actions = this.getActions(menuActionGroups);
-			const elementPosition = DOM.getDomNodePagePosition(this.element);
-			const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				...getWorkbenchMenuMotionContextMenuOptions(this.element),
 				getActions: () => actions,
 				actionRunner: this.actionRunner,
 				onHide: () => disposeIfDisposable(actions)
@@ -1344,11 +1346,12 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IProductService private readonly productService: IProductService,
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, instantiationService);
 
-		this.tooltip = localize('manage', "管理");
+		this.tooltip = localize('manage', "Manage");
 
 		this.update();
 	}
@@ -1373,14 +1376,26 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 			groups.push(themeActions);
 		}
 
-		groups.push([
-			this.instantiationService.createInstance(EnableGloballyAction),
-			this.instantiationService.createInstance(EnableForWorkspaceAction)
-		]);
-		groups.push([
-			this.instantiationService.createInstance(DisableGloballyAction),
-			this.instantiationService.createInstance(DisableForWorkspaceAction)
-		]);
+		const isChatExtension = this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId);
+		if (isChatExtension) {
+			groups.push([
+				this.instantiationService.createInstance(EnableAIFeaturesGloballyAction),
+				this.instantiationService.createInstance(EnableAIFeaturesInWorkspaceAction)
+			]);
+			groups.push([
+				this.instantiationService.createInstance(DisableAIFeaturesGloballyAction),
+				this.instantiationService.createInstance(DisableAIFeaturesInWorkspaceAction)
+			]);
+		} else {
+			groups.push([
+				this.instantiationService.createInstance(EnableGloballyAction),
+				this.instantiationService.createInstance(EnableForWorkspaceAction)
+			]);
+			groups.push([
+				this.instantiationService.createInstance(DisableGloballyAction),
+				this.instantiationService.createInstance(DisableForWorkspaceAction)
+			]);
+		}
 		if (updateActions.length) {
 			groups.push(updateActions);
 		}
@@ -1424,7 +1439,7 @@ export class ExtensionEditorManageExtensionAction extends DropDownExtensionActio
 		instantiationService: IInstantiationService
 	) {
 		super('extensionEditor.manageExtension', '', `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`, true, instantiationService);
-		this.tooltip = localize('manage', "管理");
+		this.tooltip = localize('manage', "Manage");
 	}
 
 	update(): void { }
@@ -1493,9 +1508,9 @@ export class MenuItemExtensionAction extends ExtensionAction {
 export class TogglePreReleaseExtensionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.togglePreRlease';
-	static readonly LABEL = localize('togglePreRleaseLabel', "预发布版");
+	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent pre-release`;
 	private static readonly DisabledClass = `${this.EnabledClass} hide`;
 
 	constructor(
@@ -1545,11 +1560,11 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		this.class = TogglePreReleaseExtensionAction.EnabledClass;
 
 		if (this.extension.preRelease) {
-			this.label = localize('togglePreRleaseDisableLabel', "切换到正式版本");
-			this.tooltip = localize('togglePreRleaseDisableTooltip', "这将切换并启用正式版本的更新");
+			this.label = localize('togglePreRleaseDisableLabel', "Switch to Release Version");
+			this.tooltip = localize('togglePreRleaseDisableTooltip', "This will switch and enable updates to release versions");
 		} else {
-			this.label = localize('switchToPreReleaseLabel', "切换到预发布版本");
-			this.tooltip = localize('switchToPreReleaseTooltip', "这将切换到预发布版本并始终启用最新版本的更新");
+			this.label = localize('switchToPreReleaseLabel', "Switch to Pre-Release Version");
+			this.tooltip = localize('switchToPreReleaseTooltip', "This will switch to pre-release version and enable updates to latest version always");
 		}
 	}
 
@@ -1565,7 +1580,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 export class InstallAnotherVersionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.install.anotherVersion';
-	static readonly LABEL = localize('install another version', "安装特定版本...");
+	static readonly LABEL = localize('install another version', "Install Specific Version...");
 
 	constructor(
 		extension: IExtension | null,
@@ -1602,7 +1617,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		const targetPlatform = this.extension.server ? await this.extension.server.extensionManagementService.getTargetPlatform() : await this.extensionManagementService.getTargetPlatform();
 		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension.identifier, this.extension.local?.preRelease ?? this.extension.gallery?.properties.isPreReleaseVersion ?? false, targetPlatform);
 		if (!allVersions.length) {
-			await this.dialogService.info(localize('no versions', "此扩展没有其他版本。"));
+			await this.dialogService.info(localize('no versions', "This extension has no other versions."));
 			return;
 		}
 
@@ -1610,14 +1625,14 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return {
 				id: v.version,
 				label: v.version,
-				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "预发布版")})` : ''}${v.version === this.extension?.local?.manifest.version ? ` (${localize('current', "当前")})` : ''}`,
-				ariaLabel: `${v.isPreReleaseVersion ? '预发布版本' : '正式版本'} ${v.version}`,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension?.local?.manifest.version ? ` (${localize('current', "current")})` : ''}`,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
 				isPreReleaseVersion: v.isPreReleaseVersion
 			};
 		});
 		const pick = await this.quickInputService.pick(picks,
 			{
-				placeHolder: localize('selectVersion', "选择要安装的版本"),
+				placeHolder: localize('selectVersion', "Select Version to Install"),
 				matchOnDetail: true
 			});
 		if (pick) {
@@ -1639,20 +1654,24 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 export class EnableForWorkspaceAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.enableForWorkspace';
-	static readonly LABEL = localize('enableForWorkspaceAction', "启用(工作区)");
+	static readonly LABEL = localize('enableForWorkspaceAction', "Enable (Workspace)");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(EnableForWorkspaceAction.ID, EnableForWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this.tooltip = localize('enableForWorkspaceActionToolTip', "仅在此工作区中启用此扩展");
+		this.tooltip = localize('enableForWorkspaceActionToolTip', "Enable this extension only in this workspace");
 		this.update();
 	}
 
 	update(): void {
 		this.enabled = false;
 		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped) {
+			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				return;
+			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& !this.extensionEnablementService.isEnabled(this.extension.local)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
@@ -1670,20 +1689,24 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 export class EnableGloballyAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.enableGlobally';
-	static readonly LABEL = localize('enableGloballyAction', "启用");
+	static readonly LABEL = localize('enableGloballyAction', "Enable");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(EnableGloballyAction.ID, EnableGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this.tooltip = localize('enableGloballyActionToolTip', "启用此扩展");
+		this.tooltip = localize('enableGloballyActionToolTip', "Enable this extension");
 		this.update();
 	}
 
 	update(): void {
 		this.enabled = false;
 		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped) {
+			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				return;
+			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& this.extensionEnablementService.isDisabledGlobally(this.extension.local)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
@@ -1701,16 +1724,17 @@ export class EnableGloballyAction extends ExtensionAction {
 export class DisableForWorkspaceAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.disableForWorkspace';
-	static readonly LABEL = localize('disableForWorkspaceAction', "禁用(工作区)");
+	static readonly LABEL = localize('disableForWorkspaceAction', "Disable (Workspace)");
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(DisableForWorkspaceAction.ID, DisableForWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this.tooltip = localize('disableForWorkspaceActionToolTip', "仅在此工作区中禁用此扩展");
+		this.tooltip = localize('disableForWorkspaceActionToolTip', "Disable this extension only in this workspace");
 		this.update();
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 	}
@@ -1718,6 +1742,9 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
+			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				return;
+			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
@@ -1735,15 +1762,16 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 export class DisableGloballyAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.disableGlobally';
-	static readonly LABEL = localize('disableGloballyAction', "禁用");
+	static readonly LABEL = localize('disableGloballyAction', "Disable");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(DisableGloballyAction.ID, DisableGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
-		this.tooltip = localize('disableGloballyActionToolTip', "禁用此扩展");
+		this.tooltip = localize('disableGloballyActionToolTip', "Disable this extension");
 		this.update();
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 	}
@@ -1751,6 +1779,9 @@ export class DisableGloballyAction extends ExtensionAction {
 	update(): void {
 		this.enabled = false;
 		if (this.extension && this.extension.local && !this.extension.isWorkspaceScoped && this.extensionService.extensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier))) {
+			if (ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+				return;
+			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
@@ -1765,6 +1796,177 @@ export class DisableGloballyAction extends ExtensionAction {
 	}
 }
 
+class EnableAIFeaturesGloballyAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.enableAIGlobally';
+	static readonly LABEL = localize('enableAIGloballyAction', "Enable AI Features");
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super(EnableAIFeaturesGloballyAction.ID, EnableAIFeaturesGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('enableAIGloballyActionToolTip', "Enable AI features");
+		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.update();
+			}
+		}));
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.extension?.local) {
+			return;
+		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
+		if (inspect?.workspaceValue === true) {
+			return;
+		}
+		this.enabled = inspect.value === true;
+	}
+
+	override async run(): Promise<void> {
+		await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
+	}
+}
+
+export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.enableAIInWorkspace';
+	static readonly LABEL = localize('enableAIInWorkspaceAction', "Enable AI Features (Workspace)");
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+	) {
+		super(EnableAIFeaturesInWorkspaceAction.ID, EnableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('enableAIInWorkspaceActionToolTip', "Enable AI features in this workspace");
+		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.update();
+			}
+		}));
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (!this.extension?.local) {
+			return;
+		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
+		if (inspect.value === false) {
+			return;
+		}
+		if (inspect?.workspaceValue === true) {
+			this.enabled = true;
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		this.enabled = true;
+		return;
+	}
+
+	override async run(): Promise<void> {
+		if (!this.extension) {
+			return;
+		}
+		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+			await this.configurationService.updateValue(ChatAIDisabledSettingId, false, ConfigurationTarget.WORKSPACE);
+		}
+	}
+}
+
+class DisableAIFeaturesGloballyAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.disableAIGlobally';
+	static readonly LABEL = localize('disableAIGloballyAction', "Disable AI Features");
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super(DisableAIFeaturesGloballyAction.ID, DisableAIFeaturesGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('disableAIGloballyActionToolTip', "Disable AI features");
+		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.update();
+			}
+		}));
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			this.enabled = this.extension.state === ExtensionState.Installed
+				&& this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
+				&& this.extension.enablementState !== EnablementState.DisabledWorkspace;
+		}
+	}
+
+	override async run(): Promise<void> {
+		await this.configurationService.updateValue(ChatAIDisabledSettingId, true);
+	}
+}
+
+class DisableAIFeaturesInWorkspaceAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.disableAIInWorkspace';
+	static readonly LABEL = localize('disableAIInWorkspaceAction', "Disable AI Features (Workspace)");
+
+	constructor(
+		@IProductService private readonly productService: IProductService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+	) {
+		super(DisableAIFeaturesInWorkspaceAction.ID, DisableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
+		this.tooltip = localize('disableAIInWorkspaceActionToolTip', "Disable AI features in this workspace");
+		this.update();
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
+	}
+
+	update(): void {
+		this.enabled = false;
+		if (this.extension && this.extension.local && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			this.enabled = this.extension.state === ExtensionState.Installed
+				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
+				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
+		}
+	}
+
+	override async run(): Promise<void> {
+		if (!this.extension) {
+			return;
+		}
+		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.DisabledWorkspace);
+		await this.extensionsWorkbenchService.updateRunningExtensions(localize('restartExtensionHost.reason.disable', "Disabling AI features"));
+	}
+}
+
 export class EnableDropDownAction extends ButtonWithDropDownExtensionAction {
 
 	constructor(
@@ -1774,6 +1976,10 @@ export class EnableDropDownAction extends ButtonWithDropDownExtensionAction {
 			[
 				instantiationService.createInstance(EnableGloballyAction),
 				instantiationService.createInstance(EnableForWorkspaceAction)
+			],
+			[
+				instantiationService.createInstance(EnableAIFeaturesGloballyAction),
+				instantiationService.createInstance(EnableAIFeaturesInWorkspaceAction)
 			]
 		]);
 	}
@@ -1784,17 +1990,23 @@ export class DisableDropDownAction extends ButtonWithDropDownExtensionAction {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('extensions.disable', ExtensionAction.LABEL_ACTION_CLASS, [[
-			instantiationService.createInstance(DisableGloballyAction),
-			instantiationService.createInstance(DisableForWorkspaceAction)
-		]]);
+		super('extensions.disable', ExtensionAction.LABEL_ACTION_CLASS, [
+			[
+				instantiationService.createInstance(DisableGloballyAction),
+				instantiationService.createInstance(DisableForWorkspaceAction)
+			],
+			[
+				instantiationService.createInstance(DisableAIFeaturesGloballyAction),
+				instantiationService.createInstance(DisableAIFeaturesInWorkspaceAction)
+			]
+		]);
 	}
 
 }
 
 export class ExtensionRuntimeStateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
+	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent reload`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
@@ -1838,10 +2050,10 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		this.enabled = true;
 		this.class = ExtensionRuntimeStateAction.EnabledClass;
 		this.tooltip = runtimeState.reason;
-		this.label = runtimeState.action === ExtensionRuntimeActionType.ReloadWindow ? localize('reload window', '重新加载窗口')
-			: runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', '重启扩展')
-				: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', '重启以更新')
-					: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', '更新 {0}', this.productService.nameShort) : '';
+		this.label = runtimeState.action === ExtensionRuntimeActionType.ReloadWindow ? localize('reload window', 'Reload Window')
+			: runtimeState.action === ExtensionRuntimeActionType.RestartExtensions ? localize('restart extensions', 'Restart Extensions')
+				: runtimeState.action === ExtensionRuntimeActionType.QuitAndInstall ? localize('restart product', 'Restart to Update')
+					: runtimeState.action === ExtensionRuntimeActionType.ApplyUpdate || runtimeState.action === ExtensionRuntimeActionType.DownloadUpdate ? localize('update product', 'Update {0}', this.productService.nameShort) : '';
 	}
 
 	override async run(): Promise<any> {
@@ -1871,7 +2083,7 @@ export class ExtensionRuntimeStateAction extends ExtensionAction {
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.DownloadUpdate) {
-			return this.updateService.downloadUpdate();
+			return this.updateService.downloadUpdate(true);
 		}
 
 		else if (runtimeState?.action === ExtensionRuntimeActionType.ApplyUpdate) {
@@ -1897,7 +2109,7 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 		}
 	}
 	if (showCurrentTheme) {
-		picks.push({ type: 'separator', label: localize('current', "当前") });
+		picks.push({ type: 'separator', label: localize('current', "current") });
 		picks.push({ label: currentTheme.label, id: currentTheme.id });
 	}
 	return picks;
@@ -1906,7 +2118,7 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 export class SetColorThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setColorTheme';
-	static readonly TITLE = localize2('workbench.extensions.action.setColorTheme', '设置颜色主题');
+	static readonly TITLE = localize2('workbench.extensions.action.setColorTheme', 'Set Color Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -1946,7 +2158,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
-				placeHolder: localize('select color theme', "选择颜色主题"),
+				placeHolder: localize('select color theme', "Select Color Theme"),
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setColorTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
@@ -1957,7 +2169,7 @@ export class SetColorThemeAction extends ExtensionAction {
 export class SetFileIconThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setFileIconTheme';
-	static readonly TITLE = localize2('workbench.extensions.action.setFileIconTheme', '设置文件图标主题');
+	static readonly TITLE = localize2('workbench.extensions.action.setFileIconTheme', 'Set File Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -1996,7 +2208,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
-				placeHolder: localize('select file icon theme', "选择文件图标主题"),
+				placeHolder: localize('select file icon theme', "Select File Icon Theme"),
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setFileIconTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
@@ -2007,7 +2219,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 export class SetProductIconThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setProductIconTheme';
-	static readonly TITLE = localize2('workbench.extensions.action.setProductIconTheme', '设置产品图标主题');
+	static readonly TITLE = localize2('workbench.extensions.action.setProductIconTheme', 'Set Product Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -2047,7 +2259,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 		const pickedTheme = await this.quickInputService.pick(
 			picks,
 			{
-				placeHolder: localize('select product icon theme', "选择产品图标主题"),
+				placeHolder: localize('select product icon theme', "Select Product Icon Theme"),
 				onDidFocus: item => delayer.trigger(() => this.workbenchThemeService.setProductIconTheme(item.id, undefined)),
 				ignoreFocusLost
 			});
@@ -2058,7 +2270,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 export class SetLanguageAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setDisplayLanguage';
-	static readonly TITLE = localize2('workbench.extensions.action.setDisplayLanguage', '设置显示语言');
+	static readonly TITLE = localize2('workbench.extensions.action.setDisplayLanguage', 'Set Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -2094,7 +2306,7 @@ export class SetLanguageAction extends ExtensionAction {
 export class ClearLanguageAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.clearLanguage';
-	static readonly TITLE = localize2('workbench.extensions.action.clearLanguage', '清除显示语言');
+	static readonly TITLE = localize2('workbench.extensions.action.clearLanguage', 'Clear Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
 	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
@@ -2131,7 +2343,7 @@ export class ClearLanguageAction extends ExtensionAction {
 export class ShowRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showRecommendedExtension';
-	static readonly LABEL = localize('showRecommendedExtension', "显示推荐的扩展");
+	static readonly LABEL = localize('showRecommendedExtension', "Show Recommended Extension");
 
 	private extensionId: string;
 
@@ -2156,7 +2368,7 @@ export class ShowRecommendedExtensionAction extends Action {
 export class InstallRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
-	static readonly LABEL = localize('installRecommendedExtension', "安装推荐的扩展");
+	static readonly LABEL = localize('installRecommendedExtension', "Install Recommended Extension");
 
 	private extensionId: string;
 
@@ -2193,10 +2405,10 @@ export class IgnoreExtensionRecommendationAction extends Action {
 		private readonly extension: IExtension,
 		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 	) {
-		super(IgnoreExtensionRecommendationAction.ID, '忽略推荐');
+		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
 
 		this.class = IgnoreExtensionRecommendationAction.Class;
-		this.tooltip = localize('ignoreExtensionRecommendation', "不再推荐此扩展");
+		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
 		this.enabled = true;
 	}
 
@@ -2216,10 +2428,10 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 		private readonly extension: IExtension,
 		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 	) {
-		super(UndoIgnoreExtensionRecommendationAction.ID, '撤消');
+		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
 
 		this.class = UndoIgnoreExtensionRecommendationAction.Class;
-		this.tooltip = localize('undo', "撤消");
+		this.tooltip = localize('undo', "Undo");
 		this.enabled = true;
 	}
 
@@ -2255,7 +2467,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 							selection
 						}
 					})),
-				error => Promise.reject(new Error(localize('OpenExtensionsFile.failed', `无法在".vscode"文件夹中创建"extensions.json"文件({0})。`, error))));
+				error => Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
 	}
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<any> {
@@ -2318,7 +2530,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceRecommendedExtensions';
-	static readonly LABEL = localize('configureWorkspaceRecommendedExtensions', "配置推荐的扩展(工作区)");
+	static readonly LABEL = localize('configureWorkspaceRecommendedExtensions', "Configure Recommended Extensions (Workspace)");
 
 	constructor(
 		id: string,
@@ -2353,7 +2565,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends AbstractConfigureRecommendedExtensionsAction {
 
 	static readonly ID = 'workbench.extensions.action.configureWorkspaceFolderRecommendedExtensions';
-	static readonly LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "配置推荐的扩展(工作区文件夹)");
+	static readonly LABEL = localize('configureWorkspaceFolderRecommendedExtensions', "Configure Recommended Extensions (Workspace Folder)");
 
 	constructor(
 		id: string,
@@ -2457,16 +2669,16 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
 				if (this.initialStatus === ExtensionState.Uninstalled && canAddExtension()) {
-					return localize('installed', "已安装");
+					return localize('installed', "Installed");
 				}
 				if (this.initialStatus === ExtensionState.Installed && this.version !== currentVersion && canAddExtension()) {
-					return localize('updated', "已更新");
+					return localize('updated', "Updated");
 				}
 				return null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				this.initialStatus = this.status;
-				return canRemoveExtension() ? localize('uninstalled', "已卸载") : null;
+				return canRemoveExtension() ? localize('uninstalled', "Uninstalled") : null;
 			}
 		}
 
@@ -2474,10 +2686,10 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 			const currentlyEnabled = this.extensionEnablementService.isEnabledEnablementState(currentEnablementState);
 			const enabled = this.extensionEnablementService.isEnabledEnablementState(this.enablementState);
 			if (!currentlyEnabled && enabled) {
-				return canAddExtension() ? localize('enabled', "已启用") : null;
+				return canAddExtension() ? localize('enabled', "Enabled") : null;
 			}
 			if (currentlyEnabled && !enabled) {
-				return canRemoveExtension() ? localize('disabled', "已禁用") : null;
+				return canRemoveExtension() ? localize('disabled', "Disabled") : null;
 			}
 
 		}
@@ -2513,7 +2725,7 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 		if (this.extension) {
 			const isIgnored = this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
 			this.class = isIgnored ? ToggleSyncExtensionAction.IGNORED_SYNC_CLASS : ToggleSyncExtensionAction.SYNC_CLASS;
-			this.tooltip = isIgnored ? localize('ignored', "此扩展在同步时被忽略") : localize('synced', "此扩展已同步");
+			this.tooltip = isIgnored ? localize('ignored', "This extension is ignored during sync") : localize('synced', "This extension is synced");
 		}
 	}
 
@@ -2522,7 +2734,7 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 			[
 				new Action(
 					'extensions.syncignore',
-					this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "同步此扩展") : localize('do not sync', "不同步此扩展")
+					this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
 					, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
 			]
 		]);
@@ -2543,7 +2755,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 	private readonly _onDidChangeStatus = this._register(new Emitter<void>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
-	private readonly updateThrottler = new Throttler();
+	private readonly updateThrottler = this._register(new Throttler());
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
@@ -2560,17 +2772,32 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
 	update(): void {
-		this.updateThrottler.queue(() => this.computeAndUpdateStatus());
+		this.recomputeStatus();
+	}
+
+	/**
+	 * Recomputes the status and returns a promise that resolves when the
+	 * computation is done. Use this when callers need to await time-sensitive
+	 * status content (e.g. the delayed auto-update message) before reading it.
+	 */
+	recomputeStatus(): Promise<void> {
+		return this.updateThrottler.queue(() => this.computeAndUpdateStatus());
 	}
 
 	private async computeAndUpdateStatus(): Promise<void> {
@@ -2582,24 +2809,24 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.isMalicious) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "此扩展被报告存在问题。")) }, true);
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "This extension was reported to be problematic.")) }, true);
 			return;
 		}
 
 		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned && shouldRequireRepositorySignatureFor(this.extension.private, await this.extensionGalleryManifestService.getExtensionGalleryManifest())) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "此扩展未经扩展市场签名。")) }, true);
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "This extension is not signed by the Extension Marketplace.")) }, true);
 			return;
 		}
 
 		if (this.extension.deprecationInfo) {
 			if (this.extension.deprecationInfo.extension) {
 				const link = `[${this.extension.deprecationInfo.extension.displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "此扩展已弃用。请改用 {0} 扩展。", link)) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
 			} else if (this.extension.deprecationInfo.settings) {
-				const link = `[${localize('settings', "设置")}](${createCommandUri('workbench.action.openSettings', this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' '))}})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "此扩展已弃用，因为此功能现已内置于 Chenille 中。配置这些{0}以使用此功能。", link)) }, true);
+				const link = `[${localize('settings', "settings")}](${createCommandUri('workbench.action.openSettings', this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' '))}})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
-				const message = new MarkdownString(localize('deprecated tooltip', "此扩展已弃用，因为它不再维护。"));
+				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
 				if (this.extension.deprecationInfo.additionalInfo) {
 					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
 				}
@@ -2609,7 +2836,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.missingFromGallery) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "此扩展在扩展市场中已不可用。")) }, true);
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "This extension is no longer available on the Extension Marketplace.")) }, true);
 			return;
 		}
 
@@ -2618,12 +2845,14 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
+			let hasConsentWarning = false;
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
+				hasConsentWarning = true;
 				const markdown = new MarkdownString();
 				markdown.appendMarkdown(`${message} `);
 				markdown.appendMarkdown(
-					localize('auto update message', "请[查看扩展]({0})并手动更新。",
+					localize('auto update message', "Please [review the extension]({0}) and update it manually.",
 						this.extension.hasChangelog()
 							? createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Changelog).toString()
 							: this.extension.repository
@@ -2631,6 +2860,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
+			}
+			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const delay = fromNow(Date.now() - this.extensionsWorkbenchService.getAutoUpdateDelay(), false, true);
+				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
+				// Do not override the higher-priority warning class with the info class.
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions become eligible for automatic update {0} after they are published. It will become eligible {1}.", delay, updateAt)) }, !hasConsentWarning);
 			}
 		}
 
@@ -2653,27 +2888,27 @@ export class ExtensionStatusAction extends ExtensionAction {
 		if (this.extension.enablementState === EnablementState.DisabledByAllowlist) {
 			const result = this.allowedExtensionsService.isAllowed(this.extension.local);
 			if (result !== true) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "此扩展已禁用，因为 {0}", result.value)) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
 				return;
 			}
 		}
 
 		// Extension is disabled by environment
 		if (this.extension.enablementState === EnablementState.DisabledByEnvironment) {
-			this.updateStatus({ message: new MarkdownString(localize('disabled by environment', "此扩展已被环境禁用。")) }, true);
+			this.updateStatus({ message: new MarkdownString(localize('disabled by environment', "This extension is disabled by the environment.")) }, true);
 			return;
 		}
 
 		// Extension is enabled by environment
 		if (this.extension.enablementState === EnablementState.EnabledByEnvironment) {
-			this.updateStatus({ message: new MarkdownString(localize('enabled by environment', "此扩展已启用，因为当前环境需要它。")) }, true);
+			this.updateStatus({ message: new MarkdownString(localize('enabled by environment', "This extension is enabled because it is required in the current environment.")) }, true);
 			return;
 		}
 
 		// Extension is disabled by virtual workspace
 		if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
 			const details = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
-			this.updateStatus({ icon: infoIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('disabled because of virtual workspace', "此扩展已禁用，因为它不支持虚拟工作区。")) }, true);
+			this.updateStatus({ icon: infoIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.")) }, true);
 			return;
 		}
 
@@ -2682,14 +2917,14 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
 			const details = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
 			if (virtualSupportType === 'limited' || details) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('extension limited because of virtual workspace', "此扩展功能受限，因为当前工作区是虚拟的。")) }, true);
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(details ? escapeMarkdownSyntaxTokens(details) : localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.")) }, true);
 				return;
 			}
 		}
 
 		// Unification
 		if (this.extension.enablementState === EnablementState.DisabledByUnification) {
-			this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('extension disabled because of unification', "所有 GitHub Copilot 功能现在都由 GitHub Copilot Chat 扩展提供。要暂时退出此扩展统一，请切换 {0} 设置。", '`chat.extensionUnification.enabled`')) }, true);
+			this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('extension disabled because of unification', "All GitHub Copilot functionality is now being served from the GitHub Copilot Chat extension. To temporarily opt out of this extension unification, toggle the {0} setting.", '`chat.extensionUnification.enabled`')) }, true);
 			return;
 		}
 
@@ -2700,7 +2935,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				(this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.workbenchExtensionEnablementService.getDependenciesEnablementStates(this.extension.local).every(([, enablementState]) => this.workbenchExtensionEnablementService.isEnabledEnablementState(enablementState) || enablementState === EnablementState.DisabledByTrustRequirement)))) {
 			this.enabled = true;
 			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
-			this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension disabled because of trust requirement', "此扩展已禁用，因为当前工作区不受信任。")) }, true);
+			this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted.")) }, true);
 			return;
 		}
 
@@ -2710,7 +2945,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const untrustedDetails = getWorkspaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 			if (untrustedSupportType === 'limited' || untrustedDetails) {
 				this.enabled = true;
-				this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension limited because of trust requirement', "此扩展功能受限，因为当前工作区不受信任。")) }, true);
+				this.updateStatus({ icon: trustIcon, message: new MarkdownString(untrustedDetails ? escapeMarkdownSyntaxTokens(untrustedDetails) : localize('extension limited because of trust requirement', "This extension has limited features because the current workspace is not trusted.")) }, true);
 				return;
 			}
 		}
@@ -2723,7 +2958,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				if (this.extensionManagementServerService.localExtensionManagementServer === this.extension.server) {
 					if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(this.extension.local.manifest)) {
 						if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-							message = new MarkdownString(`${localize('Install in remote server to enable', `此扩展在此工作区中已禁用，因为它被定义为在远程扩展主机中运行。请在"{0}"中安装此扩展以启用它。`, this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
+							message = new MarkdownString(`${localize('Install in remote server to enable', "This extension is disabled in this workspace because it is defined to run in the Remote Extension Host. Please install the extension in '{0}' to enable.", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
 						}
 					}
 				}
@@ -2731,15 +2966,15 @@ export class ExtensionStatusAction extends ExtensionAction {
 				else if (this.extensionManagementServerService.remoteExtensionManagementServer === this.extension.server) {
 					if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local.manifest)) {
 						if (this.extensionManagementServerService.localExtensionManagementServer) {
-							message = new MarkdownString(`${localize('Install in local server to enable', "此扩展在此工作区中已禁用，因为它被定义为在本地扩展主机中运行。请在本地安装此扩展以启用它。", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
+							message = new MarkdownString(`${localize('Install in local server to enable', "This extension is disabled in this workspace because it is defined to run in the Local Extension Host. Please install the extension locally to enable.", this.extensionManagementServerService.remoteExtensionManagementServer.label)} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
 						} else if (isWeb) {
-							message = new MarkdownString(`${localize('Defined to run in desktop', "此扩展已禁用，因为它被定义为仅在桌面版 {0} 中运行。", this.productService.nameLong)} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
+							message = new MarkdownString(`${localize('Defined to run in desktop', "This extension is disabled because it is defined to run only in {0} for the Desktop.", this.productService.nameLong)} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
 						}
 					}
 				}
 				// Extension on Web Server
 				else if (this.extensionManagementServerService.webExtensionManagementServer === this.extension.server) {
-					message = new MarkdownString(`${localize('Cannot be enabled', "此扩展已禁用，因为 Web 版 {0} 不支持它。", this.productService.nameLong)} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
+					message = new MarkdownString(`${localize('Cannot be enabled', "This extension is disabled because it is not supported in {0} for the Web.", this.productService.nameLong)} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`);
 				}
 				if (message) {
 					this.updateStatus({ icon: warningIcon, message }, true);
@@ -2752,7 +2987,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
 		for (const feature of features) {
 			const status = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id)?.current?.status;
-			const manageAccessLink = `[${localize('manage access', '管理访问权限')}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features, false, feature.id)})`;
+			const manageAccessLink = `[${localize('manage access', 'Manage Access')}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Features, false, feature.id)})`;
 			if (status?.severity === Severity.Error) {
 				this.updateStatus({ icon: errorIcon, message: new MarkdownString().appendText(status.message).appendMarkdown(` ${manageAccessLink}`) }, true);
 				return;
@@ -2768,8 +3003,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 					const message = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
-						? new MarkdownString(localize('Install language pack also in remote server', `在"{0}"上安装语言包扩展以在那里也启用它。`, this.extensionManagementServerService.remoteExtensionManagementServer.label))
-						: new MarkdownString(localize('Install language pack also locally', "在本地安装语言包扩展以在那里也启用它。"));
+						? new MarkdownString(localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it there also.", this.extensionManagementServerService.remoteExtensionManagementServer.label))
+						: new MarkdownString(localize('Install language pack also locally', "Install the language pack extension locally to enable it there also."));
 					this.updateStatus({ icon: infoIcon, message }, true);
 				}
 				return;
@@ -2779,21 +3014,21 @@ export class ExtensionStatusAction extends ExtensionAction {
 			const runningExtensionServer = runningExtension ? this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)) : null;
 			if (this.extension.server === this.extensionManagementServerService.localExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(this.extension.local.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled remotely', "此扩展在远程扩展主机中启用，因为它更适合在那里运行。")} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled remotely', "This extension is enabled in the Remote Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
 				}
 				return;
 			}
 
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.localExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.prefersExecuteOnUI(this.extension.local.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled locally', "此扩展在本地扩展主机中启用，因为它更适合在那里运行。")} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled locally', "This extension is enabled in the Local Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
 				}
 				return;
 			}
 
 			if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer && runningExtensionServer === this.extensionManagementServerService.webExtensionManagementServer) {
 				if (this.extensionManifestPropertiesService.canExecuteOnWeb(this.extension.local.manifest)) {
-					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled in web worker', "此扩展在 Web Worker 扩展主机中启用，因为它更适合在那里运行。")} [${localize('learn more', "了解更多")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
+					this.updateStatus({ icon: infoIcon, message: new MarkdownString(`${localize('enabled in web worker', "This extension is enabled in the Web Worker Extension Host because it prefers to run there.")} [${localize('learn more', "Learn More")}](https://code.visualstudio.com/api/advanced-topics/remote-extensions#architecture-and-extension-kinds)`) }, true);
 				}
 				return;
 			}
@@ -2803,8 +3038,8 @@ export class ExtensionStatusAction extends ExtensionAction {
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency) {
 			this.updateStatus({
 				icon: warningIcon,
-				message: new MarkdownString(localize('extension disabled because of dependency', "此扩展依赖于一个已禁用的扩展。"))
-					.appendMarkdown(`&nbsp;[${localize('dependencies', "显示依赖项")}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Dependencies)})`)
+				message: new MarkdownString(localize('extension disabled because of dependency', "This extension depends on an extension that is disabled."))
+					.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${createCommandUri('extension.open', this.extension.identifier.id, ExtensionEditorTab.Dependencies)})`)
 			}, true);
 			return;
 		}
@@ -2820,12 +3055,12 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (!this.extension.isWorkspaceScoped && isEnabled && isRunning) {
 			if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
-				this.updateStatus({ message: new MarkdownString(localize('workspace enabled', "此扩展已由用户为此工作区启用。")) }, true);
+				this.updateStatus({ message: new MarkdownString(localize('workspace enabled', "This extension is enabled for this workspace by the user.")) }, true);
 				return;
 			}
 			if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 				if (this.extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.updateStatus({ message: new MarkdownString(localize('extension enabled on remote', `扩展已在"{0}"上启用`, this.extension.server.label)) }, true);
+					this.updateStatus({ message: new MarkdownString(localize('extension enabled on remote', "Extension is enabled on '{0}'", this.extension.server.label)) }, true);
 					return;
 				}
 			}
@@ -2836,11 +3071,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (!isEnabled && !isRunning) {
 			if (this.extension.enablementState === EnablementState.DisabledGlobally) {
-				this.updateStatus({ message: new MarkdownString(localize('globally disabled', "此扩展已由用户全局禁用。")) }, true);
+				this.updateStatus({ message: new MarkdownString(localize('globally disabled', "This extension is disabled globally by the user.")) }, true);
 				return;
 			}
 			if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
-				this.updateStatus({ message: new MarkdownString(localize('workspace disabled', "此扩展已由用户为此工作区禁用。")) }, true);
+				this.updateStatus({ message: new MarkdownString(localize('workspace disabled', "This extension is disabled for this workspace by the user.")) }, true);
 				return;
 			}
 		}
@@ -2903,7 +3138,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 export class InstallSpecificVersionOfExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.install.specificVersion';
-	static readonly LABEL = localize('install previous version', "安装扩展的特定版本...");
+	static readonly LABEL = localize('install previous version', "Install Specific Version of Extension...");
 
 	constructor(
 		id: string = InstallSpecificVersionOfExtensionAction.ID, label: string = InstallSpecificVersionOfExtensionAction.LABEL,
@@ -2920,17 +3155,27 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "选择扩展"), matchOnDetail: true });
+		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
 			const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extensionPick.extension, true);
-			await action.run();
+			// TODO: replace with `using` once available
+			try {
+				await action.run();
+			} finally {
+				action.dispose();
+			}
 			await this.extensionsWorkbenchService.openSearch(extensionPick.extension.identifier.id);
 		}
 	}
 
 	private isEnabled(extension: IExtension): boolean {
 		const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extension, true);
-		return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		// TODO: replace with `using` once available
+		try {
+			return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		} finally {
+			action.dispose();
+		}
 	}
 
 	private async getExtensionEntries(): Promise<IExtensionPickItem[]> {
@@ -3008,7 +3253,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 		quickPick.busy = false;
 		if (localExtensionsToInstall.length) {
 			quickPick.title = this.getQuickPickTitle();
-			quickPick.placeholder = localize('select extensions to install', "选择要安装的扩展");
+			quickPick.placeholder = localize('select extensions to install', "Select extensions to install");
 			quickPick.canSelectMany = true;
 			localExtensionsToInstall.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
 			quickPick.items = localExtensionsToInstall.map<IExtensionPickItem>(extension => ({ extension, label: extension.displayName, description: extension.version }));
@@ -3017,7 +3262,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 			quickPick.dispose();
 			this.notificationService.notify({
 				severity: Severity.Info,
-				message: localize('no local extensions', "没有可安装的扩展。")
+				message: localize('no local extensions', "There are no extensions to install.")
 			});
 		}
 	}
@@ -3029,10 +3274,10 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 				await this.progressService.withProgress(
 					{
 						location: ProgressLocation.Notification,
-						title: localize('installing extensions', "正在安装扩展...")
+						title: localize('installing extensions', "Installing Extensions...")
 					},
 					() => this.installExtensions(localExtensionsToInstall));
-				this.notificationService.info(localize('finished installing', "扩展安装成功。"));
+				this.notificationService.info(localize('finished installing', "Successfully installed extensions."));
 			}
 		}
 	}
@@ -3060,13 +3305,13 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 
 	override get label(): string {
 		if (this.extensionManagementServerService && this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return localize('select and install local extensions', `将本地扩展安装到"{0}"...`, this.extensionManagementServerService.remoteExtensionManagementServer.label);
+			return localize('select and install local extensions', "Install Local Extensions in '{0}'...", this.extensionManagementServerService.remoteExtensionManagementServer.label);
 		}
 		return '';
 	}
 
 	protected getQuickPickTitle(): string {
-		return localize('install local extensions title', `将本地扩展安装到"{0}"`, this.extensionManagementServerService.remoteExtensionManagementServer!.label);
+		return localize('install local extensions title', "Install Local Extensions in '{0}'", this.extensionManagementServerService.remoteExtensionManagementServer!.label);
 	}
 
 	protected getExtensionsToInstall(local: IExtension[]): IExtension[] {
@@ -3123,11 +3368,11 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 	}
 
 	override get label(): string {
-		return localize('select and install remote extensions', "将远程扩展安装到本地...");
+		return localize('select and install remote extensions', "Install Remote Extensions Locally...");
 	}
 
 	protected getQuickPickTitle(): string {
-		return localize('install remote extensions', "将远程扩展安装到本地");
+		return localize('install remote extensions', "Install Remote Extensions Locally");
 	}
 
 	protected getExtensionsToInstall(local: IExtension[]): IExtension[] {
@@ -3177,48 +3422,55 @@ CommandsRegistry.registerCommand(showExtensionsWithIdsCommandId, function (acces
 });
 
 registerColor('extensionButton.background', {
-	dark: buttonBackground,
-	light: buttonBackground,
+	dark: buttonSecondaryBackground,
+	light: buttonSecondaryBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonBackground', "扩展操作的按钮背景色。"));
+}, localize('extensionButtonBackground', "Button background color for extension actions."));
 
 registerColor('extensionButton.foreground', {
-	dark: buttonForeground,
-	light: buttonForeground,
+	dark: buttonSecondaryForeground,
+	light: buttonSecondaryForeground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonForeground', "扩展操作的按钮前景色。"));
+}, localize('extensionButtonForeground', "Button foreground color for extension actions."));
 
 registerColor('extensionButton.hoverBackground', {
-	dark: buttonHoverBackground,
-	light: buttonHoverBackground,
+	dark: buttonSecondaryHoverBackground,
+	light: buttonSecondaryHoverBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonHoverBackground', "扩展操作的按钮悬停背景色。"));
+}, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
-registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "扩展操作的按钮分隔符颜色"));
+registerColor('extensionButton.border', {
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
+}, localize('extensionButtonBorder', "Button border color for extension actions."));
+
+registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));
 
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: buttonBackground,
 	light: buttonBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentBackground', "突出显示的扩展操作按钮背景色(例如安装按钮)。"));
+}, localize('extensionButtonProminentBackground', "Button background color for extension actions that stand out (e.g. install button)."));
 
 registerColor('extensionButton.prominentForeground', {
 	dark: buttonForeground,
 	light: buttonForeground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentForeground', "突出显示的扩展操作按钮前景色(例如安装按钮)。"));
+}, localize('extensionButtonProminentForeground', "Button foreground color for extension actions that stand out (e.g. install button)."));
 
 registerColor('extensionButton.prominentHoverBackground', {
 	dark: buttonHoverBackground,
 	light: buttonHoverBackground,
 	hcDark: null,
 	hcLight: null
-}, localize('extensionButtonProminentHoverBackground', "突出显示的扩展操作按钮悬停背景色(例如安装按钮)。"));
+}, localize('extensionButtonProminentHoverBackground', "Button background hover color for extension actions that stand out (e.g. install button)."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { debounce } from '../../../base/common/decorators.js';
@@ -539,6 +537,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	dispose(): void {
 		this._disposed = true;
 		this._onDidDispose.fire();
+		this._onDidUpdateResourceStates.dispose();
+		this._onDidDispose.dispose();
 	}
 }
 
@@ -566,6 +566,24 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	get rootUri(): vscode.Uri | undefined {
 		return this._rootUri;
+	}
+
+	private _activeRepositoryName: string | undefined;
+
+	get activeRepositoryName(): string | undefined {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+		return this._activeRepositoryName;
+	}
+
+	set activeRepositoryName(activeRepositoryName: string | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmProviderOptions');
+
+		if (this._activeRepositoryName === activeRepositoryName) {
+			return;
+		}
+
+		this._activeRepositoryName = activeRepositoryName;
+		this.#proxy.$updateSourceControl(this.handle, { activeRepositoryName: activeRepositoryName ?? null });
 	}
 
 	private _contextValue: string | undefined = undefined;
@@ -819,6 +837,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		private _label: string,
 		private _rootUri?: vscode.Uri,
 		_iconPath?: vscode.IconPath,
+		_isHidden?: boolean,
 		_parent?: ExtHostSourceControl
 	) {
 		this.#proxy = proxy;
@@ -830,7 +849,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		});
 
 		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
-		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), inputBoxDocumentUri);
+		this.#proxy.$registerSourceControl(this.handle, _parent?.handle, _id, _label, _rootUri, getHistoryItemIconDto(_iconPath), _isHidden, inputBoxDocumentUri);
 
 		this.onDidDisposeParent = _parent ? _parent.onDidDispose : Event.None;
 	}
@@ -913,8 +932,13 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
-		const commandsDisposables = new DisposableStore();
+		const providerDisposables = this._artifactProviderDisposable.value;
 		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		if (!providerDisposables || providerDisposables.isDisposed || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const commandsDisposables = new DisposableStore();
 		const artifactsDto = artifacts?.map(artifact => ({
 			...artifact,
 			icon: getHistoryItemIconDto(artifact.icon),
@@ -938,6 +962,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
 
+		this._onDidChangeSelection.dispose();
 		this._onDidDispose.fire();
 		this._onDidDispose.dispose();
 	}
@@ -1003,7 +1028,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
+	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined, iconPath: vscode.IconPath | undefined, isHidden: boolean | undefined, parent: vscode.SourceControl | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
@@ -1017,12 +1042,30 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const parentSourceControl = parent ? Iterable.find(this._sourceControls.values(), s => s === parent) : undefined;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, parentSourceControl);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri, iconPath, isHidden, parentSourceControl);
 		this._sourceControls.set(sourceControl.handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
+
+		Event.once(sourceControl.onDidDispose)(() => {
+			this.logService.trace('ExtHostSCM#disposeSourceControl', extension.identifier.value, id, label, rootUri);
+
+			this._sourceControls.delete(sourceControl.handle);
+
+			const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
+			if (sourceControls) {
+				const index = sourceControls.indexOf(sourceControl);
+				if (index !== -1) {
+					sourceControls.splice(index, 1);
+				}
+
+				if (sourceControls.length === 0) {
+					this._sourceControlsByExtension.delete(extension.identifier);
+				}
+			}
+		});
 
 		return sourceControl;
 	}
@@ -1124,6 +1167,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControl', selectedSourceControlHandle);
+		if (this._selectedSourceControlHandle === selectedSourceControlHandle) {
+			return Promise.resolve(undefined);
+		}
 
 		if (selectedSourceControlHandle !== undefined) {
 			this._sourceControls.get(selectedSourceControlHandle)?.setSelectionState(true);

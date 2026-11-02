@@ -13,25 +13,25 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 	allowComments: true,
 	allowTrailingCommas: true,
 	type: 'object',
-	title: localize('app.extensions.json.title', "扩展"),
+	title: localize('app.extensions.json.title', "Extensions"),
 	additionalProperties: false,
 	properties: {
 		recommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.recommendations', "应向此工作区用户推荐的扩展列表。扩展的标识符始终为「${publisher}.${name}」。例如: 'vscode.csharp'。"),
+			description: localize('app.extensions.json.recommendations', "List of extensions which should be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
-				errorMessage: localize('app.extension.identifier.errorMessage', "预期格式为「${publisher}.${name}」。例如: 'vscode.csharp'。")
+				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},
 		},
 		unwantedRecommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.unwantedRecommendations', "Chenille 推荐但不应向此工作区用户推荐的扩展列表。扩展的标识符始终为「${publisher}.${name}」。例如: 'vscode.csharp'。"),
+			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions recommended by VS Code that should not be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
-				errorMessage: localize('app.extension.identifier.errorMessage', "预期格式为「${publisher}.${name}」。例如: 'vscode.csharp'。")
+				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},
 		},
 	}
@@ -39,14 +39,14 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 
 export const ExtensionsConfigurationInitialContent: string = [
 	'{',
-	'\t// 请参阅 https://go.microsoft.com/fwlink/?LinkId=827846 了解工作区推荐。',
-	'\t// 扩展标识符格式: ${publisher}.${name}。例如: vscode.csharp',
+	'\t// See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
+	'\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'',
-	'\t// 应向此工作区用户推荐的扩展列表。',
+	'\t// List of extensions which should be recommended for users of this workspace.',
 	'\t"recommendations": [',
 	'\t\t',
 	'\t],',
-	'\t// Chenille 推荐但不应向此工作区用户推荐的扩展列表。',
+	'\t// List of extensions recommended by VS Code that should not be recommended for users of this workspace.',
 	'\t"unwantedRecommendations": [',
 	'\t\t',
 	'\t]',

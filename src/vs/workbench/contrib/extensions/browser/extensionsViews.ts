@@ -181,7 +181,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = this._register(new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles));
+			const badgeContainer = append(container, $('.count-badge-wrapper'));
+			badgeContainer.id = `${this.id}-count`;
+			container.setAttribute('aria-describedby', badgeContainer.id);
+			this.badge = this._register(new CountBadge(badgeContainer, {}, defaultCountBadgeStyles));
 		}
 	}
 
@@ -400,12 +403,12 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
-		else if (/@feature:/i.test(query.value)) {
-			const result = this.filterExtensionsByFeature(local, query);
-			if (result) {
-				extensions = result.extensions;
-				description = result.description;
-			}
+		else if (/@restartrequired/i.test(query.value)) {
+			extensions = this.filterRestartRequiredExtensions(local, query, options);
+		}
+
+		else if (/@contribute:/i.test(query.value)) {
+			extensions = this.filterExtensionsByFeature(local, query);
 		}
 
 		else if (includeBuiltin) {
@@ -665,12 +668,25 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
-		const value = query.value.replace(/@feature:/g, '').trim();
+	private filterRestartRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		local = local.filter(e => e.runtimeState !== undefined);
+
+		value = value.replace(/@restartrequired/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterExtensionsByFeature(local: IExtension[], query: Query): IExtension[] {
+		const value = query.value.replace(/@contribute:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return undefined;
+			return [];
 		}
 		if (this.extensionsViewState) {
 			this.extensionsViewState.filters.featureId = featureId;
@@ -688,10 +704,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 					result.push([e, accessData?.accessTimes.length ?? 0]);
 				}
 			}
-			return {
-				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
-				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
-			};
+			return result.sort(([, a], [, b]) => b - a).map(([e]) => e);
 		} finally {
 			renderer?.dispose();
 		}
@@ -1106,7 +1119,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 					this.bodyTemplate.messageBox.textContent = message.text;
 				} else if (this.count() === 0) {
 					this.bodyTemplate.messageSeverityIcon.className = '';
-					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "未找到扩展名。");
+					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
 				}
 				if (this.bodyTemplate.messageBox.textContent) {
 					alert(this.bodyTemplate.messageBox.textContent);
@@ -1119,9 +1132,9 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	private getMessage(error: any): Message {
 		if (this.isOfflineError(error)) {
-			return { text: localize('offline error', "脱机时无法搜索 Marketplace ，请检查您的网络连接。"), severity: Severity.Warning };
+			return { text: localize('offline error', "Unable to search the Marketplace when offline, please check your network connection."), severity: Severity.Warning };
 		} else {
-			return { text: localize('error', "获取扩展名时出错。 {0}", getErrorMessage(error)), severity: Severity.Error };
+			return { text: localize('error', "Error while fetching extensions. {0}", getErrorMessage(error)), severity: Severity.Error };
 		}
 	}
 
@@ -1164,6 +1177,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			|| this.isSearchDeprecatedExtensionsQuery(query)
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isRestartRequiredQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy)
 			|| this.isFeatureExtensionsQuery(query);
@@ -1186,11 +1200,11 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed$/i.test(query);
+		return /@installed$/i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query);
 	}
 
 	static isSearchInstalledExtensionsQuery(query: string): boolean {
-		return /@installed\s./i.test(query) || this.isFeatureExtensionsQuery(query);
+		return (/@installed\s./i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query)) || this.isFeatureExtensionsQuery(query);
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {
@@ -1253,6 +1267,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return /@recentlyUpdated/i.test(query);
 	}
 
+	static isRestartRequiredQuery(query: string): boolean {
+		return /@restartrequired/i.test(query);
+	}
+
 	static isSearchExtensionUpdatesQuery(query: string): boolean {
 		return /@updates/i.test(query);
 	}
@@ -1262,7 +1280,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isFeatureExtensionsQuery(query: string): boolean {
-		return /@feature:/i.test(query);
+		return /@contribute:/i.test(query);
 	}
 
 	override focus(): void {
@@ -1615,7 +1633,8 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
 		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
-		const page = this.pages[pageIndex];
+		// pages array excludes page 0 (pre-resolved via firstPage), so adjust index
+		const page = this.pages[pageIndex - 1];
 
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();
@@ -1664,7 +1683,7 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		// Skip first page as the preferred extensions are always in the first page
 		if (pageIndex !== 0 && adjustIndexOfNextPagesBy) {
 			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
-			const indices = [...this.resolved.keys()].sort();
+			const indices = [...this.resolved.keys()].sort((a, b) => a - b);
 			for (const index of indices) {
 				if (index >= nextPageStartIndex) {
 					const e = this.resolved.get(index);

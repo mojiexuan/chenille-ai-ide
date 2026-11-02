@@ -10,7 +10,7 @@ import { format, compare, splitLines } from '../../../../base/common/strings.js'
 import { extname, basename, isEqual } from '../../../../base/common/resources.js';
 import { areFunctions, assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Language } from '../../../../base/common/platform.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../common/editor.js';
@@ -335,10 +335,10 @@ class StatusInputMode extends Disposable {
 	}
 }
 
-const nlsSingleSelectionRange = localize('singleSelectionRange', "行 {0}，列 {1} (已选择 {2} 个字符)");
-const nlsSingleSelection = localize('singleSelection', "行 {0}，列 {1}");
-const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} 个选择 (已选择 {1} 个字符)");
-const nlsMultiSelection = localize('multiSelection', "{0} 个选择");
+const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
+const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
@@ -405,11 +405,11 @@ class EditorStatus extends Disposable {
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			return this.quickInputService.pick([{ label: localize('noEditor', "当前没有活动的文本编辑器") }]);
+			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		if (this.editorService.activeEditor?.isReadonly()) {
-			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "活动的代码编辑器是只读的。") }]);
+			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
@@ -432,22 +432,22 @@ class EditorStatus extends Disposable {
 			};
 		});
 
-		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "转换文件") });
-		picks.unshift({ type: 'separator', label: localize('indentView', "更改视图") });
+		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
+		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
 
-		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "选择操作"), matchOnDetail: true });
+		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
 		return action?.run();
 	}
 
 	private updateTabFocusModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.tabFocusModeElement.value) {
-				const text = localize('tabFocusModeEnabled', "Tab 键移动焦点");
+				const text = localize('tabFocusModeEnabled', "Tab Moves Focus");
 				this.tabFocusModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.tabFocusMode', "辅助功能模式"),
+					name: localize('status.editor.tabFocusMode', "Accessibility Mode"),
 					text,
 					ariaLabel: text,
-					tooltip: localize('disableTabMode', "禁用辅助功能模式"),
+					tooltip: localize('disableTabMode', "Disable Accessibility Mode"),
 					command: 'editor.action.toggleTabFocusMode',
 					kind: 'prominent'
 				}, 'status.editor.tabFocusMode', StatusbarAlignment.RIGHT, 100.7);
@@ -460,8 +460,8 @@ class EditorStatus extends Disposable {
 	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
 		if (inputMode === 'overtype') {
 			if (!this.inputModeElement.value) {
-				const text = localize('inputModeOvertype', '改写');
-				const name = localize('status.editor.enableInsertMode', "启用插入模式");
+				const text = localize('inputModeOvertype', 'OVR');
+				const name = localize('status.editor.enableInsertMode', "Enable Insert Mode");
 				this.inputModeElement.value = this.statusbarService.addEntry({
 					name,
 					text,
@@ -479,12 +479,12 @@ class EditorStatus extends Disposable {
 	private updateColumnSelectionModeElement(visible: boolean): void {
 		if (visible) {
 			if (!this.columnSelectionModeElement.value) {
-				const text = localize('columnSelectionModeEnabled', "列选择");
+				const text = localize('columnSelectionModeEnabled', "Column Selection");
 				this.columnSelectionModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.columnSelectionMode', "列选择模式"),
+					name: localize('status.editor.columnSelectionMode', "Column Selection Mode"),
 					text,
 					ariaLabel: text,
-					tooltip: localize('disableColumnSelectionMode', "禁用列选择模式"),
+					tooltip: localize('disableColumnSelectionMode', "Disable Column Selection Mode"),
 					command: 'editor.action.toggleColumnSelection',
 					kind: 'prominent'
 				}, 'status.editor.columnSelectionMode', StatusbarAlignment.RIGHT, 100.8);
@@ -507,10 +507,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.selection', "编辑器选择"),
+			name: localize('status.editor.selection', "Editor Selection"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('gotoLine', "转到行/列"),
+			tooltip: localize('gotoLine', "Go to Line/Column"),
 			command: 'workbench.action.gotoLine'
 		};
 
@@ -530,10 +530,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.indentation', "编辑器缩进"),
+			name: localize('status.editor.indentation', "Editor Indentation"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('selectIndentation', "选择缩进"),
+			tooltip: localize('selectIndentation', "Select Indentation"),
 			command: `changeEditorIndentation${this.targetWindowId}`
 		};
 
@@ -547,10 +547,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.encoding', "编辑器编码"),
+			name: localize('status.editor.encoding', "Editor Encoding"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('selectEncoding', "选择编码"),
+			tooltip: localize('selectEncoding', "Select Encoding"),
 			command: 'workbench.action.editor.changeEncoding'
 		};
 
@@ -564,10 +564,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.eol', "编辑器行尾序列"),
+			name: localize('status.editor.eol', "Editor End of Line"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('selectEOL', "选择行尾序列"),
+			tooltip: localize('selectEOL', "Select End of Line Sequence"),
 			command: 'workbench.action.editor.changeEOL'
 		};
 
@@ -581,10 +581,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.mode', "编辑器语言"),
+			name: localize('status.editor.mode', "Editor Language"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('selectLanguageMode', "选择语言模式"),
+			tooltip: localize('selectLanguageMode', "Select Language Mode"),
 			command: 'workbench.action.editor.changeLanguageMode'
 		};
 
@@ -598,10 +598,10 @@ class EditorStatus extends Disposable {
 		}
 
 		const props: IStatusbarEntry = {
-			name: localize('status.editor.info', "文件信息"),
+			name: localize('status.editor.info', "File Information"),
 			text,
 			ariaLabel: text,
-			tooltip: localize('fileInfo', "文件信息")
+			tooltip: localize('fileInfo', "File Information")
 		};
 
 		this.updateElement(this.metadataElement, props, 'status.editor.info', StatusbarAlignment.RIGHT, 100);
@@ -801,9 +801,9 @@ class EditorStatus extends Disposable {
 				update.indentation = (
 					modelOpts.insertSpaces
 						? modelOpts.tabSize === modelOpts.indentSize
-							? localize('spacesSize', "空格: {0}", modelOpts.indentSize)
-							: localize('spacesAndTabsSize', "空格: {0} (制表符大小: {1})", modelOpts.indentSize, modelOpts.tabSize)
-						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "制表符大小: {0}", modelOpts.tabSize)
+							? localize('spacesSize', "Spaces: {0}", modelOpts.indentSize)
+							: localize('spacesAndTabsSize', "Spaces: {0} (Tab Size: {1})", modelOpts.indentSize, modelOpts.tabSize)
+						: localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 				);
 			}
 		}
@@ -999,9 +999,9 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				const line = splitLines(this.currentMarker.message)[0];
 				const text = `${this.getType(this.currentMarker)} ${line}`;
 				if (!this.statusBarEntryAccessor.value) {
-					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "当前问题"), text, ariaLabel: text }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
+					this.statusBarEntryAccessor.value = this.statusbarService.addEntry({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text }, 'statusbar.currentProblem', StatusbarAlignment.LEFT);
 				} else {
-					this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "当前问题"), text, ariaLabel: text });
+					this.statusBarEntryAccessor.value.update({ name: localize('currentProblem', "Current Problem"), text, ariaLabel: text });
 				}
 			} else {
 				this.statusBarEntryAccessor.clear();
@@ -1107,25 +1107,6 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 	}
 }
 
-export class ShowLanguageExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.action.showLanguageExtensions';
-
-	constructor(
-		private fileExtension: string,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService
-	) {
-		super(ShowLanguageExtensionsAction.ID, localize('showLanguageExtensions', "在应用商店中搜索 '{0}' 扩展...", fileExtension));
-
-		this.enabled = galleryService.isEnabled();
-	}
-
-	override async run(): Promise<void> {
-		await this.commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', this.fileExtension);
-	}
-}
-
 export class ChangeLanguageAction extends Action2 {
 
 	static readonly ID = 'workbench.action.editor.changeLanguageMode';
@@ -1133,7 +1114,7 @@ export class ChangeLanguageAction extends Action2 {
 	constructor() {
 		super({
 			id: ChangeLanguageAction.ID,
-			title: localize2('changeMode', '更改语言模式'),
+			title: localize2('changeMode', 'Change Language Mode'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1141,10 +1122,10 @@ export class ChangeLanguageAction extends Action2 {
 			},
 			precondition: ContextKeyExpr.not('notebookEditorFocused'),
 			metadata: {
-				description: localize('changeLanguageMode.description', "更改活动文本编辑器的语言模式。"),
+				description: localize('changeLanguageMode.description', "Change the language mode of the active text editor."),
 				args: [
 					{
-						name: localize('changeLanguageMode.arg.name', "要更改为的语言模式名称。"),
+						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
 						constraint: (value: unknown) => typeof value === 'string',
 					}
 				]
@@ -1159,13 +1140,14 @@ export class ChangeLanguageAction extends Action2 {
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
 		const textFileService = accessor.get(ITextFileService);
 		const preferencesService = accessor.get(IPreferencesService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
+		const galleryService = accessor.get(IExtensionGalleryService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "当前没有活动的文本编辑器") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
@@ -1192,12 +1174,13 @@ export class ChangeLanguageAction extends Action2 {
 				const extensions = languageService.getExtensions(languageId).join(' ');
 				let description: string;
 				if (currentLanguageName === languageName) {
-					description = localize('languageDescription', "({0}) - 已配置的语言", languageId);
+					description = localize('languageDescription', "({0}) - Configured Language", languageId);
 				} else {
 					description = localize('languageDescriptionConfigured', "({0})", languageId);
 				}
 
 				return {
+					id: languageId,
 					label: languageName,
 					meta: extensions,
 					iconClasses: getIconClassesForLanguageId(languageId),
@@ -1205,33 +1188,37 @@ export class ChangeLanguageAction extends Action2 {
 				};
 			});
 
-		picks.unshift({ type: 'separator', label: localize('languagesPicks', "语言 (标识符)") });
+		picks.unshift({ type: 'separator', label: localize('languagesPicks', "languages (identifier)") });
 
 		// Offer action to configure via settings
 		let configureLanguageAssociations: IQuickPickItem | undefined;
 		let configureLanguageSettings: IQuickPickItem | undefined;
-		let galleryAction: Action | undefined;
+		let galleryAction: IAction | undefined;
 		if (hasLanguageSupport && resource) {
 			const ext = extname(resource) || basename(resource);
 
-			galleryAction = instantiationService.createInstance(ShowLanguageExtensionsAction, ext);
-			if (galleryAction.enabled) {
+			if (galleryService.isEnabled()) {
+				galleryAction = toAction({
+					id: 'workbench.action.showLanguageExtensions',
+					label: localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", ext),
+					run: () => commandService.executeCommand('workbench.extensions.action.showExtensionsForLanguage', ext)
+				});
 				picks.unshift(galleryAction);
 			}
 
-			configureLanguageSettings = { label: localize('configureModeSettings', "配置 '{0}' 语言的设置...", currentLanguageName) };
+			configureLanguageSettings = { label: localize('configureModeSettings', "Configure '{0}' language based settings...", currentLanguageName) };
 			picks.unshift(configureLanguageSettings);
-			configureLanguageAssociations = { label: localize('configureAssociationsExt', "配置 '{0}' 的文件关联...", ext) };
+			configureLanguageAssociations = { label: localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext) };
 			picks.unshift(configureLanguageAssociations);
 		}
 
 		// Offer to "Auto Detect", but only if the document is not empty.
-		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "自动检测") };
+		const autoDetectLanguage: IQuickPickItem = { label: localize('autoDetect', "Auto Detect") };
 		if (textModel && textModel.getValueLength() > 0) {
 			picks.unshift(autoDetectLanguage);
 		}
 
-		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "选择语言模式"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1280,8 +1267,7 @@ export class ChangeLanguageAction extends Action2 {
 						}
 					}
 				} else {
-					const languageId = languageService.getLanguageIdByLanguageName(pick.label);
-					languageSelection = languageService.createById(languageId);
+					languageSelection = languageService.createById(pick.id);
 
 					if (resource) {
 						// fire and forget to not slow things down
@@ -1356,12 +1342,12 @@ export class ChangeLanguageAction extends Action2 {
 				id: languageId,
 				label: languageName,
 				iconClasses: getIconClassesForLanguageId(languageId),
-				description: (languageId === currentAssociation) ? localize('currentAssociation', "当前关联") : undefined
+				description: (languageId === currentAssociation) ? localize('currentAssociation', "Current Association") : undefined
 			};
 		});
 
 		setTimeout(async () => {
-			const language = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "选择要与 '{0}' 关联的语言模式", extension || base) });
+			const language = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base) });
 			if (language) {
 				const fileAssociationsConfig = configurationService.inspect<{}>(FILES_ASSOCIATIONS_CONFIG);
 
@@ -1397,7 +1383,7 @@ export class ChangeEOLAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEOL',
-			title: localize2('changeEndOfLine', '更改行尾序列'),
+			title: localize2('changeEndOfLine', 'Change End of Line Sequence'),
 			f1: true
 		});
 	}
@@ -1408,12 +1394,12 @@ export class ChangeEOLAction extends Action2 {
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "当前没有活动的文本编辑器") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
 		if (editorService.activeEditor?.isReadonly()) {
-			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "活动的代码编辑器是只读的。") }]);
+			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 			return;
 		}
 
@@ -1426,7 +1412,7 @@ export class ChangeEOLAction extends Action2 {
 
 		const selectedIndex = (textModel?.getEOL() === '\n') ? 0 : 1;
 
-		const eol = await quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "选择行尾序列"), activeItem: EOLOptions[selectedIndex] });
+		const eol = await quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
 			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
 			if (activeCodeEditor?.hasModel() && !editorService.activeEditor?.isReadonly()) {
@@ -1446,7 +1432,7 @@ export class ChangeEncodingAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEncoding',
-			title: localize2('changeEncoding', '更改文件编码'),
+			title: localize2('changeEncoding', 'Change File Encoding'),
 			f1: true
 		});
 	}
@@ -1461,24 +1447,24 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "当前没有活动的文本编辑器") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
 		const activeEditorPane = editorService.activeEditorPane;
 		if (!activeEditorPane) {
-			await quickInputService.pick([{ label: localize('noEditor', "当前没有活动的文本编辑器") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 			return;
 		}
 
 		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeEditorPane.input);
 		if (!encodingSupport) {
-			await quickInputService.pick([{ label: localize('noFileEditor', "当前没有活动的文件") }]);
+			await quickInputService.pick([{ label: localize('noFileEditor', "No file active at this time") }]);
 			return;
 		}
 
-		const saveWithEncodingPick: IQuickPickItem = { label: localize('saveWithEncoding', "使用编码保存") };
-		const reopenWithEncodingPick: IQuickPickItem = { label: localize('reopenWithEncoding', "使用编码重新打开") };
+		const saveWithEncodingPick: IQuickPickItem = { label: localize('saveWithEncoding', "Save with Encoding") };
+		const reopenWithEncodingPick: IQuickPickItem = { label: localize('reopenWithEncoding', "Reopen with Encoding") };
 
 		if (!Language.isDefaultVariant()) {
 			const saveWithEncodingAlias = 'Save with Encoding';
@@ -1498,7 +1484,7 @@ export class ChangeEncodingAction extends Action2 {
 		} else if (activeEditorPane.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
-			action = await quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "选择操作"), matchOnDetail: true });
+			action = await quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
 		}
 
 		if (!action) {
@@ -1561,11 +1547,11 @@ export class ChangeEncodingAction extends Action2 {
 		// If we have a guessed encoding, show it first unless it matches the configured encoding
 		if (guessedEncoding && configuredEncoding !== guessedEncoding && SUPPORTED_ENCODINGS[guessedEncoding]) {
 			picks.unshift({ type: 'separator' });
-			picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: localize('guessedEncoding', "从内容推测") });
+			picks.unshift({ id: guessedEncoding, label: SUPPORTED_ENCODINGS[guessedEncoding].labelLong, description: localize('guessedEncoding', "Guessed from content") });
 		}
 
 		const encoding = await quickInputService.pick(picks, {
-			placeHolder: isReopenWithEncoding ? localize('pickEncodingForReopen', "选择文件编码以重新打开文件") : localize('pickEncodingForSave', "选择文件编码以保存"),
+			placeHolder: isReopenWithEncoding ? localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : localize('pickEncodingForSave', "Select File Encoding to Save with"),
 			activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
 		});
 
@@ -1583,9 +1569,9 @@ export class ChangeEncodingAction extends Action2 {
 			// Re-open with encoding does not work on dirty editors, ask to revert
 			if (isReopenWithEncoding && editorService.activeEditorPane.input.isDirty()) {
 				const { confirmed } = await dialogService.confirm({
-					message: localize('reopenWithEncodingWarning', "是否要还原活动的文本编辑器并使用其他编码重新打开?"),
-					detail: localize('reopenWithEncodingDetail', "这将放弃所有未保存的更改。"),
-					primaryButton: localize('reopen', "放弃更改并重新打开")
+					message: localize('reopenWithEncodingWarning', "Do you want to revert the active text editor and reopen with a different encoding?"),
+					detail: localize('reopenWithEncodingDetail', "This will discard any unsaved changes."),
+					primaryButton: localize('reopen', "Discard Changes and Reopen")
 				});
 
 				if (!confirmed) {

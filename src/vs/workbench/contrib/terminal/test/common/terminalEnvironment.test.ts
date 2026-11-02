@@ -7,9 +7,11 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI as Uri } from '../../../../../base/common/uri.js';
-import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getUriLabelForShell, getCwd, getLangEnvVariable, getWorkspaceForTerminal, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
 import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestContextService, TestHistoryService } from '../../../../test/common/workbenchTestServices.js';
+import { testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const wslPathBackend = {
 	getWslPath: async (original: string, direction: 'unix-to-win' | 'win-to-unix') => {
@@ -246,7 +248,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 			test('Git Bash', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, true), `'c:/foo/bar(echo evil)baz'`);
 			});
 			test('WSL', async () => {
@@ -256,12 +258,12 @@ suite('Workbench - TerminalEnvironment', () => {
 		suite('Windows frontend, Linux backend', () => {
 			test('Bash', async () => {
 				strictEqual(await preparePathForShell('/foo/bar', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'`);
-				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar(echo evil)baz'`);
 			});
 			test('Zsh', async () => {
 				strictEqual(await preparePathForShell('/foo/bar', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'`);
-				strictEqual(await preparePathForShell('/foo/bar\'baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, true), `'/foo/bar(echo evil)baz'`);
 			});
 			test('Fish', async () => {
@@ -283,7 +285,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 			test('Git Bash', async () => {
 				strictEqual(await preparePathForShell('c:\\foo\\bar', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar'`);
-				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('c:\\foo\\bar\'baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('c:\\foo\\bar$(echo evil)baz', 'bash', 'bash', WindowsShellType.GitBash, wslPathBackend, OperatingSystem.Windows, false), `'c:/foo/bar(echo evil)baz'`);
 			});
 			test('WSL', async () => {
@@ -292,13 +294,14 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 		suite('Linux frontend, Linux backend', () => {
 			test('Bash', async () => {
+				strictEqual(await preparePathForShell('/foo/bar\'\rtouch pwned\r\'', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'\\''touch pwned'\\'''`);
 				strictEqual(await preparePathForShell('/foo/bar', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'`);
-				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar(echo evil)baz'`);
 			});
 			test('Zsh', async () => {
 				strictEqual(await preparePathForShell('/foo/bar', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'`);
-				strictEqual(await preparePathForShell('/foo/bar\'baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar\\'baz'`);
+				strictEqual(await preparePathForShell('/foo/bar\'baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar'\\''baz'`);
 				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'zsh', 'zsh', PosixShellType.Zsh, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar(echo evil)baz'`);
 			});
 			test('Fish', async () => {
@@ -320,6 +323,38 @@ suite('Workbench - TerminalEnvironment', () => {
 			);
 		});
 	});
+	suite('getWorkspaceForTerminal', () => {
+		test('should resolve workspace folder from cwd, not last active workspace', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const folderB = Uri.file('/workspace/proj2');
+			const contextService = new TestContextService(testWorkspace(folderA, folderB));
+			const historyService = new TestHistoryService(folderA);
+			const result = getWorkspaceForTerminal(folderB, contextService, historyService);
+			strictEqual(result?.uri.fsPath, folderB.fsPath);
+		});
+
+		test('should fall back to last active workspace when cwd is not in any workspace folder', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const contextService = new TestContextService(testWorkspace(folderA));
+			const historyService = new TestHistoryService(folderA);
+			const result = getWorkspaceForTerminal(Uri.file('/other/path'), contextService, historyService);
+			strictEqual(result?.uri.fsPath, folderA.fsPath);
+		});
+
+		test('should fall back to last active workspace when cwd is undefined', () => {
+			const folderA = Uri.file('/workspace/proj1');
+			const contextService = new TestContextService(testWorkspace(folderA));
+			const historyService = new TestHistoryService(folderA);
+			strictEqual(getWorkspaceForTerminal(undefined, contextService, historyService)?.uri.fsPath, folderA.fsPath);
+		});
+
+		test('should return undefined when cwd and history are both unavailable', () => {
+			const contextService = new TestContextService(testWorkspace(Uri.file('/workspace/proj1')));
+			const historyService = new TestHistoryService(undefined);
+			strictEqual(getWorkspaceForTerminal(undefined, contextService, historyService), undefined);
+		});
+	});
+
 	suite('formatUriForShellDisplay', () => {
 		test('Wsl', async () => {
 			strictEqual(await getUriLabelForShell('c:\\foo\\bar', wslPathBackend, WindowsShellType.Wsl, OperatingSystem.Windows, true), '/mnt/c/foo/bar');

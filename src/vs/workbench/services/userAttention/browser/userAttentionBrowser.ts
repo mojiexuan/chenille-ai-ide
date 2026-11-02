@@ -63,7 +63,7 @@ export class UserAttentionService extends Disposable implements IUserAttentionSe
 
 			reader.store.add(autorun(innerReader => {
 				const focused = this.isVsCodeFocused.read(innerReader);
-				this._logService.trace(`[UserAttentionService] Chenille focus changed: ${focused}`);
+				this._logService.trace(`[UserAttentionService] VS Code focus changed: ${focused}`);
 			}));
 			reader.store.add(autorun(innerReader => {
 				const hasAttention = this.hasUserAttention.read(innerReader);
@@ -126,6 +126,11 @@ export class UserAttentionServiceEnv extends Disposable {
 			this._isUserActive.set(false, undefined);
 			this._activityDebounceTimeout = undefined;
 		}, 500);
+	}
+
+	override dispose(): void {
+		clearTimeout(this._activityDebounceTimeout);
+		super.dispose();
 	}
 }
 

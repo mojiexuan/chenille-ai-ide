@@ -9,7 +9,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
-import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -23,7 +23,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize a panel.'));
-export const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
+const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
 const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
 
@@ -184,7 +184,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
 	title: localize('positionPanel', "Panel Position"),
 	group: '3_workbench_layout_move',
-	order: 4
+	order: 4,
+	when: IsSessionsWindowContext.negate()
 });
 
 PositionPanelActionConfigs.forEach((positionPanelAction, index) => {
@@ -246,7 +247,9 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 			title: shortLabel,
 			toggled: when.negate()
 		},
-		order: 5
+		order: 5,
+		// The Agents window only supports center and justify alignment
+		when: value === 'left' || value === 'right' ? IsSessionsWindowContext.negate() : undefined
 	});
 });
 
@@ -272,24 +275,27 @@ registerAction2(class extends SwitchCompositeViewAction {
 	}
 });
 
+const panelMaximizationSupportedWhen = ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')));
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleMaximizedPanel',
 			title: localize2('toggleMaximizedPanel', 'Toggle Maximized Panel'),
-			tooltip: localize('maximizePanel', "Maximize Panel Size"),
+			tooltip: localize('maximizePanel', "Maximize Panel"),
 			category: Categories.View,
 			f1: true,
 			icon: maximizeIcon,
-			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
-			toggled: { condition: PanelMaximizedContext, icon: maximizeIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
+			precondition: panelMaximizationSupportedWhen,
+			toggled: {
+				condition: PanelMaximizedContext,
+				tooltip: localize('minimizePanel', "Restore Panel")
+			},
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
 				order: 1,
-				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-				when: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')))
+				when: panelMaximizationSupportedWhen
 			}]
 		});
 	}
@@ -318,7 +324,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '2_pane_toggles',
+			group: 'navigation',
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize('togglePanel', "Toggle Panel"),

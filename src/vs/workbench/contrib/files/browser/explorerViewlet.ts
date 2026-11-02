@@ -39,8 +39,8 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { isMouseEvent } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
-const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', '资源管理器视图的图标。'));
-const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', '打开的编辑器视图的图标。'));
+const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
+const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -129,6 +129,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
+			canMoveView: true,
 			canToggleVisibility: true,
 			focusCommand: {
 				id: 'workbench.explorer.fileView.focus'
@@ -139,7 +140,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: VIEW_ID,
-			name: localize2('folders', "文件夹"),
+			name: localize2('folders', "Folders"),
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
@@ -256,7 +257,7 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize2('explore', "资源管理器"),
+	title: localize2('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
@@ -265,16 +266,16 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: localize2('explore', "资源管理器"),
-		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "资源管理器(E)"),
+		title: localize2('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 
-const openFolder = localize('openFolder', "打开文件夹");
-const addAFolder = localize('addAFolder', "添加文件夹");
-const openRecent = localize('openRecent', "打开最近的文件");
+const openFolder = localize('openFolder', "Open Folder");
+const addAFolder = localize('addAFolder', "add a folder");
+const openRecent = localize('openRecent', "Open Recent");
 
 const addRootFolderButton = `[${openFolder}](command:${AddRootFolderAction.ID})`;
 const addAFolderButton = `[${addAFolder}](command:${AddRootFolderAction.ID})`;
@@ -285,7 +286,7 @@ const openRecentButton = `[${openRecent}](command:${OpenRecentAction.ID})`;
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-		"你尚未向工作区添加文件夹。\n{0}", addRootFolderButton),
+		"You have not yet added a folder to the workspace.\n{0}", addRootFolderButton),
 	when: ContextKeyExpr.and(
 		// inside a .code-workspace
 		WorkbenchStateContext.isEqualTo('workspace'),
@@ -298,7 +299,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderHelpWeb', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-		"你尚未打开文件夹。\n{0}\n{1}", openFolderViaWorkspaceButton, openRecentButton),
+		"You have not yet opened a folder.\n{0}\n{1}", openFolderViaWorkspaceButton, openRecentButton),
 	when: ContextKeyExpr.and(
 		// inside a .code-workspace
 		WorkbenchStateContext.isEqualTo('workspace'),
@@ -311,7 +312,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-		"已连接到远程。\n{0}", openFolderButton),
+		"Connected to remote.\n{0}", openFolderButton),
 	when: ContextKeyExpr.and(
 		// not inside a .code-workspace
 		WorkbenchStateContext.notEqualsTo('workspace'),
@@ -325,7 +326,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderButEditorsHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-		"你尚未打开文件夹。\n{0}\n打开文件夹将关闭所有当前打开的编辑器。若要保持它们打开，请改为{1}。", openFolderButton, addAFolderButton),
+		"You have not yet opened a folder.\n{0}\nOpening a folder will close all currently open editors. To keep them open, {1} instead.", openFolderButton, addAFolderButton),
 	when: ContextKeyExpr.and(
 		// editors are opened
 		ContextKeyExpr.has('editorIsOpen'),
@@ -342,7 +343,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noFolderHelp', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change'] },
-		"你尚未打开文件夹。\n{0}", openFolderButton),
+		"You have not yet opened a folder.\n{0}", openFolderButton),
 	when: ContextKeyExpr.and(
 		// no editor is open
 		ContextKeyExpr.has('editorIsOpen')?.negate(),

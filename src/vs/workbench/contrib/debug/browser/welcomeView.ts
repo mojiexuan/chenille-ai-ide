@@ -34,7 +34,7 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 export class WelcomeView extends ViewPane {
 
 	static readonly ID = 'workbench.debug.welcome';
-	static readonly LABEL: ILocalizedString = localize2('run', "运行");
+	static readonly LABEL: ILocalizedString = localize2('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
@@ -105,8 +105,7 @@ export class WelcomeView extends ViewPane {
 		}));
 		setContextKey();
 
-		const debugKeybinding = this.keybindingService.lookupKeybinding(DEBUG_START_COMMAND_ID);
-		debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
+		debugKeybindingLabel = this.keybindingService.appendKeybinding('', DEBUG_START_COMMAND_ID);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -124,7 +123,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 				'{Locked="](command:{0})"}'
 			]
 		},
-		"[打开一个文件](command:{0})，该文件可以进行调试或运行。", OpenFileAction.ID
+		"[Open a file](command:{0}) which can be debugged or run.", OpenFileAction.ID
 	),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()),
 	group: ViewContentGroups.Open,
@@ -132,7 +131,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: `[${localize('runAndDebugAction', "运行和调试")}${debugKeybindingLabel}](command:${DEBUG_START_COMMAND_ID})`,
+	content: `[${localize('runAndDebugAction', "Run and Debug")}${debugKeybindingLabel}](command:${DEBUG_START_COMMAND_ID})`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	// Allow inserting more buttons directly after this one (by setting order to 1).
@@ -141,7 +140,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'customizeRunAndDebug2', comment: ['{Locked="launch.json"}', '{Locked="["}', '{Locked="]({0})"}'] },
-		"若要自定义运行和调试，请[创建 launch.json 文件]({0})。", `${createCommandUri(DEBUG_CONFIGURE_COMMAND_ID, { addNew: true }).toString()}`),
+		"To customize Run and Debug [create a launch.json file]({0}).", `${createCommandUri(DEBUG_CONFIGURE_COMMAND_ID, { addNew: true }).toString()}`),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });
@@ -156,13 +155,13 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 				'{Locked="]({0})"}',
 			]
 		},
-		"若要自定义运行和调试，请[打开一个文件夹]({0})并创建 launch.json 文件。", createCommandUri(OpenFolderAction.ID).toString()),
+		"To customize Run and Debug, [open a folder]({0}) and create a launch.json file.", createCommandUri(OpenFolderAction.ID).toString()),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize('allDebuggersDisabled', "所有调试扩展均已禁用。请启用一个调试扩展或从应用商店安装一个新的调试扩展。"),
+	content: localize('allDebuggersDisabled', "All debug extensions are disabled. Enable a debug extension or install a new one from the Marketplace."),
 	when: CONTEXT_DEBUG_EXTENSION_AVAILABLE.toNegated(),
 	group: ViewContentGroups.Debug
 });

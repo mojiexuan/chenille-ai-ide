@@ -15,7 +15,7 @@ export class ScopeData {
 	/**
 	 * The full list of scopes including:
 	 * * the original scopes passed to the constructor
-	 * * internal Chenille scopes (e.g. `VSCODE_CLIENT_ID:...`)
+	 * * internal VS Code scopes (e.g. `VSCODE_CLIENT_ID:...`)
 	 * * the default scopes (`openid`, `email`, `profile`, `offline_access`)
 	 */
 	readonly allScopes: string[];
@@ -26,7 +26,7 @@ export class ScopeData {
 	readonly scopeStr: string;
 
 	/**
-	 * The list of scopes to send to the token endpoint. This is the same as `scopes` but without the internal Chenille scopes.
+	 * The list of scopes to send to the token endpoint. This is the same as `scopes` but without the internal VS Code scopes.
 	 */
 	readonly scopesToSend: string[];
 
@@ -50,14 +50,14 @@ export class ScopeData {
 	 */
 	readonly claims?: string;
 
-	constructor(readonly originalScopes: readonly string[] = [], claims?: string, authorizationServer?: Uri) {
+	constructor(readonly originalScopes: readonly string[] = [], claims?: string, authorizationServer?: Uri, clientId?: string) {
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
 		this.claims = claims;
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
-		this.clientId = this.getClientId(this.allScopes);
+		this.clientId = clientId?.trim() || this.getClientId(this.allScopes);
 		this.tenant = this.getTenant(this.allScopes, authorizationServer);
 		this.tenantId = this.getTenantId(this.tenant);
 	}

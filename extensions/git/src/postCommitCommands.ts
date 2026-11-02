@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, commands, Disposable, Event, EventEmitter, Memento, Uri, workspace, l10n } from 'vscode';
-import { PostCommitCommandsProvider } from './api/git';
+import type { PostCommitCommandsProvider } from './api/git';
 import { IRepositoryResolver, Repository } from './repository';
 import { ApiRepository } from './api/api1';
 import { dispose } from './util';
@@ -40,33 +40,33 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 
 		// Tooltip (default)
 		let pushCommandTooltip = !alwaysCommitToNewBranch ?
-			l10n.t('提交并推送更改') :
-			l10n.t('提交到新分支并推送更改');
+			l10n.t('Commit & Push Changes') :
+			l10n.t('Commit to New Branch & Push Changes');
 
 		let syncCommandTooltip = !alwaysCommitToNewBranch ?
-			l10n.t('提交并同步更改') :
-			l10n.t('提交到新分支并同步更改');
+			l10n.t('Commit & Sync Changes') :
+			l10n.t('Commit to New Branch & Synchronize Changes');
 
 		// Tooltip (in progress)
 		if (isCommitInProgress) {
 			pushCommandTooltip = !alwaysCommitToNewBranch ?
-				l10n.t('正在提交并推送更改...') :
-				l10n.t('正在提交到新分支并推送更改...');
+				l10n.t('Committing & Pushing Changes...') :
+				l10n.t('Committing to New Branch & Pushing Changes...');
 
 			syncCommandTooltip = !alwaysCommitToNewBranch ?
-				l10n.t('正在提交并同步更改...') :
-				l10n.t('正在提交到新分支并同步更改...');
+				l10n.t('Committing & Synchronizing Changes...') :
+				l10n.t('Committing to New Branch & Synchronizing Changes...');
 		}
 
 		return [
 			{
 				command: 'git.push',
-				title: l10n.t('{0} 提交并推送', icon ?? '$(arrow-up)'),
+				title: l10n.t('{0} Commit & Push', icon ?? '$(arrow-up)'),
 				tooltip: pushCommandTooltip
 			},
 			{
 				command: 'git.sync',
-				title: l10n.t('{0} 提交并同步', icon ?? '$(sync)'),
+				title: l10n.t('{0} Commit & Sync', icon ?? '$(sync)'),
 				tooltip: syncCommandTooltip
 			},
 		];
@@ -190,21 +190,21 @@ export class CommitCommandsCenter {
 		// Tooltip (default)
 		const branch = this.repository.HEAD?.name;
 		let tooltip = alwaysCommitToNewBranch ?
-			l10n.t('提交更改到新分支') :
+			l10n.t('Commit Changes to New Branch') :
 			branch ?
-				l10n.t('在 "{0}" 上提交更改', branch) :
-				l10n.t('提交更改');
+				l10n.t('Commit Changes on "{0}"', branch) :
+				l10n.t('Commit Changes');
 
 		// Tooltip (in progress)
 		if (this.repository.operations.isRunning(OperationKind.Commit)) {
 			tooltip = !alwaysCommitToNewBranch ?
-				l10n.t('正在提交更改...') :
-				l10n.t('正在提交更改到新分支...');
+				l10n.t('Committing Changes...') :
+				l10n.t('Committing Changes to New Branch...');
 		}
 
 		return [
-			{ command: 'git.commit', title: l10n.t('{0} 提交', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
-			{ command: 'git.commitAmend', title: l10n.t('{0} 提交 (修订)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
 		];
 	}
 

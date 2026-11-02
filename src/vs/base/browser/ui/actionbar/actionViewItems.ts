@@ -13,13 +13,13 @@ import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox.js';
 import { IToggleStyles } from '../toggle/toggle.js';
-import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions.js';
+import { Action, ActionRunner, getActionForAltMode, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
-import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
+import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
@@ -174,7 +174,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		EventHelper.stop(event, true);
 
 		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : { preserveFocus } : this._context;
-		this.actionRunner.run(this._action, context);
+		this.actionRunner.run(this.getActionToRun(event), context);
+	}
+
+	getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		return this.options?.isMenu ? getActionForAltMode(this._action, event) : this._action;
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
@@ -229,6 +233,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.getTooltip();
 	}
 
+	protected getHoverOptions(): IManagedHoverOptions | undefined {
+		return undefined;
+	}
+
 	protected updateTooltip(): void {
 		if (!this.element) {
 			return;
@@ -238,9 +246,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 		if (!this.customHover && title !== '') {
 			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
+			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title, this.getHoverOptions()));
 		} else if (this.customHover) {
-			this.customHover.update(title);
+			this.customHover.update(title, this.getHoverOptions());
 		}
 	}
 
@@ -385,7 +393,10 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-		if (this.options.icon) {
+		if (this.action.id === Separator.ID && this.action.class) {
+			this.label?.classList.add(this.action.class);
+
+		} else if (this.options.icon) {
 			this.cssClass = this.getClass();
 
 			if (this.label) {
@@ -433,12 +444,12 @@ export class ActionViewItem extends BaseActionViewItem {
 				if (this.options.isTabList) {
 					this.label.setAttribute('aria-selected', this.action.checked ? 'true' : 'false');
 				} else {
-					this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
-					this.label.setAttribute('role', 'checkbox');
+					this.label.setAttribute('aria-pressed', this.action.checked ? 'true' : 'false');
+					this.label.setAttribute('role', 'button');
 				}
 			} else {
 				this.label.classList.remove('checked');
-				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-checked');
+				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-pressed');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

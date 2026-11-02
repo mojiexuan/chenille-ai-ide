@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/chatEditorController.css';
+import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
@@ -36,12 +36,16 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
+import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
+import { IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
+import { IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -87,6 +91,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	private readonly _diffHunkWidgetPool = this._store.add(new ObjectPool<DiffHunkWidget>());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 	private _viewZones: string[] = [];
+	/** Closes the diff editors that {@link toggleDiff} opened once the changes are kept or undone. */
+	private readonly _closeDiffEditorsWhenDecided = this._store.add(new MutableDisposable());
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
@@ -99,12 +105,25 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatEditingService _chatEditingService: IChatEditingService,
+		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
 
 		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+
+		// Create explanation widget manager and connect it to the model manager
+		this._store.add(new ChatEditingExplanationWidgetManager(
+			this._editor,
+			this._chatWidgetService,
+			this._viewsService,
+			this._explanationModelManager,
+			this._entry.modifiedURI,
+		));
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
@@ -687,10 +706,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 			if (diffEditor && diffEditor.input) {
 				diffEditor.getControl()?.setSelection(selection);
-				const d = autorun(r => {
+				// Ends with this integration too, as when the entry is disposed before its changes are decided.
+				this._closeDiffEditorsWhenDecided.value = autorunSelfDisposable(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
-						d.dispose();
+						r.dispose();
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)
@@ -749,10 +769,17 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				arg: this,
 			},
 			actionViewItemProvider: (action, options) => {
+				const isPrimary = action.id === 'chatEditor.action.acceptHunk';
 				if (!action.class) {
 					return new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
+						}
+						override render(container: HTMLElement): void {
+							super.render(container);
+							if (isPrimary) {
+								this.element?.classList.add('primary');
+							}
 						}
 					};
 				}

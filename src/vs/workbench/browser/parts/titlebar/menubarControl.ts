@@ -5,7 +5,7 @@
 
 import './media/menubarControl.css';
 import { localize, localize2 } from '../../../../nls.js';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from '../../../../base/common/actions.js';
@@ -33,7 +33,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IsMacNativeContext, IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OpenRecentAction } from '../../actions/windowActions.js';
@@ -42,89 +42,9 @@ import { getFlatContextMenuActions } from '../../../../platform/actions/browser/
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
+import { truncateMiddle } from '../../../../base/common/strings.js';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarFileMenu,
-	title: {
-		value: '文件',
-		original: 'File',
-		mnemonicTitle: localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "文件(F)"),
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarEditMenu,
-	title: {
-		value: '编辑',
-		original: 'Edit',
-		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "编辑(E)")
-	},
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarSelectionMenu,
-	title: {
-		value: '选择',
-		original: 'Selection',
-		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "选择(S)")
-	},
-	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarViewMenu,
-	title: {
-		value: '查看',
-		original: 'View',
-		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "查看(V)")
-	},
-	order: 4
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarGoMenu,
-	title: {
-		value: '转到',
-		original: 'Go',
-		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "转到(G)")
-	},
-	order: 5
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarTerminalMenu,
-	title: {
-		value: '终端',
-		original: 'Terminal',
-		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "终端(T)")
-	},
-	order: 7
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarHelpMenu,
-	title: {
-		value: '帮助',
-		original: 'Help',
-		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "帮助(H)")
-	},
-	order: 8
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarPreferencesMenu,
-	title: {
-		value: '首选项',
-		original: 'Preferences',
-		mnemonicTitle: localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "首选项")
-	},
-	when: IsMacNativeContext,
-	order: 9
-});
 
 export abstract class MenubarControl extends Disposable {
 
@@ -150,6 +70,7 @@ export abstract class MenubarControl extends Disposable {
 	protected menuUpdater: RunOnceScheduler;
 
 	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
+	protected static readonly MAX_MENU_RECENT_LABEL_LENGTH = 120;
 
 	constructor(
 		protected readonly menuService: IMenuService,
@@ -333,7 +254,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const ret = toAction({
-			id: commandId, label: unmnemonicLabel(label), run: (browserEvent: KeyboardEvent) => {
+			id: commandId, label: unmnemonicLabel(truncateMiddle(label, MenubarControl.MAX_MENU_RECENT_LABEL_LENGTH)), run: (browserEvent: KeyboardEvent) => {
 				const openInNewWindow = browserEvent && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
 
 				return this.hostService.openWindow([openable], {
@@ -358,10 +279,10 @@ export abstract class MenubarControl extends Disposable {
 			return;
 		}
 
-		const message = localize('menubar.customTitlebarAccessibilityNotification', "已为您启用辅助功能支持。为获得最佳体验，建议使用自定义菜单样式。");
+		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom menu style.");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
-				label: localize('goToSetting', "打开设置"),
+				label: localize('goToSetting', "Open Settings"),
 				run: () => {
 					return this.preferencesService.openUserSettings({ query: MenuSettings.MenuStyle });
 				}
@@ -382,7 +303,7 @@ function enableFocusMenuBarAction(): Emitter<void> {
 			constructor() {
 				super({
 					id: `workbench.actions.menubar.focus`,
-					title: localize2('focusMenu', '聚焦应用程序菜单'),
+					title: localize2('focusMenu', 'Focus Application Menu'),
 					keybinding: {
 						primary: KeyMod.Alt | KeyCode.F10,
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -437,9 +358,9 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.actionRunner = this._register(new ActionRunner());
-		this.actionRunner.onDidRun(e => {
+		this._register(this.actionRunner.onDidRun(e => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'menu' });
-		});
+		}));
 
 		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
@@ -464,34 +385,38 @@ export class CustomMenubarControl extends MenubarControl {
 		switch (state.type) {
 			case StateType.Idle:
 				return toAction({
-					id: 'update.check', label: localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "检查更新(U)..."), enabled: true, run: () =>
+					id: 'update.check', label: localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), enabled: true, run: () =>
 						this.updateService.checkForUpdates(true)
 				});
 
 			case StateType.CheckingForUpdates:
-				return toAction({ id: 'update.checking', label: localize('checkingForUpdates', "正在检查更新..."), enabled: false, run: () => { } });
+				return toAction({ id: 'update.checking', label: localize('checkingForUpdates', "Checking for Updates..."), enabled: false, run: () => { } });
 
 			case StateType.AvailableForDownload:
 				return toAction({
-					id: 'update.downloadNow', label: localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "下载更新(O)"), enabled: true, run: () =>
-						this.updateService.downloadUpdate()
+					id: 'update.downloadNow', label: localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), enabled: true, run: () =>
+						this.updateService.downloadUpdate(true)
 				});
 
 			case StateType.Downloading:
-				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "正在下载更新..."), enabled: false, run: () => { } });
+			case StateType.Overwriting:
+				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
 
 			case StateType.Downloaded:
 				return isMacintosh ? null : toAction({
-					id: 'update.install', label: localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "安装更新(U)..."), enabled: true, run: () =>
+					id: 'update.install', label: localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), enabled: true, run: () =>
 						this.updateService.applyUpdate()
 				});
 
 			case StateType.Updating:
-				return toAction({ id: 'update.updating', label: localize('installingUpdate', "正在安装更新..."), enabled: false, run: () => { } });
+				return toAction({ id: 'update.updating', label: localize('installingUpdate', "Installing Update..."), enabled: false, run: () => { } });
+
+			case StateType.Cancelling:
+				return toAction({ id: 'update.cancelling', label: localize('cancellingUpdate', "Cancelling Update..."), enabled: false, run: () => { } });
 
 			case StateType.Ready:
 				return toAction({
-					id: 'update.restart', label: localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "重启以更新(U)"), enabled: true, run: () =>
+					id: 'update.restart', label: localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), enabled: true, run: () =>
 						this.updateService.quitAndInstall()
 				});
 

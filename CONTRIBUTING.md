@@ -1,74 +1,99 @@
-# 贡献指南
+# Contributing to VS Code
 
-欢迎您，感谢您有兴趣为 Chenille 做出贡献！
+Welcome, and thank you for your interest in contributing to VS Code!
 
-除了编写代码之外，您还可以通过多种方式参与贡献。本文档旨在提供一个高层次的概述，帮助您了解如何参与。
+There are several ways in which you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
 
-## 提问
+## Asking Questions
 
-有问题？请在 [GitHub Discussions](https://github.com/mojiexuan/chenille-ai-ide/discussions) 上提问，而不是直接开 Issue。
 
-活跃的社区会很乐意帮助您。您精心措辞的问题也将成为其他寻求帮助的人的资源。
+Have a question? Instead of opening an issue, please ask on [Stack Overflow](https://stackoverflow.com/questions/tagged/visual-studio-code) using the tag `visual-studio-code`.
 
-## 提供反馈
+The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
 
-欢迎您的评论和反馈。请随时在我们的 GitHub 仓库上开 Issue 或发起讨论。
+## Providing Feedback
 
-## 报告问题
+Your comments and feedback are welcome, and the development team is available via a handful of different channels.
 
-您是否发现了 Chenille 中可复现的问题？您有功能请求吗？我们很想听听！以下是如何有效报告问题的方法。
+See the [Feedback Channels](https://github.com/microsoft/vscode/wiki/Feedback-Channels) wiki page for details on how to share your thoughts.
 
-### 查找现有 Issue
+## Reporting Issues
 
-在创建新 Issue 之前，请先在 [已有 Issues](https://github.com/mojiexuan/chenille-ai-ide/issues) 中搜索，看看该问题或功能请求是否已经被提交。
+Have you identified a reproducible problem in VS Code? Do you have a feature request? We want to hear about it! Here's how you can report your issue as effectively as possible.
 
-如果您发现您的问题已存在，请添加相关评论并使用 [表情反应](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments)，而不是 "+1" 评论：
+### Identify Where to Report
 
-- 👍 - 赞成
-- 👎 - 反对
+The VS Code project is distributed across multiple repositories. Try to file the issue against the correct repository. Check the list of [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) if you aren't sure which repo is correct.
 
-如果找不到描述您的 bug 或功能的现有 Issue，请按照以下指南创建新 Issue。
+Can you recreate the issue even after [disabling all extensions](https://code.visualstudio.com/docs/editor/extension-gallery#_disable-an-extension)? If you find the issue is caused by an extension you have installed, please file an issue on the extension's repo directly.
 
-### 编写高质量的 Bug 报告和功能请求
+### Look For an Existing Issue
 
-每个问题和功能请求只提交一个 Issue。不要在同一个 Issue 中列举多个 bug 或功能请求。
+Before you create a new issue, please do a search in [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
 
-除非是完全相同的问题，否则不要将您的问题作为评论添加到现有 Issue 中。许多问题看起来相似但原因不同。
+Be sure to scan through the [most popular](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
 
-您提供的信息越多，就越有可能成功复现问题并找到修复方法。
+If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
 
-请在每个 Issue 中包含以下信息：
+* 👍 - upvote
+* 👎 - downvote
 
-- Chenille 版本
-- 您的操作系统
-- 已安装的扩展列表
-- 可复现的步骤（1... 2... 3...）
-- 您期望看到的结果 vs 实际看到的结果
-- 显示问题发生的图片、动画或视频链接
-- 演示问题的代码片段或代码仓库链接
-- 开发者工具控制台中的错误（菜单：帮助 > 切换开发人员工具）
+If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
 
-### 创建 Pull Request
+### Writing Good Bug Reports and Feature Requests
 
-1. Fork 本仓库
-2. 为您的功能或修复创建新分支
-3. 进行更改
-4. 提交 Pull Request
+File a single issue per problem and feature request. Do not enumerate multiple bugs or feature requests in the same issue.
 
-### 最终检查清单
+Do not add your issue as a comment to an existing issue unless it's for the identical issue. Many issues look similar but have different causes.
 
-请记得执行以下操作：
+The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
 
-- [ ] 搜索 Issue 仓库以确保您的报告是新问题
-- [ ] 禁用所有扩展后重现问题
-- [ ] 简化问题周围的代码以更好地隔离问题
+The built-in tool for reporting an issue, which you can access by using `Report Issue` in VS Code's Help menu, can help streamline this process by automatically providing the version of VS Code, all your installed extensions, and your system info. Additionally, the tool will search among existing issues to see if a similar issue already exists.
 
-如果开发者无法立即复现问题，请不要气馁。他们只是会要求更多信息！
+Please include the following with each issue:
 
-## 贡献代码
+* Version of VS Code
+* Your operating system
+* List of extensions that you have installed
+* Reproducible steps (1... 2... 3...) that cause the issue
+* What you expected to see, versus what you actually saw
+* Images, animations, or a link to a video showing the issue occurring
+* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
+  * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
+* Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
 
-如果您有兴趣编写代码来修复问题，请 Fork 本仓库并提交 Pull Request。
+### Creating Pull Requests
 
-## 感谢
+* Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
 
-您对开源的贡献，无论大小，都使这样的优秀项目成为可能。感谢您抽出时间做出贡献！
+### Final Checklist
+
+Please remember to do the following:
+
+* [ ] Search the issue repository to ensure your report is a new issue
+* [ ] Recreate the issue after disabling all extensions
+* [ ] Simplify your code around the issue to better isolate the problem
+
+Don't feel bad if the developers can't reproduce the issue right away. They will simply ask for more information!
+
+### Follow Your Issue
+
+Once submitted, your report will go into the [issue tracking](https://github.com/microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect and how to continue to assist throughout the process.
+
+## Automated Issue Management
+
+We use GitHub Actions to help us manage issues. These Actions and their descriptions can be [viewed here](https://github.com/microsoft/vscode-github-triage-actions). Some examples of what these Actions do are:
+
+* Automatically close any issue marked `info-needed` if there has been no response in the past 7 days.
+* Automatically lock issues 45 days after they are closed.
+* Automatically implement the VS Code [feature request pipeline](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
+
+If you believe the bot got something wrong, please open a new issue and let us know.
+
+## Contributing Fixes
+
+If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+
+## Thank You
+
+Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.

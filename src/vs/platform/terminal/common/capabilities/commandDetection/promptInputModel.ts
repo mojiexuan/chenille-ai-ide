@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, IBufferCell, IBufferLine, IMarker, Terminal } from '@xterm/headless';
-import { throttle } from '../../../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../log/common/log.js';
@@ -113,6 +112,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		onCommandStart: Event<ITerminalCommand>,
 		onCommandStartChanged: Event<void>,
 		onCommandExecuted: Event<ITerminalCommand>,
+		onCommandFinished: Event<ITerminalCommand>,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -127,6 +127,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
 		this._register(onCommandStartChanged(() => this._handleCommandStartChanged()));
 		this._register(onCommandExecuted(() => this._handleCommandExecuted()));
+		this._register(onCommandFinished(() => this._handleCommandFinished()));
 
 		this._register(this.onDidStartInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidStartInput')));
 		this._register(this.onDidChangeInput(() => this._logCombinedStringIfTrace('PromptInputModel#onDidChangeInput')));
@@ -261,7 +262,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._onDidChangeInput.fire(event);
 	}
 
-	@throttle(0)
+	private _handleCommandFinished() {
+		// Clear the prompt input value when command finishes to prepare for the next command
+		// This prevents runCommand from detecting leftover text and sending ^C unnecessarily
+		this._value = '';
+		this._onDidChangeInput.fire(this._createStateObject());
+	}
+
 	private _sync() {
 		try {
 			this._doSync();

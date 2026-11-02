@@ -5,10 +5,10 @@
 
 :root {
 	/* Dark theme colors (default) */
-	--vscode-foreground: #cccccc;
-	--vscode-editor-background: #1f1f1f;
-	--vscode-error-foreground: #f85149;
-	--vscode-textLink-foreground: #f8a579;
+	--vscode-foreground: #CCCCCC;
+	--vscode-editor-background: #1F1F1F;
+	--vscode-error-foreground: #F85149;
+	--vscode-textLink-foreground: #4daafc;
 
 	--vscode-filter-0: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
 	--vscode-filter-50: drop-shadow(0 4px 12px rgba(0, 122, 204, 0.15));
@@ -24,10 +24,10 @@
 /* Light theme colors */
 @media (prefers-color-scheme: light) {
 	:root {
-		--vscode-foreground: #3b3b3b;
-		--vscode-editor-background: #ffffff;
-		--vscode-error-foreground: #f85149;
-		--vscode-textLink-foreground: #005fb8;
+		--vscode-foreground: #3B3B3B;
+		--vscode-editor-background: #FFFFFF;
+		--vscode-error-foreground: #F85149;
+		--vscode-textLink-foreground: #005FB8;
 	}
 }
 
@@ -43,8 +43,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	color: var(--vscode-foreground);
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI",
-		system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	background-color: var(--vscode-editor-background);
 }
 
@@ -53,8 +52,7 @@ a {
 	text-decoration: none;
 }
 
-a:hover,
-a:focus {
+a:hover, a:focus {
 	text-decoration: underline;
 }
 

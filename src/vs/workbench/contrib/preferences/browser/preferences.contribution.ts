@@ -43,7 +43,7 @@ import { PreferencesEditorInput, SettingsEditor2Input } from '../../../services/
 import { SettingsEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { CURRENT_PROFILE_CONTEXT, IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ExplorerFolderContext, ExplorerRootContext } from '../../files/common/files.js';
-import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
+import { CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH } from '../common/preferences.js';
 import { PreferencesContribution } from '../common/preferencesContribution.js';
 import { KeybindingsEditor } from './keybindingsEditor.js';
 import { ConfigureLanguageBasedSettingsAction } from './preferencesActions.js';
@@ -56,6 +56,9 @@ const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
 const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
+const SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH = 'settings.action.showPreviousSearch';
+const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER = 'settings.action.focusSettingsFromSearchOnEnter';
+const SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS = 'settings.action.focusSearchFromSettings';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
 const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
@@ -72,7 +75,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		SettingsEditor2,
 		SettingsEditor2.ID,
-		nls.localize('settingsEditor2', "设置编辑器 2")
+		nls.localize('settingsEditor2', "Settings Editor 2")
 	),
 	[
 		new SyncDescriptor(SettingsEditor2Input)
@@ -83,7 +86,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		PreferencesEditor,
 		PreferencesEditor.ID,
-		nls.localize('preferencesEditor', "首选项编辑器")
+		nls.localize('preferencesEditor', "Preferences Editor")
 	),
 	[
 		new SyncDescriptor(PreferencesEditorInput)
@@ -109,7 +112,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		KeybindingsEditor,
 		KeybindingsEditor.ID,
-		nls.localize('keybindingsEditor', "键绑定编辑器")
+		nls.localize('keybindingsEditor', "Keybindings Editor")
 	),
 	[
 		new SyncDescriptor(KeybindingsEditorInput)
@@ -150,9 +153,9 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
-const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "打开设置 (UI)");
-const OPEN_USER_SETTINGS_JSON_TITLE = nls.localize2('openUserSettingsJson', "打开用户设置 (JSON)");
-const OPEN_APPLICATION_SETTINGS_JSON_TITLE = nls.localize2('openApplicationSettingsJson', "打开应用程序设置 (JSON)");
+const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "Open Settings (UI)");
+const OPEN_USER_SETTINGS_JSON_TITLE = nls.localize2('openUserSettingsJson', "Open User Settings (JSON)");
+const OPEN_APPLICATION_SETTINGS_JSON_TITLE = nls.localize2('openApplicationSettingsJson', "Open Application Settings (JSON)");
 const category = Categories.Preferences;
 
 interface IOpenSettingsActionOptions {
@@ -165,11 +168,11 @@ interface IOpenSettingsActionOptions {
 	focusSearch?: boolean;
 }
 
-function sanitizeBoolean(arg: any): boolean | undefined {
+function sanitizeBoolean(arg: unknown): boolean | undefined {
 	return isBoolean(arg) ? arg : undefined;
 }
 
-function sanitizeString(arg: any): string | undefined {
+function sanitizeString(arg: unknown): string | undefined {
 	return isString(arg) ? arg : undefined;
 }
 
@@ -226,8 +229,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_COMMAND_OPEN_SETTINGS,
 					title: {
-						...nls.localize2('settings', "设置"),
-						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "设置(S)"),
+						...nls.localize2('settings', "Settings"),
+						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"),
 					},
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -248,14 +251,14 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
 				// args takes a string for backcompat
 				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings(opts);
+				return accessor.get(IPreferencesService).openSettings({ ...opts });
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openSettings2',
-					title: nls.localize2('openSettings2', "打开设置 (UI)"),
+					title: nls.localize2('openSettings2', "Open Settings (UI)"),
 					category,
 					f1: true,
 				});
@@ -272,7 +275,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openSettingsJson',
 					title: OPEN_USER_SETTINGS_JSON_TITLE,
 					metadata: {
-						description: nls.localize2('workbench.action.openSettingsJson.description', "打开包含当前用户配置文件设置的 JSON 文件")
+						description: nls.localize2('workbench.action.openSettingsJson.description', "Opens the JSON file containing the current user profile settings")
 					},
 					category,
 					f1: true,
@@ -308,7 +311,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalSettings',
-					title: nls.localize2('openGlobalSettings', "打开用户设置"),
+					title: nls.localize2('openGlobalSettings', "Open User Settings"),
 					category,
 					f1: true,
 				});
@@ -322,7 +325,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openRawDefaultSettings',
-					title: nls.localize2('openRawDefaultSettings', "打开默认设置 (JSON)"),
+					title: nls.localize2('openRawDefaultSettings', "Open Default Settings (JSON)"),
 					category,
 					f1: true,
 				});
@@ -349,7 +352,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettings',
-					title: nls.localize2('openWorkspaceSettings', "打开工作区设置"),
+					title: nls.localize2('openWorkspaceSettings', "Open Workspace Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -368,7 +371,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openAccessibilitySettings',
-					title: nls.localize2('openAccessibilitySettings', "打开辅助功能设置"),
+					title: nls.localize2('openAccessibilitySettings', "Open Accessibility Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -384,7 +387,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openWorkspaceSettingsFile',
-					title: nls.localize2('openWorkspaceSettingsFile', "打开工作区设置 (JSON)"),
+					title: nls.localize2('openWorkspaceSettingsFile', "Open Workspace Settings (JSON)"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -401,7 +404,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettings',
-					title: nls.localize2('openFolderSettings', "打开文件夹设置"),
+					title: nls.localize2('openFolderSettings', "Open Folder Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -423,7 +426,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettingsFile',
-					title: nls.localize2('openFolderSettingsFile', "打开文件夹设置 (JSON)"),
+					title: nls.localize2('openFolderSettingsFile', "Open Folder Settings (JSON)"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -445,7 +448,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: '_workbench.action.openFolderSettings',
-					title: nls.localize('openFolderSettings', "打开文件夹设置"),
+					title: nls.localize('openFolderSettings', "Open Folder Settings"),
 					category,
 					menu: {
 						id: MenuId.ExplorerContext,
@@ -472,7 +475,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_ONLINE,
-					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "在线服务设置(O)"),
+					title: nls.localize({ key: 'miOpenOnlineSettings', comment: ['&& denotes a mnemonic'] }, "&&Online Services Settings"),
 					menu: {
 						id: MenuId.MenubarPreferencesMenu,
 						group: '3_settings',
@@ -501,7 +504,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: nls.localize2('settings.toggleAiSearch', "切换 AI 设置搜索")
+					title: nls.localize2('settings.toggleAiSearch', "Toggle AI Settings Search")
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -515,7 +518,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
-					title: nls.localize2('filterUntrusted', "显示不受信任的工作区设置"),
+					title: nls.localize2('filterUntrusted', "Show untrusted workspace settings"),
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -527,7 +530,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_COMMAND_FILTER_TELEMETRY,
-					title: nls.localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "遥测设置(T)")
+					title: nls.localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry Settings")
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -550,7 +553,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettings',
-							title: nls.localize2('openRemoteSettings', "打开远程设置 ({0})", hostLabel),
+							title: nls.localize2('openRemoteSettings', "Open Remote Settings ({0})", hostLabel),
 							category,
 							menu: {
 								id: MenuId.CommandPalette,
@@ -567,7 +570,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					constructor() {
 						super({
 							id: 'workbench.action.openRemoteSettingsFile',
-							title: nls.localize2('openRemoteSettingsJSON', "打开远程设置 (JSON) ({0})", hostLabel),
+							title: nls.localize2('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel),
 							category,
 							menu: {
 								id: MenuId.CommandPalette,
@@ -609,7 +612,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: nls.localize2('settings.focusSearch', "聚焦设置搜索")
+					title: nls.localize2('settings.focusSearch', "Focus Settings Search")
 				});
 			}
 
@@ -628,7 +631,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: nls.localize2('settings.clearResults', "清除设置搜索结果")
+					title: nls.localize2('settings.clearResults', "Clear Settings Search Results")
 				});
 			}
 
@@ -643,18 +646,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
-					keybinding: {
-						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusFile', "聚焦设置文件")
+					title: nls.localize('settings.focusFile', "Focus settings file")
 				});
 			}
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+				preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
 			}
 		}));
 
@@ -665,16 +663,77 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 					keybinding: {
 						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
-					title: nls.localize('settings.focusFile2', "聚焦设置文件")
+					title: nls.localize('settings.focusFile', "Focus settings file")
 				});
 			}
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				preferencesEditor?.focusSettings();
+				preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					keybinding: {
+						primary: KeyCode.UpArrow,
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
+					},
+					title: nls.localize('settings.showPreviousSearch', "Show Previous Search in Settings")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.navigateSearchHistoryPrevious();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+					keybinding: {
+						primary: KeyCode.Enter,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
+					},
+					title: nls.localize('settings.focusSettingsFromSearchOnEnter', "Focus First Setting from Search")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusFirstSettingFromSearch();
+			}
+		}));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_FIRST_ROW_FOCUS),
+					keybinding: {
+						primary: KeyCode.UpArrow,
+						// Win over the list's own `list.focusUp` command so the first row moves focus back to search.
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: null
+					},
+					title: nls.localize('settings.focusSearchFromSettings', "Focus Settings Search from Settings")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				preferencesEditor?.focusSearch();
 			}
 		}));
 
@@ -688,7 +747,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: null
 					},
-					title: nls.localize('settings.focusSettingsList', "聚焦设置列表")
+					title: nls.localize('settings.focusSettingsList', "Focus settings list")
 				});
 			}
 
@@ -713,7 +772,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							when: CONTEXT_SETTINGS_ROW_FOCUS
 						}],
 					category,
-					title: nls.localize2('settings.focusSettingsTOC', "聚焦设置目录")
+					title: nls.localize2('settings.focusSettingsTOC', "Focus Settings Table of Contents")
 				});
 			}
 
@@ -736,7 +795,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						primary: KeyCode.Enter,
 						weight: KeybindingWeight.WorkbenchContrib,
 					},
-					title: nls.localize('settings.focusSettingControl', "聚焦设置控件")
+					title: nls.localize('settings.focusSettingControl', "Focus Setting Control")
 				});
 			}
 
@@ -765,7 +824,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: nls.localize2('settings.showContextMenu', "显示设置上下文菜单")
+					title: nls.localize2('settings.showContextMenu', "Show Setting Context Menu")
 				});
 			}
 
@@ -789,7 +848,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: nls.localize2('settings.focusLevelUp', "向上移动焦点一级")
+					title: nls.localize2('settings.focusLevelUp', "Move Focus Up One Level")
 				});
 			}
 
@@ -812,14 +871,14 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private registerKeybindingsActions() {
 		const that = this;
-		const category = nls.localize2('preferences', "首选项");
+		const category = nls.localize2('preferences', "Preferences");
 		const id = 'workbench.action.openGlobalKeybindings';
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id,
-					title: nls.localize2('openGlobalKeybindings', "打开键盘快捷方式"),
-					shortTitle: nls.localize('keyboardShortcuts', "键盘快捷方式"),
+					title: nls.localize2('openGlobalKeybindings', "Open Keyboard Shortcuts"),
+					shortTitle: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
 					category,
 					icon: preferencesOpenSettingsIcon,
 					keybinding: {
@@ -831,6 +890,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
+						},
+						{
+							id: MenuId.ModalEditorEditorTitle,
 							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
 							group: 'navigation',
 							order: 1,
@@ -852,7 +917,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			command: {
 				id,
-				title: nls.localize('keyboardShortcuts', "键盘快捷方式"),
+				title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
 			},
 			group: '2_configuration',
 			order: 4
@@ -861,7 +926,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openDefaultKeybindingsFile',
-					title: nls.localize2('openDefaultKeybindingsFile', "打开默认键盘快捷方式 (JSON)"),
+					title: nls.localize2('openDefaultKeybindingsFile', "Open Default Keyboard Shortcuts (JSON)"),
 					category,
 					menu: { id: MenuId.CommandPalette }
 				});
@@ -874,13 +939,18 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openGlobalKeybindingsFile',
-					title: nls.localize2('openGlobalKeybindingsFile', "打开键盘快捷方式 (JSON)"),
+					title: nls.localize2('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"),
 					category,
 					icon: preferencesOpenSettingsIcon,
 					menu: [
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
+							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+							group: 'navigation',
+						},
+						{
+							id: MenuId.ModalEditorEditorTitle,
 							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 							group: 'navigation',
 						}
@@ -896,7 +966,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-					title: nls.localize2('showDefaultKeybindings', "显示系统键绑定"),
+					title: nls.localize2('showDefaultKeybindings', "Show System Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -918,7 +988,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
-					title: nls.localize2('showExtensionKeybindings', "显示扩展键绑定"),
+					title: nls.localize2('showExtensionKeybindings', "Show Extension Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -940,7 +1010,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
-					title: nls.localize2('showUserKeybindings', "显示用户键绑定"),
+					title: nls.localize2('showUserKeybindings', "Show User Keybindings"),
 					menu: [
 						{
 							id: MenuId.EditorTitle,
@@ -962,10 +1032,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-					title: nls.localize('clear', "清除搜索结果"),
+					title: nls.localize('clear', "Clear Search Results"),
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
+						when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE),
 						primary: KeyCode.Escape,
 					}
 				});
@@ -982,7 +1052,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY,
-					title: nls.localize('clearHistory', "清除键盘快捷方式搜索历史"),
+					title: nls.localize('clearHistory', "Clear Keyboard Shortcuts Search History"),
 					category,
 					menu: [
 						{
@@ -1011,7 +1081,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS, CONTEXT_WHEN_FOCUS.toNegated()),
 			primary: KeyCode.Enter,
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, false);
@@ -1024,7 +1094,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyA),
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, true);
@@ -1037,7 +1107,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE),
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor && editorPane.activeKeybindingEntry!.keybindingItem.keybinding) {
 					editorPane.defineWhenExpression(editorPane.activeKeybindingEntry!);
@@ -1053,7 +1123,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			mac: {
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace
 			},
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.removeKeybinding(editorPane.activeKeybindingEntry!);
@@ -1066,7 +1136,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: 0,
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.resetKeybinding(editorPane.activeKeybindingEntry!);
@@ -1079,7 +1149,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 			primary: KeyMod.CtrlCmd | KeyCode.KeyF,
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.focusSearch();
@@ -1093,7 +1163,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 			primary: KeyMod.Alt | KeyCode.KeyK,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyK },
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.recordSearchKeys();
@@ -1107,7 +1177,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 			primary: KeyMod.Alt | KeyCode.KeyP,
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP },
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.toggleSortByPrecedence();
@@ -1120,7 +1190,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: 0,
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.showSimilarKeybindings(editorPane.activeKeybindingEntry!);
@@ -1133,7 +1203,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS, CONTEXT_WHEN_FOCUS.negate()),
 			primary: KeyMod.CtrlCmd | KeyCode.KeyC,
-			handler: async (accessor, args: any) => {
+			handler: async (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					await editorPane.copyKeybinding(editorPane.activeKeybindingEntry!);
@@ -1146,7 +1216,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: 0,
-			handler: async (accessor, args: any) => {
+			handler: async (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					await editorPane.copyKeybindingCommand(editorPane.activeKeybindingEntry!);
@@ -1159,7 +1229,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 			primary: 0,
-			handler: async (accessor, args: any) => {
+			handler: async (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					await editorPane.copyKeybindingCommandTitle(editorPane.activeKeybindingEntry!);
@@ -1172,7 +1242,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			handler: (accessor, args: any) => {
+			handler: (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.focusKeybindings();
@@ -1185,7 +1255,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, SuggestContext.Visible.toNegated()),
 			primary: KeyCode.Escape,
-			handler: async (accessor, args: any) => {
+			handler: async (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.rejectWhenExpression(editorPane.activeKeybindingEntry!);
@@ -1198,7 +1268,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_WHEN_FOCUS, SuggestContext.Visible.toNegated()),
 			primary: KeyCode.Enter,
-			handler: async (accessor, args: any) => {
+			handler: async (accessor, args: unknown) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.acceptWhenExpression(editorPane.activeKeybindingEntry!);
@@ -1214,7 +1284,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					const when = ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString());
 					super({
 						id: 'editor.action.defineKeybinding',
-						title: nls.localize2('defineKeybinding.start', "定义键绑定"),
+						title: nls.localize2('defineKeybinding.start', "Define Keybinding"),
 						f1: true,
 						precondition: when,
 						keybinding: {
@@ -1246,13 +1316,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
+			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
 					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
+				when,
+				group: 'navigation',
+				order: 1
+			});
+			MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+				command: {
+					id: commandId,
+					title: OPEN_USER_SETTINGS_UI_TITLE,
+					icon: preferencesOpenSettingsIcon
+				},
+				when,
 				group: 'navigation',
 				order: 1
 			});
@@ -1272,13 +1353,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
+				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor'));
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
+					when,
+					group: 'navigation',
+					order: 1
+				});
+				MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+					command: {
+						id: commandId,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon
+					},
+					when,
 					group: 'navigation',
 					order: 1
 				});
@@ -1320,6 +1412,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 							when: openUserSettingsEditorWhen,
 							group: 'navigation',
 							order: 1
+						}, {
+							id: MenuId.ModalEditorEditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
 						}]
 					});
 				}
@@ -1342,10 +1439,15 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-					title: nls.localize2('openSettingsJson', "打开设置 (JSON)"),
+					title: nls.localize2('openSettingsJson', "Open Settings (JSON)"),
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
 						when: openSettingsJsonWhen,
 						group: 'navigation',
 						order: 1
@@ -1423,7 +1525,7 @@ registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribu
 // Preferences menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "首选项(P)"),
+	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
 	submenu: MenuId.MenubarPreferencesMenu,
 	group: '5_autosave',
 	order: 2,

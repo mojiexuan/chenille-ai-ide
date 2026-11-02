@@ -20,7 +20,8 @@ export async function askForPromptFileName(
 	accessor: ServicesAccessor,
 	type: PromptsType,
 	selectedFolder: URI,
-	existingFileName?: string
+	existingFileName?: string,
+	fileExtensionOverride?: string,
 ): Promise<string | undefined> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const fileService = accessor.get(IFileService);
@@ -31,7 +32,7 @@ export async function askForPromptFileName(
 			return undefined;
 		}
 
-		const fileExtension = getPromptFileExtension(type);
+		const fileExtension = fileExtensionOverride ?? getPromptFileExtension(type);
 		return (trimmedName.endsWith(fileExtension))
 			? trimmedName
 			: `${trimmedName}${fileExtension}`;
@@ -41,14 +42,14 @@ export async function askForPromptFileName(
 		const fileName = sanitizeInput(value);
 		if (!fileName) {
 			return {
-				content: localize('askForPromptFileName.error.empty', "请输入名称。"),
+				content: localize('askForPromptFileName.error.empty', "Please enter a name."),
 				severity: Severity.Warning
 			};
 		}
 
 		if (!isValidBasename(fileName)) {
 			return {
-				content: localize('askForPromptFileName.error.invalid', "名称包含无效字符。"),
+				content: localize('askForPromptFileName.error.invalid', "The name contains invalid characters."),
 				severity: Severity.Error
 			};
 		}
@@ -56,7 +57,7 @@ export async function askForPromptFileName(
 		const fileUri = URI.joinPath(selectedFolder, fileName);
 		if (await fileService.exists(fileUri)) {
 			return {
-				content: localize('askForPromptFileName.error.exists', "该名称的文件已存在。"),
+				content: localize('askForPromptFileName.error.exists', "A file for the given name already exists."),
 				severity: Severity.Error
 			};
 		}
@@ -75,11 +76,11 @@ export async function askForPromptFileName(
 function getPlaceholderStringForNew(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('askForInstructionsFileName.placeholder', "输入指令文件的名称");
+			return localize('askForInstructionsFileName.placeholder', "Enter the name of the instructions file");
 		case PromptsType.prompt:
-			return localize('askForPromptFileName.placeholder', "输入提示文件的名称");
+			return localize('askForPromptFileName.placeholder', "Enter the name of the prompt file");
 		case PromptsType.agent:
-			return localize('askForAgentFileName.placeholder', "输入智能体文件的名称");
+			return localize('askForAgentFileName.placeholder', "Enter the name of the agent file");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -88,11 +89,11 @@ function getPlaceholderStringForNew(type: PromptsType): string {
 function getPlaceholderStringForRename(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('askForRenamedInstructionsFileName.placeholder', "输入指令文件的新名称");
+			return localize('askForRenamedInstructionsFileName.placeholder', "Enter a new name of the instructions file");
 		case PromptsType.prompt:
-			return localize('askForRenamedPromptFileName.placeholder', "输入提示文件的新名称");
+			return localize('askForRenamedPromptFileName.placeholder', "Enter a new name of the prompt file");
 		case PromptsType.agent:
-			return localize('askForRenamedAgentFileName.placeholder', "输入智能体文件的新名称");
+			return localize('askForRenamedAgentFileName.placeholder', "Enter a new name of the agent file");
 		default:
 			throw new Error('Unknown prompt type');
 	}

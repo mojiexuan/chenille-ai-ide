@@ -9,9 +9,9 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
 use crate::{
 	constants::{PRODUCT_DOWNLOAD_URL, QUALITY, QUALITYLESS_PRODUCT_NAME},
@@ -33,9 +33,7 @@ pub enum RequestedVersion {
 	Path(String),
 }
 
-lazy_static! {
-	static ref COMMIT_RE: Regex = Regex::new(r"(?i)^[0-9a-f]{40}$").unwrap();
-}
+static COMMIT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^[0-9a-f]{40}$").unwrap());
 
 impl RequestedVersion {
 	pub fn get_command(&self) -> String {
@@ -107,7 +105,7 @@ impl CodeVersionManager {
 		}
 	}
 
-	/// Tries to find the binary entrypoint for Chenille installed in the path.
+	/// Tries to find the binary entrypoint for VS Code installed in the path.
 	pub async fn get_entrypoint_for_install_dir(path: &Path) -> Option<PathBuf> {
 		use tokio::sync::mpsc;
 
@@ -441,7 +439,7 @@ mod tests {
 
 	#[test]
 	fn test_detect_installed_program() {
-		// developers can run this test and debug output manually; Chenille will not
+		// developers can run this test and debug output manually; VS Code will not
 		// be installed in CI, so the test only makes sure it doesn't error out
 		let result = detect_installed_program(&log::Logger::test());
 		println!("result: {result:?}");

@@ -17,6 +17,7 @@ import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/ex
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
@@ -25,19 +26,23 @@ import { isProposedApiEnabled } from '../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
+import { IChatAgentData, IChatAgentService } from '../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId, ChatViewContainerId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
+import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
+import { ChatUpdateRequiredView } from './viewsWelcome/chatUpdateRequiredView.js';
+import { MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../../../services/policies/common/managedSettingsUpdate.js';
 
 // --- Chat Container &  View Registration
 
+const chatViewIcon = registerIcon('chat-view-icon', Codicon.chatSparkle, localize('chatViewIcon', 'View icon of the chat view.'));
+
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: ChatViewContainerId,
-	title: localize2('chat.viewContainer.label', "聊天"),
-	icon: Codicon.chatSparkle,
+	title: localize2('chat.viewContainer.label', "Chat"),
+	icon: chatViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ChatViewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: ChatViewContainerId,
 	hideIfEmpty: true,
@@ -49,13 +54,13 @@ const chatViewDescriptor: IViewDescriptor = {
 	containerIcon: chatViewContainer.icon,
 	containerTitle: chatViewContainer.title.value,
 	singleViewPaneContainerTitle: chatViewContainer.title.value,
-	name: localize2('chat.viewContainer.label', "聊天"),
+	name: localize2('chat.viewContainer.label', "Chat"),
 	canToggleVisibility: false,
 	canMoveView: true,
 	openCommandActionDescriptor: {
 		id: ChatViewContainerId,
 		title: chatViewContainer.title,
-		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "聊天"),
+		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 			mac: {
@@ -65,21 +70,43 @@ const chatViewDescriptor: IViewDescriptor = {
 		order: 1
 	},
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
-	when: ContextKeyExpr.or(
+	when: ContextKeyExpr.and(
+		ChatContextKeys.accountPolicyGateActive.negate(),
 		ContextKeyExpr.or(
-			ChatContextKeys.Setup.hidden,
-			ChatContextKeys.Setup.disabled
-		)?.negate(),
-		ChatContextKeys.panelParticipantRegistered,
-		ChatContextKeys.extensionInvalid
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.disabledInWorkspace.negate(),
+			),
+			ChatContextKeys.panelParticipantRegistered,
+			ChatContextKeys.extensionInvalid
+		)
 	)
 };
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
 
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: MANAGED_SETTINGS_UPDATE_VIEW_ID,
+	name: chatViewDescriptor.name,
+	containerIcon: chatViewIcon,
+	singleViewPaneContainerTitle: chatViewContainer.title.value,
+	canToggleVisibility: false,
+	canMoveView: false,
+	ctorDescriptor: new SyncDescriptor(ChatUpdateRequiredView),
+	when: ManagedSettingsUpdateRequiredContext,
+	openCommandActionDescriptor: {
+		id: 'workbench.action.chat.showUpdateRequired',
+		title: localize2('chat.updateRequiredView', "Chat Update Requirement"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+		},
+	},
+}], chatViewContainer);
+
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.chatParticipant', '贡献一个聊天参与者'),
+		description: localize('vscode.extension.contributes.chatParticipant', 'Contributes a chat participant'),
 		type: 'array',
 		items: {
 			additionalProperties: false,
@@ -88,36 +115,36 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 			required: ['name', 'id'],
 			properties: {
 				id: {
-					description: localize('chatParticipantId', "此聊天参与者的唯一 ID。"),
+					description: localize('chatParticipantId', "A unique id for this chat participant."),
 					type: 'string'
 				},
 				name: {
-					description: localize('chatParticipantName', "此聊天参与者的用户可见名称。用户将使用 '@' 加此名称来调用参与者。名称不能包含空格。"),
+					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant. Name must not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
 				fullName: {
-					markdownDescription: localize('chatParticipantFullName', "此聊天参与者的全名，显示为来自此参与者的响应的标签。如果未提供，则使用 {0}。", '`name`'),
+					markdownDescription: localize('chatParticipantFullName', "The full name of this chat participant, which is shown as the label for responses coming from this participant. If not provided, {0} is used.", '`name`'),
 					type: 'string'
 				},
 				description: {
-					description: localize('chatParticipantDescription', "此聊天参与者的描述，显示在 UI 中。"),
+					description: localize('chatParticipantDescription', "A description of this chat participant, shown in the UI."),
 					type: 'string'
 				},
 				isSticky: {
-					description: localize('chatCommandSticky', "调用命令是否将聊天置于持久模式，在该模式下命令会自动添加到下一条消息的聊天输入中。"),
+					description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 					type: 'boolean'
 				},
 				sampleRequest: {
-					description: localize('chatSampleRequest', "当用户在 `/help` 中点击此参与者时，此文本将被提交给参与者。"),
+					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
 					type: 'string'
 				},
 				when: {
-					description: localize('chatParticipantWhen', "启用此参与者必须为真的条件。"),
+					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
 					type: 'string'
 				},
 				disambiguation: {
-					description: localize('chatParticipantDisambiguation', "帮助自动将用户问题路由到此聊天参与者的元数据。"),
+					description: localize('chatParticipantDisambiguation', "Metadata to help with automatically routing user questions to this chat participant."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -126,22 +153,22 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						required: ['category', 'description', 'examples'],
 						properties: {
 							category: {
-								markdownDescription: localize('chatParticipantDisambiguationCategory', "此类别的详细名称，例如 `workspace_questions` 或 `web_questions`。"),
+								markdownDescription: localize('chatParticipantDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
 								type: 'string'
 							},
 							description: {
-								description: localize('chatParticipantDisambiguationDescription', "适合此聊天参与者的问题类型的详细描述。"),
+								description: localize('chatParticipantDisambiguationDescription', "A detailed description of the kinds of questions that are suitable for this chat participant."),
 								type: 'string'
 							},
 							examples: {
-								description: localize('chatParticipantDisambiguationExamples', "适合此聊天参与者的代表性示例问题列表。"),
+								description: localize('chatParticipantDisambiguationExamples', "A list of representative example questions that are suitable for this chat participant."),
 								type: 'array'
 							},
 						}
 					}
 				},
 				commands: {
-					markdownDescription: localize('chatCommandsDescription', "此聊天参与者可用的命令，用户可以使用 `/` 来调用。"),
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -150,27 +177,27 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						required: ['name'],
 						properties: {
 							name: {
-								description: localize('chatCommand', "此命令在 UI 中引用的简短名称，例如用于修复问题的 `fix` 或解释代码的 `explain`。名称在此参与者提供的命令中必须唯一。"),
+								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
 								type: 'string'
 							},
 							description: {
-								description: localize('chatCommandDescription', "此命令的描述。"),
+								description: localize('chatCommandDescription', "A description of this command."),
 								type: 'string'
 							},
 							when: {
-								description: localize('chatCommandWhen', "启用此命令必须为真的条件。"),
+								description: localize('chatCommandWhen', "A condition which must be true to enable this command."),
 								type: 'string'
 							},
 							sampleRequest: {
-								description: localize('chatCommandSampleRequest', "当用户在 `/help` 中点击此命令时，此文本将被提交给参与者。"),
+								description: localize('chatCommandSampleRequest', "When the user clicks this command in `/help`, this text will be submitted to the participant."),
 								type: 'string'
 							},
 							isSticky: {
-								description: localize('chatCommandSticky', "调用命令是否将聊天置于持久模式，在该模式下命令会自动添加到下一条消息的聊天输入中。"),
+								description: localize('chatCommandSticky', "Whether invoking the command puts the chat into a persistent mode, where the command is automatically added to the chat input for the next message."),
 								type: 'boolean'
 							},
 							disambiguation: {
-								description: localize('chatCommandDisambiguation', "帮助自动将用户问题路由到此聊天命令的元数据。"),
+								description: localize('chatCommandDisambiguation', "Metadata to help with automatically routing user questions to this chat command."),
 								type: 'array',
 								items: {
 									additionalProperties: false,
@@ -179,15 +206,15 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 									required: ['category', 'description', 'examples'],
 									properties: {
 										category: {
-											markdownDescription: localize('chatCommandDisambiguationCategory', "此类别的详细名称，例如 `workspace_questions` 或 `web_questions`。"),
+											markdownDescription: localize('chatCommandDisambiguationCategory', "A detailed name for this category, e.g. `workspace_questions` or `web_questions`."),
 											type: 'string'
 										},
 										description: {
-											description: localize('chatCommandDisambiguationDescription', "适合此聊天命令的问题类型的详细描述。"),
+											description: localize('chatCommandDisambiguationDescription', "A detailed description of the kinds of questions that are suitable for this chat command."),
 											type: 'string'
 										},
 										examples: {
-											description: localize('chatCommandDisambiguationExamples', "适合此聊天命令的代表性示例问题列表。"),
+											description: localize('chatCommandDisambiguationExamples', "A list of representative example questions that are suitable for this chat command."),
 											type: 'array'
 										},
 									}
@@ -352,10 +379,10 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		}
 
 		this.registeredWelcomeView = true;
-		const showExtensionLabel = localize('showExtension', "显示扩展");
-		const mainMessage = localize('chatFailErrorMessage', "聊天加载失败，因为已安装的 Copilot Chat 扩展版本与此版本的 {0} 不兼容。请确保 Copilot Chat 扩展是最新的。", this.productService.nameLong);
+		const showExtensionLabel = localize('showExtension', "Show Extension");
+		const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the Copilot Chat extension is not compatible with this version of {0}. Please ensure that the Copilot Chat extension is up to date.", this.productService.nameLong);
 		const commandButton = `[${showExtensionLabel}](${createCommandUri(showExtensionsWithIdsCommandId, [this.productService.defaultChatAgent?.chatExtensionId])})`;
-		const versionMessage = `Copilot Chat 版本：${chatExtension.version}`;
+		const versionMessage = `Copilot Chat version: ${chatExtension.version}`;
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		this._register(viewsRegistry.registerViewWelcomeContent(ChatViewId, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
@@ -378,10 +405,10 @@ class ChatParticipantDataRenderer extends Disposable implements IExtensionFeatur
 		}
 
 		const headers = [
-			localize('participantName', "名称"),
-			localize('participantFullName', "全名"),
-			localize('participantDescription', "描述"),
-			localize('participantCommands', "命令"),
+			localize('participantName', "Name"),
+			localize('participantFullName', "Full Name"),
+			localize('participantDescription', "Description"),
+			localize('participantCommands', "Commands"),
 		];
 
 		const rows: IRowData[][] = nonDefaultContributions.map(d => {
@@ -405,7 +432,7 @@ class ChatParticipantDataRenderer extends Disposable implements IExtensionFeatur
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'chatParticipants',
-	label: localize('chatParticipants', "聊天参与者"),
+	label: localize('chatParticipants', "Chat Participants"),
 	access: {
 		canToggle: false
 	},

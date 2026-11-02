@@ -12,6 +12,7 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -20,16 +21,17 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
-const builtInSource = localize('Built-In', "内置");
-const category: ILocalizedString = localize2('Create', '创建');
+const builtInSource = localize('Built-In', "Built-In");
+const category: ILocalizedString = localize2('Create', 'Create');
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showNewFileEntries',
-			title: localize2('welcome.newFile', '新建文件...'),
+			title: localize2('welcome.newFile', 'New File...'),
 			category,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KeyN,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -37,7 +39,8 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate()
 			}
 		});
 	}
@@ -100,8 +103,8 @@ class NewFileTemplatesManager extends Disposable {
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick({ useSeparators: true });
-		qp.title = localize('newFileTitle', "新建文件...");
-		qp.placeholder = localize('newFilePlaceholder', "选择文件类型或输入文件名...");
+		qp.title = localize('newFileTitle', "New File...");
+		qp.placeholder = localize('newFilePlaceholder', "Select File Type or Enter File Name...");
 		qp.sortByLabel = false;
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
@@ -123,8 +126,8 @@ class NewFileTemplatesManager extends Disposable {
 		};
 
 		const displayCategory: Record<string, string> = {
-			'file': localize('file', "文件"),
-			'notebook': localize('notebook', "笔记本"),
+			'file': localize('file', "File"),
+			'notebook': localize('notebook', "Notebook"),
 		};
 
 		const refreshQp = (entries: NewFileItem[]) => {
@@ -150,7 +153,7 @@ class NewFileTemplatesManager extends Disposable {
 						buttons: command ? [
 							{
 								iconClass: 'codicon codicon-gear',
-								tooltip: localize('change keybinding', "配置快捷键")
+								tooltip: localize('change keybinding', "Configure Keybinding")
 							}
 						] : [],
 						detail: '',
@@ -171,7 +174,7 @@ class NewFileTemplatesManager extends Disposable {
 			const currentTextEntry: NewFileItem = {
 				commandID: 'workbench.action.files.newFile',
 				commandArgs: { languageId: undefined, viewType: undefined, fileName: val },
-				title: localize('miNewFileWithName', "创建新文件 ({0})", val),
+				title: localize('miNewFileWithName', "Create New File ({0})", val),
 				group: 'file',
 				from: builtInSource,
 			};
@@ -211,7 +214,7 @@ MenuRegistry.appendMenuItem(MenuId.NewFile, {
 	group: 'file',
 	command: {
 		id: 'workbench.action.files.newUntitledFile',
-		title: localize('miNewFile2', "文本文件")
+		title: localize('miNewFile2', "Text File")
 	},
 	order: 1
 });

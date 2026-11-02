@@ -3,60 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatModeKind } from '../../common/constants.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-
-// Chenille: 以下 import 用于被注释掉的 ConfigureToolsAction
-// import { Codicon } from '../../../../../base/common/codicons.js';
-// import { IChatWidget } from '../chat.js';
-// import { $ } from '../../../../../base/browser/dom.js';
-// import { Iterable } from '../../../../../base/common/iterator.js';
-// import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
-// import { ThemeIcon } from '../../../../../base/common/themables.js';
-// import { localize } from '../../../../../nls.js';
-// import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-// import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-// import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-// import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-// import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-// import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-// import { ChatModeKind } from '../../common/constants.js';
-// import { ToolsScope } from '../chatSelectedTools.js';
-// import { showToolsPicker } from './chatToolPicker.js';
+import { showToolsPicker } from './chatToolPicker.js';
 
 
-// Chenille: 以下类型定义用于被注释掉的 ConfigureToolsAction
-// type SelectedToolData = {
-// 	enabled: number;
-// 	total: number;
-// };
-// type SelectedToolClassification = {
-// 	owner: 'connor4312';
-// 	comment: 'Details the capabilities of the MCP server';
-// 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of enabled chat tools' };
-// 	total: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of total chat tools' };
-// };
+type SelectedToolData = {
+	enabled: number;
+	total: number;
+};
+type SelectedToolClassification = {
+	owner: 'connor4312';
+	comment: 'Details the capabilities of the MCP server';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of enabled chat tools' };
+	total: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of total chat tools' };
+};
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
 export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
 export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
 export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
+export interface IToolConfirmationActionContext {
+	readonly sessionResource?: URI;
+}
+
 abstract class ToolConfirmationAction extends Action2 {
 	protected abstract getReason(): ConfirmedReason;
 
-	run(accessor: ServicesAccessor, ...args: unknown[]) {
+	run(accessor: ServicesAccessor, context?: IToolConfirmationActionContext) {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = context?.sessionResource
+			? chatWidgetService.getWidgetBySessionResource(context.sessionResource)
+			: chatWidgetService.lastFocusedWidget;
+		const activeConfirmation = widget?.inputPart.activeToolConfirmation;
+		if (activeConfirmation) {
+			const reason = this.getReason();
+			if (reason.type === ToolConfirmKind.UserAction) {
+				widget.inputPart.acceptActiveToolConfirmation();
+			} else {
+				IChatToolInvocation.confirmWith(activeConfirmation, reason);
+			}
+			widget.focusInput();
+			return;
+		}
 		const lastItem = widget?.viewModel?.getItems().at(-1);
 		if (!isResponseVM(lastItem)) {
 			return;
@@ -79,7 +88,7 @@ class AcceptToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
 			id: AcceptToolConfirmationActionId,
-			title: localize2('chat.accept', "同意"),
+			title: localize2('chat.accept', "Accept"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -100,7 +109,7 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
 			id: SkipToolConfirmationActionId,
-			title: localize2('chat.skip', "跳过"),
+			title: localize2('chat.skip', "Skip"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -113,25 +122,26 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	}
 
 	protected override getReason(): ConfirmedReason {
-		return { type: ToolConfirmKind.Skipped };
+		return { type: ToolConfirmKind.Skipped, source: 'user' };
 	}
 }
 
-// Chenille: 使用自定义工具系统，禁用原有的配置工具按钮
-/*
-class ConfigureToolsAction extends Action2 {
+export class ConfigureToolsAction extends Action2 {
 	public static ID = 'workbench.action.chat.configureTools';
 
 	constructor() {
 		super({
 			id: ConfigureToolsAction.ID,
-			title: localize('label', "配置工具..."),
-			icon: Codicon.tools,
+			title: localize('label', "Configure Tools..."),
+			icon: Codicon.settingsCompact,
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 100,
@@ -147,46 +157,55 @@ class ConfigureToolsAction extends Action2 {
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
-			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: unknown): obj is ChatActionContext {
-				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
-			}
-			const context = args[0];
-			if (isChatActionContext(context)) {
-				widget = context.widget;
-			}
+			widget = this.extractWidget(args);
 		}
 
 		if (!widget) {
 			return;
 		}
 
+		const source = this.extractSource(args) ?? 'chatInput';
+
 		let placeholder;
 		let description;
 		const { entriesScope, entriesMap } = widget.input.selectedToolsModel;
 		switch (entriesScope) {
 			case ToolsScope.Session:
-				placeholder = localize('chat.tools.placeholder.session', "为此聊天会话选择工具");
-				description = localize('chat.tools.description.session', "所选工具仅为此聊天会话配置。");
+				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
 				break;
 			case ToolsScope.Agent:
-				placeholder = localize('chat.tools.placeholder.agent', "为此自定义代理选择工具");
-				description = localize('chat.tools.description.agent', "所选工具由｛0｝自定义代理配置。对工具的更改也将应用于自定义代理文件。", widget.input.currentModeObs.get().label.get());
+				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Agent_ReadOnly:
-				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "为此自定义代理选择工具");
-				description = localize('chat.tools.description.readOnlyAgent', "所选工具由｛0｝自定义代理配置。对工具的更改将仅用于此会话，不会更改｛0｝自定义代理。", widget.input.currentModeObs.get().label.get());
+				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
 				break;
 			case ToolsScope.Global:
-				placeholder = localize('chat.tools.placeholder.global', "选择可用于聊天的工具。");
-				description = localize('chat.tools.description.global', "所选工具将全局应用于使用默认代理的所有聊天会话。");
+				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
 				break;
 
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
-		if (result) {
-			widget.input.selectedToolsModel.set(result, false);
+		// Create a cancellation token that cancels when the mode changes
+		const cts = new CancellationTokenSource();
+		const initialMode = widget.input.currentModeObs.get();
+		const modeListener = autorun(reader => {
+			if (initialMode.id !== widget.input.currentModeObs.read(reader).id) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token);
+			if (result) {
+				widget.input.selectedToolsModel.set(result, false);
+			}
+		} finally {
+			modeListener.dispose();
+			cts.dispose();
 		}
 
 		const tools = widget.input.selectedToolsModel.entriesMap.get();
@@ -195,84 +214,42 @@ class ConfigureToolsAction extends Action2 {
 			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
 	}
-}
 
-class ConfigureToolsActionRendering implements IWorkbenchContribution {
+	private extractWidget(args: unknown[]): IChatWidget | undefined {
+		type ChatActionContext = { widget: IChatWidget };
+		function isChatActionContext(obj: unknown): obj is ChatActionContext {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
+		}
 
-	static readonly ID = 'chat.configureToolsActionRendering';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-	) {
-		const disposable = actionViewItemService.register(MenuId.ChatInput, ConfigureToolsAction.ID, (action, _opts, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
+		for (const arg of args) {
+			if (isChatActionContext(arg)) {
+				return arg.widget;
 			}
-			return instantiationService.createInstance(class extends MenuEntryActionViewItem {
-				private warningElement!: HTMLElement;
+		}
 
-				override render(container: HTMLElement): void {
-					super.render(container);
+		return undefined;
+	}
 
-					// Add warning indicator element
-					this.warningElement = $(`.tool-warning-indicator${ThemeIcon.asCSSSelector(Codicon.warning)}`);
-					this.warningElement.style.display = 'none';
-					container.appendChild(this.warningElement);
-					container.style.position = 'relative';
+	private extractSource(args: unknown[]): string | undefined {
+		type ChatActionSource = { source: string };
+		function isChatActionSource(obj: unknown): obj is ChatActionSource {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionSource).source;
+		}
 
-					// Set up context key listeners
-					this.updateWarningState();
-					this._register(this._contextKeyService.onDidChangeContext(() => {
-						this.updateWarningState();
-					}));
-				}
+		for (const arg of args) {
+			if (isChatActionSource(arg)) {
+				return arg.source;
+			}
+		}
 
-				private updateWarningState(): void {
-					const wasShown = this.warningElement.style.display === 'block';
-					const shouldBeShown = this.isAboveToolLimit();
-
-					if (!wasShown && shouldBeShown) {
-						this.warningElement.style.display = 'block';
-						this.updateTooltip();
-					} else if (wasShown && !shouldBeShown) {
-						this.warningElement.style.display = 'none';
-						this.updateTooltip();
-					}
-				}
-
-				protected override getTooltip(): string {
-					if (this.isAboveToolLimit()) {
-						const warningMessage = localize('chatTools.tooManyEnabled', '启用了｛0｝个以上的工具，您可能会遇到工具调用降级。', this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolGroupingThreshold.key));
-						return `${warningMessage}`;
-					}
-
-					return super.getTooltip();
-				}
-
-				private isAboveToolLimit() {
-					const rawToolLimit = this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolGroupingThreshold.key);
-					const rawToolCount = this._contextKeyService.getContextKeyValue(ChatContextKeys.chatToolCount.key);
-					if (rawToolLimit === undefined || rawToolCount === undefined) {
-						return false;
-					}
-
-					const toolLimit = Number(rawToolLimit || 0);
-					const toolCount = Number(rawToolCount || 0);
-					return toolCount > toolLimit;
-				}
-			}, action, undefined);
-		});
-
-		// Reduces flicker a bit on reload/restart
-		markAsSingleton(disposable);
+		return undefined;
 	}
 }
-*/
 
-export function registerChatToolActions() {
-	registerAction2(AcceptToolConfirmation);
-	registerAction2(SkipToolConfirmation);
-	// Chenille: 使用自定义工具系统，禁用原有的配置工具按钮
-	// registerAction2(ConfigureToolsAction);
-	// registerWorkbenchContribution2(ConfigureToolsActionRendering.ID, ConfigureToolsActionRendering, WorkbenchPhase.BlockRestore);
+export function registerChatToolActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AcceptToolConfirmation));
+	store.add(registerAction2(SkipToolConfirmation));
+	store.add(registerAction2(ConfigureToolsAction));
+	return store;
 }

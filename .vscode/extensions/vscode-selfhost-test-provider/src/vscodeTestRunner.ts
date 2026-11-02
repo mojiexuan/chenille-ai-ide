@@ -20,7 +20,7 @@ const escapeRe = (s: string) => s.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&');
 const TEST_ELECTRON_SCRIPT_PATH = 'test/unit/electron/index.js';
 const TEST_BROWSER_SCRIPT_PATH = 'test/unit/browser/index.js';
 
-const ATTACH_CONFIG_NAME = 'Attach to Chenille';
+const ATTACH_CONFIG_NAME = 'Attach to VS Code';
 const DEBUG_TYPE = 'pwa-chrome';
 
 export abstract class VSCodeTestRunner {
@@ -312,10 +312,10 @@ export class DarwinTestRunner extends PosixTestRunner {
 
 	/** @override */
 	protected override async binaryPath() {
-		const { nameLong } = await this.readProductJson();
+		const { nameLong, nameShort } = await this.readProductJson();
 		return path.join(
 			this.repoLocation.uri.fsPath,
-			`.build/electron/${nameLong}.app/Contents/MacOS/Electron`
+			`.build/electron/${nameLong}.app/Contents/MacOS/${nameShort}`
 		);
 	}
 }

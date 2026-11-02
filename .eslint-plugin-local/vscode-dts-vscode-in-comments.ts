@@ -10,14 +10,14 @@ export default new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			comment: `Don't use the term 'Chenille' in comments`
+			comment: `Don't use the term 'vs code' in comments`
 		},
 		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const sourceCode = context.getSourceCode();
+		const sourceCode = context.sourceCode;
 
 		return {
 			['Program']: (_node: ESTree.Program) => {
@@ -31,10 +31,10 @@ export default new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 					}
 
 					const startIndex = comment.range[0] + '/*'.length;
-					const re = /Chenille/ig;
+					const re = /vs code/ig;
 					let match: RegExpExecArray | null;
 					while ((match = re.exec(comment.value))) {
-						// Allow using 'Chenille' in quotes
+						// Allow using 'VS Code' in quotes
 						if (comment.value[match.index - 1] === `'` && comment.value[match.index + match[0].length] === `'`) {
 							continue;
 						}

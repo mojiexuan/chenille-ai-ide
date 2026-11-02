@@ -33,32 +33,40 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, isEditorCommandsContext, isEditorInput, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
-import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { AnythingQuickAccessProvider, type IAnythingQuickPickItem } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
+import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
-import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
-import { isQuickChat } from '../chatWidget.js';
-import { resizeImage } from '../imageUtils.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatExecuteActionContext } from './chatExecuteActions.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
+import { isQuickChat } from '../widget/chatWidget.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { registerCreatePluginAction } from './createPluginAction.js';
 
-export function registerChatContextActions() {
-	registerAction2(AttachContextAction);
-	registerAction2(AttachFileToChatAction);
-	registerAction2(AttachFolderToChatAction);
-	registerAction2(AttachSelectionToChatAction);
-	registerAction2(AttachSearchResultAction);
-	registerPromptActions();
+export function registerChatContextActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AttachContextAction));
+	store.add(registerAction2(AttachFileToChatAction));
+	store.add(registerAction2(AttachFolderToChatAction));
+	store.add(registerAction2(AttachSelectionToChatAction));
+	store.add(registerAction2(AttachSearchResultAction));
+	store.add(registerAction2(AttachPinnedEditorsToChatAction));
+	store.add(registerCreatePluginAction());
+	registerPromptActions(); // TODO@jrieken: should also return a DisposableStore
+	return store;
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
@@ -87,7 +95,7 @@ abstract class AttachResourceAction extends Action2 {
 	protected _getResources(accessor: ServicesAccessor, ...args: unknown[]): URI[] {
 		const editorService = accessor.get(IEditorService);
 
-		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, args) : Array.isArray(args[1]) ? args[1] : [args[0]];
+		const contexts = isEditorCommandsContext(args[1]) ? this._getEditorResources(accessor, ...args) : Array.isArray(args[1]) ? args[1] : [args[0]];
 		const files = [];
 		for (const context of contexts) {
 			let uri;
@@ -126,8 +134,9 @@ class AttachFileToChatAction extends AttachResourceAction {
 	constructor() {
 		super({
 			id: AttachFileToChatAction.ID,
-			title: localize2('workbench.action.chat.attachFile.label', "将文件添加到聊天"),
+			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
+			icon: Codicon.attach,
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			menu: [{
@@ -164,6 +173,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection.negate(),
 					ContextKeyExpr.or(
 						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
@@ -171,6 +181,16 @@ class AttachFileToChatAction extends AttachResourceAction {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_chat',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
+			}, {
+				id: MenuId.ChatEditorInlineMenu,
+				group: '0_chat',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
 		});
 	}
@@ -196,7 +216,7 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	constructor() {
 		super({
 			id: AttachFolderToChatAction.ID,
-			title: localize2('workbench.action.chat.attachFolder.label', "将文件夹添加到聊天"),
+			title: localize2('workbench.action.chat.attachFolder.label', "Add Folder to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -229,6 +249,52 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 }
 
+class AttachPinnedEditorsToChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachPinnedEditors';
+
+	constructor() {
+		super({
+			id: AttachPinnedEditorsToChatAction.ID,
+			title: localize2('workbench.action.chat.attachPinnedEditors.label', "Add Pinned Editors to Chat"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+
+		const files: URI[] = [];
+		for (const group of editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (group.isPinned(editor)) {
+					const uri = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					if (uri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme)) {
+						files.push(uri);
+					}
+				}
+			}
+		}
+
+		if (!files.length) {
+			return;
+		}
+
+		widget.focusInput();
+		for (const file of files) {
+			widget.attachmentModel.addFile(file);
+		}
+	}
+}
+
 class AttachSelectionToChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachSelection';
@@ -236,11 +302,12 @@ class AttachSelectionToChatAction extends Action2 {
 	constructor() {
 		super({
 			id: AttachSelectionToChatAction.ID,
-			title: localize2('workbench.action.chat.attachSelection.label', "将选中内容添加到聊天"),
+			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
+			icon: Codicon.attach,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			menu: {
+			menu: [{
 				id: MenuId.EditorContext,
 				group: '1_chat',
 				order: 1,
@@ -254,7 +321,17 @@ class AttachSelectionToChatAction extends Action2 {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
-			}
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_chat',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}, {
+				id: MenuId.ChatEditorInlineMenu,
+				group: '0_chat',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}]
 		});
 	}
 
@@ -313,7 +390,7 @@ export class AttachSearchResultAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.insertSearchResults',
-			title: localize2('chat.insertSearchResults', '将搜索结果添加到聊天'),
+			title: localize2('chat.insertSearchResults', 'Add Search Results to Chat'),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: [{
@@ -365,7 +442,7 @@ interface IContextPickItemItem extends IQuickPickItem {
 }
 
 /** These are the types we get from "platform QP" */
-type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
+type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IAnythingQuickPickItem;
 
 function isIContextPickItemItem(obj: unknown): obj is IContextPickItemItem {
 	return (
@@ -389,35 +466,63 @@ function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithRe
 		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
 }
 
+function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: NonNullable<IAnythingQuickPickItem['editor']> } {
+	const editor = (obj as IAnythingQuickPickItem | undefined)?.editor;
+	return editor instanceof BrowserEditorInput || (!!editor && !isEditorInput(editor) && editor.options?.override === BrowserEditorInput.EDITOR_ID);
+}
+
 
 export class AttachContextAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.attachContext',
-			title: localize2('workbench.action.chat.attachContext.label.2', "添加上下文..."),
-			icon: Codicon.attach,
+			id: CHAT_ATTACH_CONTEXT_ACTION_ID,
+			title: localize2('workbench.action.chat.attachContext.label.2', "Add Context..."),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
+			icon: Codicon.addCompact,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
+			menu: [{
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
-					),
+					ChatContextKeys.inQuickChat.negate(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
 					)
 				),
-				id: MenuId.ChatInputAttachmentToolbar,
+				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 3
-			},
+				order: -1
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inQuickChat.negate(),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline),
+					CTX_INLINE_CHAT_V2_ENABLED,
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 2
+			}, {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inQuickChat,
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
+				),
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: -1
+			}],
 
 		});
 	}
@@ -429,10 +534,16 @@ export class AttachContextAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
+		const quickInputService = accessor.get(IQuickInputService);
 
-		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
+		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string; anchor?: HTMLElement }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
+			return;
+		}
+		const anchor = context?.anchor ?? widget.inputPart.attachContextButtonElement;
+		if (anchor && quickInputService.currentQuickInput?.anchor === anchor) {
+			await quickInputService.cancel();
 			return;
 		}
 
@@ -453,11 +564,11 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder, anchor);
 	}
 
-	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string) {
-		const quickInputService = accessor.get(IQuickInputService);
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, anchor?: HTMLElement, quickInputServiceOverride?: IQuickInputService) {
+		const quickInputService = quickInputServiceOverride ?? accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
@@ -479,12 +590,12 @@ export class AttachContextAction extends Action2 {
 						this._handleContextPick(item.item, widget);
 
 					} else if (item.item.type === 'pickerPick') {
-						isDone = await this._handleContextPickerItem(quickInputService, commandService, item.item, widget);
+						isDone = await this._handleContextPickerItem(quickInputService, commandService, item.item, widget, anchor);
 					}
 
 					if (!isDone) {
 						// restart picker when sub-picker didn't return anything
-						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder);
+						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder, anchor, quickInputServiceOverride);
 						return;
 					}
 
@@ -503,18 +614,26 @@ export class AttachContextAction extends Action2 {
 				SymbolsQuickAccessProvider.PREFIX,
 				AbstractGotoSymbolQuickAccessProvider.PREFIX
 			],
-			placeholder: placeholder ?? localize('chatContext.attach.placeholder', '搜索附件'),
+			placeholder: placeholder ?? localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions,
+			anchor,
+			anchorPosition: anchor ? 'above' : undefined,
 		});
 	}
 
 	private async _handleQPPick(accessor: ServicesAccessor, widget: IChatWidget, isInBackground: boolean, pick: IQuickPickServicePickItem) {
 		const fileService = accessor.get(IFileService);
 		const textModelService = accessor.get(ITextModelService);
+		const chatAttachmentResolveService = accessor.get(IChatAttachmentResolveService);
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+		if (isAnythingQuickPickItemWithBrowserEditor(pick)) {
+			const entry = await chatAttachmentResolveService.resolveEditorAttachContext(pick.editor);
+			if (entry) {
+				toAttach.push(entry);
+			}
+		} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {
@@ -529,6 +648,11 @@ export class AttachContextAction extends Action2 {
 						kind: 'image',
 						references: [{ reference: pick.resource, kind: 'reference' }]
 					});
+				}
+			} else if (pick.resource.scheme === Schemas.vscodeBrowser) {
+				const entry = await chatAttachmentResolveService.resolveEditorAttachContext({ resource: pick.resource });
+				if (entry) {
+					toAttach.push(entry);
 				}
 			} else {
 				let omittedState = OmittedState.NotOmitted;
@@ -577,14 +701,14 @@ export class AttachContextAction extends Action2 {
 		}
 	}
 
-	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget): Promise<boolean> {
+	private async _handleContextPickerItem(quickInputService: IQuickInputService, commandService: ICommandService, item: IChatContextPickerItem, widget: IChatWidget, anchor?: HTMLElement): Promise<boolean> {
 
 		const pickerConfig = item.asPicker(widget);
 
 		const store = new DisposableStore();
 
 		const goBackItem: IQuickPickItem = {
-			label: localize('goBack', '返回 ↩'),
+			label: localize('goBack', 'Go back ↩'),
 			alwaysShow: true
 		};
 		const configureItem = pickerConfig.configure ? {
@@ -610,6 +734,8 @@ export class AttachContextAction extends Action2 {
 		// qp.ignoreFocusOut = true;
 		qp.canAcceptInBackground = true;
 		qp.busy = true;
+		qp.anchor = anchor;
+		qp.anchorPosition = anchor ? 'above' : undefined;
 		qp.show();
 
 		if (isThenable(pickerConfig.picks)) {

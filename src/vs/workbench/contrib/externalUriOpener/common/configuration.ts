@@ -7,9 +7,10 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions } from '../../..
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import * as nls from '../../../../nls.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
-export const defaultExternalUriOpenerId = 'default';
+export { defaultExternalUriOpenerId };
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
@@ -55,7 +56,7 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 						type: 'string',
 						markdownDescription: nls.localize('externalUriOpeners.uri', "Map URI pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
 						enum: [defaultExternalUriOpenerId],
-						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using Chenille's standard opener.")],
+						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
 					},
 					externalUriOpenerIdSchemaAddition
 				]

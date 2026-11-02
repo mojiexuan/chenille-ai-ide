@@ -13,7 +13,7 @@
 	opacity: 1;
 
 	/* Background rule added for IE9 - to allow clicks on dom node */
-	background: rgba(0, 0, 0, 0);
+	background:rgba(0,0,0,0);
 
 	transition: opacity 100ms linear;
 	/* In front of peek view */
@@ -25,6 +25,11 @@
 }
 .monaco-scrollable-element > .invisible.fade {
 	transition: opacity 800ms linear;
+}
+
+.disable-animations .monaco-scrollable-element > .visible,
+.disable-animations .monaco-scrollable-element > .invisible.fade {
+	transition: none;
 }
 
 /* Scrollable Content Inset Shadow */

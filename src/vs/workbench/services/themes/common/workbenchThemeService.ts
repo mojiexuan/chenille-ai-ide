@@ -11,6 +11,7 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { isBoolean, isString } from '../../../../base/common/types.js';
 import { IconContribution, IconDefinition } from '../../../../platform/theme/common/iconRegistry.js';
 import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -38,34 +39,52 @@ export enum ThemeSettings {
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
-export enum ThemeSettingDefaults {
-	COLOR_THEME_DARK = 'Default Dark Modern',
-	COLOR_THEME_LIGHT = 'Default Light Modern',
-	COLOR_THEME_HC_DARK = 'Default High Contrast',
-	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
+export namespace ThemeSettingDefaults {
+	export const COLOR_THEME_DARK = 'Dark 2026';
+	export const COLOR_THEME_LIGHT = 'Light 2026';
+	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
+	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
-	COLOR_THEME_DARK_OLD = 'Default Dark+',
-	COLOR_THEME_LIGHT_OLD = 'Default Light+',
+	export const FILE_ICON_THEME = 'vs-seti';
+	export const PRODUCT_ICON_THEME = 'Default';
+}
 
-	FILE_ICON_THEME = 'vs-seti',
-	PRODUCT_ICON_THEME = 'Default',
+/**
+ * Migrates legacy theme settings IDs to their current equivalents.
+ * Theme IDs were simplified: "Default" prefix was removed from built-in themes,
+ * and "Experimental" prefix was replaced when VS Code themes became GA.
+ */
+export function migrateThemeSettingsId(settingsId: string): string {
+	switch (settingsId) {
+		case 'Default Dark Modern': return 'Dark Modern';
+		case 'Default Light Modern': return 'Light Modern';
+		case 'Default Dark+': return 'Dark+';
+		case 'Default Light+': return 'Light+';
+		case 'Experimental Dark':
+		case 'VS Code Dark':
+			return ThemeSettingDefaults.COLOR_THEME_DARK;
+		case 'Experimental Light':
+		case 'VS Code Light':
+			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
+	}
+	return settingsId;
 }
 
 export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'actionBar.toggledBackground': '#383a49',
-	'activityBar.activeBorder': '#f15a29',
+	'activityBar.activeBorder': '#0078D4',
 	'activityBar.background': '#181818',
 	'activityBar.border': '#2B2B2B',
 	'activityBar.foreground': '#D7D7D7',
 	'activityBar.inactiveForeground': '#868686',
-	'activityBarBadge.background': '#f15a29',
+	'activityBarBadge.background': '#0078D4',
 	'activityBarBadge.foreground': '#FFFFFF',
 	'badge.background': '#616161',
 	'badge.foreground': '#F8F8F8',
-	'button.background': '#f15a29',
+	'button.background': '#0078D4',
 	'button.border': '#FFFFFF12',
 	'button.foreground': '#FFFFFF',
-	'button.hoverBackground': '#f47643',
+	'button.hoverBackground': '#026EC1',
 	'button.secondaryBackground': '#313131',
 	'button.secondaryForeground': '#CCCCCC',
 	'button.secondaryHoverBackground': '#3C3C3C',
@@ -90,7 +109,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'editorGroupHeader.tabsBorder': '#2B2B2B',
 	'editorGutter.addedBackground': '#2EA043',
 	'editorGutter.deletedBackground': '#F85149',
-	'editorGutter.modifiedBackground': '#f15a29',
+	'editorGutter.modifiedBackground': '#0078D4',
 	'editorIndentGuide.activeBackground1': '#707070',
 	'editorIndentGuide.background1': '#404040',
 	'editorLineNumber.activeForeground': '#CCCCCC',
@@ -98,7 +117,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'editorOverviewRuler.border': '#010409',
 	'editorWidget.background': '#202020',
 	'errorForeground': '#F85149',
-	'focusBorder': '#f15a29',
+	'focusBorder': '#0078D4',
 	'foreground': '#CCCCCC',
 	'icon.foreground': '#CCCCCC',
 	'input.background': '#313131',
@@ -113,7 +132,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'menu.background': '#1F1F1F',
 	'menu.border': '#454545',
 	'menu.foreground': '#CCCCCC',
-	'menu.selectionBackground': '#f15a29',
+	'menu.selectionBackground': '#0078d4',
 	'menu.separatorBackground': '#454545',
 	'notificationCenterHeader.background': '#1F1F1F',
 	'notificationCenterHeader.foreground': '#CCCCCC',
@@ -123,7 +142,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'panel.background': '#181818',
 	'panel.border': '#2B2B2B',
 	'panelInput.border': '#2B2B2B',
-	'panelTitle.activeBorder': '#f15a29',
+	'panelTitle.activeBorder': '#0078D4',
 	'panelTitle.activeForeground': '#CCCCCC',
 	'panelTitle.inactiveForeground': '#9D9D9D',
 	'peekViewEditor.background': '#1F1F1F',
@@ -132,7 +151,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'peekViewResult.matchHighlightBackground': '#BB800966',
 	'pickerGroup.border': '#3C3C3C',
 	'ports.iconRunningProcessForeground': '#369432',
-	'progressBar.background': '#f15a29',
+	'progressBar.background': '#0078D4',
 	'quickInput.background': '#222222',
 	'quickInput.foreground': '#CCCCCC',
 	'settings.dropdownBackground': '#313131',
@@ -148,38 +167,38 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'sideBarTitle.foreground': '#CCCCCC',
 	'statusBar.background': '#181818',
 	'statusBar.border': '#2B2B2B',
-	'statusBar.debuggingBackground': '#f15a29',
+	'statusBar.debuggingBackground': '#0078D4',
 	'statusBar.debuggingForeground': '#FFFFFF',
-	'statusBar.focusBorder': '#f15a29',
+	'statusBar.focusBorder': '#0078D4',
 	'statusBar.foreground': '#CCCCCC',
 	'statusBar.noFolderBackground': '#1F1F1F',
-	'statusBarItem.focusBorder': '#f15a29',
+	'statusBarItem.focusBorder': '#0078D4',
 	'statusBarItem.prominentBackground': '#6E768166',
-	'statusBarItem.remoteBackground': '#f15a29',
+	'statusBarItem.remoteBackground': '#0078D4',
 	'statusBarItem.remoteForeground': '#FFFFFF',
 	'tab.activeBackground': '#1F1F1F',
 	'tab.activeBorder': '#1F1F1F',
-	'tab.activeBorderTop': '#f15a29',
+	'tab.activeBorderTop': '#0078D4',
 	'tab.activeForeground': '#FFFFFF',
 	'tab.border': '#2B2B2B',
 	'tab.hoverBackground': '#1F1F1F',
 	'tab.inactiveBackground': '#181818',
 	'tab.inactiveForeground': '#9D9D9D',
 	'tab.lastPinnedBorder': '#ccc3',
-	'tab.selectedBackground': '#222222',
+	'tab.selectedBackground': '#37373D',
 	'tab.selectedBorderTop': '#6caddf',
-	'tab.selectedForeground': '#ffffffa0',
+	'tab.selectedForeground': '#FFFFFF',
 	'tab.unfocusedActiveBorder': '#1F1F1F',
 	'tab.unfocusedActiveBorderTop': '#2B2B2B',
 	'tab.unfocusedHoverBackground': '#1F1F1F',
 	'terminal.foreground': '#CCCCCC',
 	'terminal.inactiveSelectionBackground': '#3A3D41',
-	'terminal.tab.activeBorder': '#f15a29',
+	'terminal.tab.activeBorder': '#0078D4',
 	'textBlockQuote.background': '#2B2B2B',
 	'textBlockQuote.border': '#616161',
 	'textCodeBlock.background': '#2B2B2B',
-	'textLink.activeForeground': '#f8a579',
-	'textLink.foreground': '#f8a579',
+	'textLink.activeForeground': '#4daafc',
+	'textLink.foreground': '#4daafc',
 	'textPreformat.background': '#3C3C3C',
 	'textPreformat.foreground': '#D0D0D0',
 	'textSeparator.foreground': '#21262D',
@@ -188,7 +207,7 @@ export const COLOR_THEME_DARK_INITIAL_COLORS = {
 	'titleBar.border': '#2B2B2B',
 	'titleBar.inactiveBackground': '#1F1F1F',
 	'titleBar.inactiveForeground': '#9D9D9D',
-	'welcomePage.progress.foreground': '#f15a29',
+	'welcomePage.progress.foreground': '#0078D4',
 	'welcomePage.tileBackground': '#2B2B2B',
 	'widget.border': '#313131'
 };
@@ -318,9 +337,9 @@ export const COLOR_THEME_LIGHT_INITIAL_COLORS = {
 	'tab.inactiveBackground': '#F8F8F8',
 	'tab.inactiveForeground': '#868686',
 	'tab.lastPinnedBorder': '#D4D4D4',
-	'tab.selectedBackground': '#ffffffa5',
+	'tab.selectedBackground': '#E4E6F1',
 	'tab.selectedBorderTop': '#68a3da',
-	'tab.selectedForeground': '#333333b3',
+	'tab.selectedForeground': '#333333',
 	'tab.unfocusedActiveBorder': '#F8F8F8',
 	'tab.unfocusedActiveBorderTop': '#E5E5E5',
 	'tab.unfocusedHoverBackground': '#F8F8F8',
@@ -378,9 +397,14 @@ export interface IWorkbenchThemeService extends IThemeService {
 	readonly _serviceBrand: undefined;
 	setColorTheme(themeId: string | undefined | IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
+	/** Returns the selected theme and user customizations without window-local overlays. */
+	getBaseColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	readonly onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+
+	/** Applies window-local colors computed from the base theme, without persisting them or changing the selected theme. */
+	registerColorThemeOverlay(getColors: (theme: IWorkbenchColorTheme) => IColorMap): IDisposable;
 
 	getPreferredColorScheme(): ColorScheme | undefined;
 
@@ -477,6 +501,9 @@ export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
 	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
+	fontFamily?: string;
+	fontSize?: number;
+	lineHeight?: number;
 }
 
 export interface ISemanticTokenColorizationSetting {

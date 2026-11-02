@@ -7,7 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../../editor/browser/editorBrowser.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { localize } from '../../../../../nls.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -37,12 +37,12 @@ export class PromptCodingAgentActionOverlayWidget extends Disposable implements 
 
 		this._button = this._register(new Button(this._domNode, {
 			supportIcons: true,
-			title: localize('runPromptWithCodingAgent', "在远程编码智能体中运行提示文件")
+			title: localize('runPromptWithCodingAgent', "Run prompt file in a remote coding agent")
 		}));
 
 		this._button.element.style.background = 'var(--vscode-button-background)';
 		this._button.element.style.color = 'var(--vscode-button-foreground)';
-		this._button.label = localize('runWithCodingAgent.label', "{0} 委托给 Copilot 编码智能体", '$(cloud-upload)');
+		this._button.label = localize('runWithCodingAgent.label', "{0} Delegate to Copilot coding agent", '$(cloud-upload)');
 
 		this._register(this._button.onDidClick(async () => {
 			await this._execute();

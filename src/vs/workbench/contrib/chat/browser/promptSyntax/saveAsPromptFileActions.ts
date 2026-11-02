@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { AGENT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -82,7 +82,7 @@ export const SAVE_AS_PROMPT_FILE_ACTION_ID = 'workbench.action.chat.save-as-prom
 
 export class SaveAsPromptFileAction extends BaseSaveAsPromptFileAction {
 	constructor() {
-		super(createOptions(SAVE_AS_PROMPT_FILE_ACTION_ID, localize2('promptfile.savePromptFile', "另存为提示文件"), localize2('promptfile.savePromptFile.description', "另存为提示文件"), PROMPT_LANGUAGE_ID), PromptsType.prompt);
+		super(createOptions(SAVE_AS_PROMPT_FILE_ACTION_ID, localize2('promptfile.savePromptFile', "Save As Prompt File"), localize2('promptfile.savePromptFile.description', "Save as prompt file"), PROMPT_LANGUAGE_ID), PromptsType.prompt);
 	}
 }
 
@@ -90,7 +90,7 @@ export const SAVE_AS_AGENT_FILE_ACTION_ID = 'workbench.action.chat.save-as-agent
 
 export class SaveAsAgentFileAction extends BaseSaveAsPromptFileAction {
 	constructor() {
-		super(createOptions(SAVE_AS_AGENT_FILE_ACTION_ID, localize2('promptfile.saveAgentFile', "另存为智能体文件"), localize2('promptfile.saveAgentFile.description', "另存为智能体文件"), AGENT_LANGUAGE_ID), PromptsType.agent);
+		super(createOptions(SAVE_AS_AGENT_FILE_ACTION_ID, localize2('promptfile.saveAgentFile', "Save As Agent File"), localize2('promptfile.saveAgentFile.description', "Save as agent file"), AGENT_LANGUAGE_ID), PromptsType.agent);
 	}
 }
 
@@ -98,7 +98,6 @@ export const SAVE_AS_INSTRUCTIONS_FILE_ACTION_ID = 'workbench.action.chat.save-a
 
 export class SaveAsInstructionsFileAction extends BaseSaveAsPromptFileAction {
 	constructor() {
-		super(createOptions(SAVE_AS_INSTRUCTIONS_FILE_ACTION_ID, localize2('promptfile.saveInstructionsFile', "另存为指令文件"), localize2('promptfile.saveInstructionsFile.description', "另存为指令文件"), INSTRUCTIONS_LANGUAGE_ID), PromptsType.instructions);
+		super(createOptions(SAVE_AS_INSTRUCTIONS_FILE_ACTION_ID, localize2('promptfile.saveInstructionsFile', "Save As Instructions File"), localize2('promptfile.saveInstructionsFile.description', "Save as instructions file"), INSTRUCTIONS_LANGUAGE_ID), PromptsType.instructions);
 	}
 }
-

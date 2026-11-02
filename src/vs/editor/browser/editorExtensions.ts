@@ -653,17 +653,17 @@ export const UndoCommand = registerCommand(new MultiCommand({
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
-		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "撤销(U)"),
+		title: nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"),
 		order: 1
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: nls.localize('undo', "撤销"),
+		title: nls.localize('undo', "Undo"),
 		order: 1
 	}, {
 		menuId: MenuId.SimpleEditorContext,
 		group: '1_do',
-		title: nls.localize('undo', "撤销"),
+		title: nls.localize('undo', "Undo"),
 		order: 1
 	}]
 }));
@@ -682,17 +682,17 @@ export const RedoCommand = registerCommand(new MultiCommand({
 	menuOpts: [{
 		menuId: MenuId.MenubarEditMenu,
 		group: '1_do',
-		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "恢复(R)"),
+		title: nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"),
 		order: 2
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: nls.localize('redo', "恢复"),
+		title: nls.localize('redo', "Redo"),
 		order: 1
 	}, {
 		menuId: MenuId.SimpleEditorContext,
 		group: '1_do',
-		title: nls.localize('redo', "恢复"),
+		title: nls.localize('redo', "Redo"),
 		order: 2
 	}]
 }));
@@ -710,17 +710,17 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	menuOpts: [{
 		menuId: MenuId.MenubarSelectionMenu,
 		group: '1_basic',
-		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "全选(A)"),
+		title: nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"),
 		order: 1
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
-		title: nls.localize('selectAll', "全选"),
+		title: nls.localize('selectAll', "Select All"),
 		order: 1
 	}, {
 		menuId: MenuId.SimpleEditorContext,
 		group: '9_select',
-		title: nls.localize('selectAll', "全选"),
+		title: nls.localize('selectAll', "Select All"),
 		order: 1
 	}]
 }));

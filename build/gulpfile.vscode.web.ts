@@ -3,25 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, rename, filter, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
-import * as optimize from './lib/optimize.ts';
-import { readISODate } from './lib/date.ts';
+import * as task from './lib/gulp/task.ts';
+import { writeISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
-import rename from 'gulp-rename';
-import filter from 'gulp-filter';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
-import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import * as extensions from './lib/extensions.ts';
-import VinylFile from 'vinyl';
-import jsonEditor from 'gulp-json-editor';
-import buildfile from './buildfile.ts';
+import { runEsbuildBundle } from './lib/esbuild.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -31,111 +26,9 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-export const vscodeWebResourceIncludes = [
-
-	// NLS
-	'out-build/nls.messages.js',
-
-	// Accessibility Signals
-	'out-build/vs/platform/accessibilitySignal/browser/media/*.mp3',
-
-	// Welcome
-	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
-
-	// Extensions
-	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
-	'out-build/vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
-
-	// Chat (Chenille icon)
-	'out-build/vs/workbench/contrib/chat/browser/media/*.{svg,png}',
-
-	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
-
-	// Tree Sitter highlights
-	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Tree Sitter injections
-	'out-build/vs/editor/common/languages/injections/*.scm',
-
-	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
-];
-
-const vscodeWebResources = [
-
-	// Includes
-	...vscodeWebResourceIncludes,
-
-	// Excludes
-	'!out-build/vs/**/{node,electron-browser,electron-main,electron-utility}/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/workbench/**/*-tb.png',
-	'!out-build/vs/code/**/*-dev.html',
-	'!**/test/**'
-];
-
-const vscodeWebEntryPoints = [
-	buildfile.workerEditor,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workerOutputLinks,
-	buildfile.workerBackgroundTokenization,
-	buildfile.keyboardMaps,
-	buildfile.workbenchWeb,
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge
-].flat();
-
-/**
- * @param extensionsRoot The location where extension will be read from
- * @param product The parsed product.json file contents
- */
-export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product: typeof import('../product.json')) => {
-	return (path: string): ((content: string) => string) | undefined => {
-		if (path.endsWith('vs/platform/product/common/product.js')) {
-			return content => {
-				const productConfiguration = JSON.stringify({
-					...product,
-					version,
-					commit,
-					date: readISODate('out-build')
-				});
-				return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
-			};
-		} else if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
-			return content => {
-				const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
-				return content.replace('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/', () => builtinExtensions.substr(1, builtinExtensions.length - 2) /* without [ and ]*/);
-			};
-		}
-
-		return undefined;
-	};
-};
-
-const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
-	util.rimraf('out-vscode-web'),
-	optimize.bundleTask(
-		{
-			out: 'out-vscode-web',
-			esm: {
-				src: 'out-build',
-				entryPoints: vscodeWebEntryPoints,
-				resources: vscodeWebResources,
-				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
-			}
-		}
-	)
-));
-
-const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
-	bundleVSCodeWebTask,
-	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
-));
-gulp.task(minifyVSCodeWebTask);
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+const esbuildBundleVSCodeWebTask = task.define('esbuild-vscode-web', () => runEsbuildBundle('out-vscode-web', false, true, 'web'));
+const esbuildBundleVSCodeWebMinTask = task.define('esbuild-vscode-web-min', () => runEsbuildBundle('out-vscode-web-min', true, true, 'web', `${sourceMappingURLBase}/core`));
 
 function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
@@ -146,21 +39,8 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
-		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
-
-		const sources = es.merge(src, extensions, loader)
-			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }))
-			// TODO@esm remove me once we stop supporting our web-esm-bridge
-			.pipe(es.through(function (file) {
-				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {
-					this.emit('data', new VinylFile({
-						contents: file.contents,
-						path: file.path.replace('workbench.web.main.internal.css', 'workbench.web.main.css'),
-						base: file.base
-					}));
-				}
-				this.emit('data', file);
-			}));
+		const sources = es.merge(src, extensions)
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
@@ -202,11 +82,11 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build', task.series(
 	task.define('clean-web-extensions-build', util.rimraf('.build/web/extensions')),
-	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true, false).pipe(gulp.dest('.build/web'))),
+	task.define('bundle-web-extensions-build', () => extensions.packageAllLocalExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-marketplace-web-extensions-build', () => extensions.packageMarketplaceExtensionsStream(true).pipe(gulp.dest('.build/web'))),
 	task.define('bundle-web-extension-media-build', () => extensions.buildExtensionMedia(false, '.build/web/extensions')),
 ));
-gulp.task(compileWebExtensionsBuildTask);
+task.task(compileWebExtensionsBuildTask);
 
 const dashed = (str: string) => (str ? `-${str}` : ``);
 
@@ -215,16 +95,18 @@ const dashed = (str: string) => (str ? `-${str}` : ``);
 	const destinationFolderName = `vscode-web`;
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
+		copyCodiconsTask,
 		compileWebExtensionsBuildTask,
-		minified ? minifyVSCodeWebTask : bundleVSCodeWebTask,
+		minified ? esbuildBundleVSCodeWebMinTask : esbuildBundleVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
 	));
-	gulp.task(vscodeWebTaskCI);
+	task.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		compileBuildWithManglingTask,
+		compileApiProposalNamesTask,
+		writeISODate('out-build'),
 		vscodeWebTaskCI
 	));
-	gulp.task(vscodeWebTask);
+	task.task(vscodeWebTask);
 });

@@ -13,8 +13,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatVariableEntries.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/attachments/chatContextPickService.js';
+import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { SearchContext } from '../common/constants.js';
 import { SearchView } from './searchView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -36,6 +36,8 @@ import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { isSupportedChatFileScheme } from '../../chat/common/constants.js';
 import { IChatWidget } from '../../chat/browser/chat.js';
 
+export const MAX_CHAT_FILE_COMPLETION_RESULTS = 100;
+
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contributions.searchChatContextContribution';
@@ -54,7 +56,7 @@ export class SearchChatContextContribution extends Disposable implements IWorkbe
 class SearchViewResultChatContextPick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
-	readonly label: string = localize('chatContext.searchResults', '搜索结果');
+	readonly label: string = localize('chatContext.searchResults', 'Search Results');
 	readonly icon: ThemeIcon = Codicon.search;
 	readonly ordinal = 500;
 
@@ -87,7 +89,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
 
-	readonly label: string = localize('symbols', '符号...');
+	readonly label: string = localize('symbols', 'Symbols...');
 	readonly icon: ThemeIcon = Codicon.symbolField;
 	readonly ordinal = -200;
 
@@ -107,7 +109,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 	asPicker() {
 
 		return {
-			placeholder: localize('select.symb', "选择一个符号"),
+			placeholder: localize('select.symb', "Select a symbol"),
 			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
 
 				this._provider ??= this._instantiationService.createInstance(SymbolsQuickAccessProvider);
@@ -147,7 +149,7 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.folder', '文件 & 文件夹...');
+	readonly label = localize('chatContext.folder', 'Files & Folders...');
 	readonly icon = Codicon.folder;
 	readonly ordinal = 600;
 
@@ -166,7 +168,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 	asPicker() {
 
 		return {
-			placeholder: localize('chatContext.attach.files.placeholder', "按名称搜索文件或文件夹"),
+			placeholder: localize('chatContext.attach.files.placeholder', "Search file or folder by name"),
 			picks: picksWithPromiseFn(async (value, token) => {
 
 				const workspaces = this._workspaceService.getWorkspace().folders.map(folder => folder.uri);
@@ -234,9 +236,10 @@ export async function searchFilesAndFolders(
 	token: CancellationToken | undefined,
 	cacheKey: string | undefined,
 	configurationService: IConfigurationService,
-	searchService: ISearchService
+	searchService: ISearchService,
+	maxResults?: number
 ): Promise<{ folders: URI[]; files: URI[] }> {
-	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
+	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern);
 
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
 	const searchOptions: IFileQuery = {
@@ -249,11 +252,13 @@ export async function searchFilesAndFolders(
 		cacheKey,
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
+		ignoreGlobCase: true,
+		maxResults,
 	};
 
 	let searchResult: ISearchComplete | undefined;
 	try {
-		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,${pattern}}` }, token);
+		searchResult = await searchService.fileSearch({ ...searchOptions, filePattern: `{**/${segmentMatchPattern}/**,**/${segmentMatchPattern}}` }, token);
 	} catch (e) {
 		if (!isCancellationError(e)) {
 			throw e;
@@ -284,26 +289,13 @@ function continousMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern + '*';
 }
 
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
-}
-
 // TODO: remove this and have support from the search service
 function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMatchPattern: string): URI[] {
 	const uniqueFolders = new ResourceSet();
 	for (const resource of resources) {
 		const relativePathToRoot = relativePath(workspace, resource);
 		if (!relativePathToRoot) {
-			throw new Error('资源不是工作区的子级');
+			throw new Error('Resource is not a child of the workspace');
 		}
 
 		let dirResource = workspace;
@@ -318,7 +310,7 @@ function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMa
 	for (const folderResource of uniqueFolders) {
 		const stats = folderResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 

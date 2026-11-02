@@ -10,7 +10,7 @@ if [ -n "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
-# This variable allows the shell to both detect that Chenille's shell integration is enabled as well
+# This variable allows the shell to both detect that VS Code's shell integration is enabled as well
 # as disable it by unsetting the variable.
 VSCODE_SHELL_INTEGRATION=1
 
@@ -76,9 +76,11 @@ if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
 		# Prevent crashing by negating exit code
 		if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
 			__vsc_activation_status=$?
-			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m Chenille Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
 		fi
 	fi
+	# Remove any leftover Python activation env vars.
+	unset -m 'VSCODE_PYTHON_*_ACTIVATE'
 fi
 
 # Report prompt type
@@ -96,6 +98,21 @@ fi
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Prevent AI-executed commands from polluting shell history
+if [ "${VSCODE_PREVENT_SHELL_HISTORY:-}" = "1" ]; then
+	builtin setopt HIST_IGNORE_SPACE
+	builtin unset VSCODE_PREVENT_SHELL_HISTORY
+fi
+
+# Agent terminal zsh fixups: disable bang history expansion so ! in double
+# quotes does not hang on dquote>, and enable inline # comments so the
+# agent can annotate commands.
+if [ "${VSCODE_AGENT_ZSH_FIXUPS:-}" = "1" ]; then
+	builtin setopt NO_BANG_HIST
+	builtin setopt INTERACTIVE_COMMENTS
+	builtin unset VSCODE_AGENT_ZSH_FIXUPS
 fi
 
 # The property (P) and command (E) codes embed values which require escaping.
@@ -171,6 +188,7 @@ __update_env_cache_aa() {
 __update_env_cache() {
 	local key="$1"
 	local value="$2"
+	local i
 
 	for (( i=1; i <= $#__vsc_env_keys; i++ )); do
 		if [[ "${__vsc_env_keys[$i]}" == "$key" ]]; then
@@ -189,6 +207,8 @@ __update_env_cache() {
 }
 
 __vsc_update_env() {
+	local key var value
+
 	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then

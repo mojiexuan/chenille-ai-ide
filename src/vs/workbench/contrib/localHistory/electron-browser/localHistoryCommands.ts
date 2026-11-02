@@ -7,7 +7,7 @@ import { localize2 } from '../../../../nls.js';
 import { IWorkingCopyHistoryService } from '../../../services/workingCopy/common/workingCopyHistory.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
-import { LOCAL_HISTORY_MENU_CONTEXT_KEY } from '../browser/localHistory.js';
+import { LOCAL_HISTORY_SINGLE_ITEM_MENU_CONTEXT_KEY } from '../browser/localHistory.js';
 import { findLocalHistoryEntry, ITimelineCommandArgument } from '../browser/localHistoryCommands.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -21,12 +21,12 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.revealInOS',
-			title: isWindows ? localize2('revealInWindows', "在文件资源管理器中显示") : isMacintosh ? localize2('revealInMac', "在 Finder 中显示") : localize2('openContainer', "打开所在文件夹"),
+			title: isWindows ? localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? localize2('revealInMac', "Reveal in Finder") : localize2('openContainer', "Open Containing Folder"),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '4_reveal',
 				order: 1,
-				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, ResourceContextKey.Scheme.isEqualTo(Schemas.file))
+				when: ContextKeyExpr.and(LOCAL_HISTORY_SINGLE_ITEM_MENU_CONTEXT_KEY, ResourceContextKey.Scheme.isEqualTo(Schemas.file))
 			}
 		});
 	}

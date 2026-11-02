@@ -16,7 +16,7 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, WindowEnablement } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -29,7 +29,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
@@ -43,11 +42,17 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { OutputAccessibilityHelp } from './outputAccessibilityHelp.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
+
+// Register Accessibility Help
+AccessibleViewRegistry.register(new OutputAccessibilityHelp());
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
@@ -64,27 +69,28 @@ ModesRegistry.registerLanguage({
 });
 
 // register output container
-const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', '输出视图的图标。'));
+const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: nls.localize2('output', "输出"),
+	title: nls.localize2('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
+	windowEnablement: WindowEnablement.Both
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize2('output', "输出"),
+	name: nls.localize2('output', "Output"),
 	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: true,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.output.toggleOutput',
-		mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "输出(&&O)"),
+		mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyU,
 			linux: {
@@ -92,7 +98,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 			}
 		},
 		order: 1,
-	}
+	},
+	windowEnablement: WindowEnablement.Both
 }], VIEW_CONTAINER);
 
 class OutputContribution extends Disposable implements IWorkbenchContribution {
@@ -391,7 +398,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFileInNewWindow`,
-					title: nls.localize2('openActiveOutputFileInNewWindow', "在新窗口中打开输出"),
+					title: nls.localize2('openActiveOutputFileInNewWindow', "Open Output in New Window"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),

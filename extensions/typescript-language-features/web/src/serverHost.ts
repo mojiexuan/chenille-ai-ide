@@ -104,6 +104,8 @@ function createServerHost(
 
 			const scriptPath = combinePaths(packageRoot, browser);
 			try {
+				// This file isn't bundled so we really do want a dynamic import here
+				// eslint-disable-next-line no-restricted-syntax
 				const { default: module } = await import(/* webpackIgnore: true */ scriptPath);
 				return { module, error: undefined };
 			} catch (e) {
@@ -361,7 +363,7 @@ function createServerHost(
 
 		const isNm = looksLikeNodeModules(path)
 			&& !path.startsWith('/vscode-global-typings/')
-			// Handle the case where a local folder has been opened in Chenille
+			// Handle the case where a local folder has been opened in VS Code
 			// In these cases we do not want to use the mapped node_module
 			&& !path.startsWith('/file/');
 

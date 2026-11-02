@@ -161,7 +161,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	async getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]> {
 		if (this.productService.profileTemplatesUrl) {
 			try {
-				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl }, CancellationToken.None);
+				const context = await this.requestService.request({ type: 'GET', url: this.productService.profileTemplatesUrl, callSite: 'userDataProfileManagement.getProfileTemplates' }, CancellationToken.None);
 				if (context.res.statusCode === 200) {
 					return (await asJson<IProfileTemplateInfo[]>(context)) || [];
 				} else {
@@ -197,7 +197,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (shouldRestartExtensionHosts) {
 			if (isRemoteWindow) {
 				const { confirmed } = await this.dialogService.confirm({
-					message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading Chenille."),
+					message: reloadMessage ?? localize('reload message', "Switching a profile requires reloading VS Code."),
 					primaryButton: localize('reload button', "&&Reload"),
 				});
 				if (confirmed) {

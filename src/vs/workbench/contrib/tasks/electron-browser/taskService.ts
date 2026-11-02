@@ -48,8 +48,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IChatService } from '../../chat/common/chatService.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 
 interface IWorkspaceFolderConfigurationResult {
@@ -220,7 +220,7 @@ export class TaskService extends AbstractTaskService {
 						return false; // no veto
 					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
 						return this._dialogService.confirm({
-							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting Chenille might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
 							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
 							type: 'info'
 						}).then(res => !res.confirmed);

@@ -49,8 +49,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
 	private debuggersAvailable!: IContextKey<boolean>;
 	private debugExtensionsAvailable!: IContextKey<boolean>;
-	private readonly _onDidRegisterDebugger = new Emitter<void>();
-	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
+	private readonly _onDidRegisterDebugger = this._register(new Emitter<void>());
+	private readonly _onDidDebuggersExtPointRead = this._register(new Emitter<void>());
 	private breakpointContributions: Breakpoints[] = [];
 	private debuggerWhenKeys = new Set<string>();
 	private taskLabels: string[] = [];
@@ -175,7 +175,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 					},
 					'debugServer': {
 						type: 'number',
-						description: nls.localize('debugServer', "For debug extension development only: if a port is specified Chenille tries to connect to a debug adapter running in server mode"),
+						description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
 						default: 4711
 					},
 					'preLaunchTask': {

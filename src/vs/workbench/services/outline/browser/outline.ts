@@ -29,6 +29,7 @@ export interface IOutlineService {
 	canCreateOutline(editor: IEditorPane): boolean;
 	createOutline(editor: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
+	notifyOutlineChanged(): void;
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {
@@ -36,8 +37,13 @@ export interface IOutlineCreator<P extends IEditorPane, E> {
 	createOutline(editor: P, target: OutlineTarget, token: CancellationToken): Promise<IOutline<E> | undefined>;
 }
 
+export interface IBreadcrumbsOutlineElement<E> {
+	readonly element: E;
+	readonly label: string;
+}
+
 export interface IBreadcrumbsDataSource<E> {
-	getBreadcrumbElements(): readonly E[];
+	getBreadcrumbElements(): readonly IBreadcrumbsOutlineElement<E>[];
 }
 
 export interface IOutlineComparator<E> {

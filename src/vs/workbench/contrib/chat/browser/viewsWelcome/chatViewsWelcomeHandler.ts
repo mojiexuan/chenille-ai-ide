@@ -23,19 +23,19 @@ const chatViewsWelcomeJsonSchema = {
 	properties: {
 		icon: {
 			type: 'string',
-			description: localize('chatViewsWelcome.icon', '欢迎消息的图标。'),
+			description: localize('chatViewsWelcome.icon', 'The icon for the welcome message.'),
 		},
 		title: {
 			type: 'string',
-			description: localize('chatViewsWelcome.title', '欢迎消息的标题。'),
+			description: localize('chatViewsWelcome.title', 'The title of the welcome message.'),
 		},
 		content: {
 			type: 'string',
-			description: localize('chatViewsWelcome.content', '欢迎消息的内容。第一个命令链接将呈现为按钮。'),
+			description: localize('chatViewsWelcome.content', 'The content of the welcome message. The first command link will be rendered as a button.'),
 		},
 		when: {
 			type: 'string',
-			description: localize('chatViewsWelcome.when', '显示欢迎消息的条件。'),
+			description: localize('chatViewsWelcome.when', 'Condition when the welcome message is shown.'),
 		}
 	}
 } as const satisfies IJSONSchema;
@@ -45,7 +45,7 @@ type IRawChatViewsWelcomeContribution = TypeFromJsonSchema<typeof chatViewsWelco
 const chatViewsWelcomeExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatViewsWelcomeContribution[]>({
 	extensionPoint: 'chatViewsWelcome',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.chatViewsWelcome', '为聊天视图贡献欢迎消息'),
+		description: localize('vscode.extension.contributes.chatViewsWelcome', 'Contributes a welcome message to a chat view'),
 		type: 'array',
 		items: chatViewsWelcomeJsonSchema,
 	},

@@ -94,8 +94,8 @@ import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
-	get onChange(): Event<{ id: string | null; focus: boolean }> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
+	readonly onChange = this._onChange.event;
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -141,6 +141,11 @@ class NavBar extends Disposable {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
 	}
 }
 
@@ -277,15 +282,15 @@ export class ExtensionEditor extends EditorPane {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { role: 'heading', tabIndex: 0 }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), name, localize('name', "扩展名称")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
 		const versionWidget = new VersionWidget(title, this.hoverService);
 
 		const preview = append(title, $('span.preview'));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "预览版")));
-		preview.textContent = localize('preview', "预览版");
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
+		preview.textContent = localize('preview', "Preview");
 
 		const builtin = append(title, $('span.builtin'));
-		builtin.textContent = localize('builtin', "内置");
+		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
 		const subTitleEntryContainers: HTMLElement[] = [];
@@ -335,6 +340,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ClearLanguageAction),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
@@ -348,7 +354,6 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction, null, true),
 				]
 			]),
-			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -419,7 +424,7 @@ export class ExtensionEditor extends EditorPane {
 		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
-		const navbar = new NavBar(body);
+		const navbar = this._register(new NavBar(body));
 
 		const content = append(body, $('.content'));
 		content.id = generateUuid(); // An id is needed for the webview parent flow to
@@ -593,18 +598,18 @@ export class ExtensionEditor extends EditorPane {
 			this.currentIdentifier = extension.identifier.id;
 		}
 
-		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "详细信息"), localize('detailstooltip', "扩展详细信息，从扩展的 README.md 文件渲染"));
+		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		if (manifest) {
-			template.navbar.push(ExtensionEditorTab.Features, localize('features', "功能"), localize('featurestooltip', "列出此扩展提供的功能"));
+			template.navbar.push(ExtensionEditorTab.Features, localize('features', "Features"), localize('featurestooltip', "Lists features contributed by this extension"));
 		}
 		if (extension.hasChangelog()) {
-			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "更新日志"), localize('changelogtooltip', "扩展更新历史，从扩展的 CHANGELOG.md 文件渲染"));
+			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
 		}
 		if (extension.dependencies.length) {
-			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "依赖项"), localize('dependenciestooltip', "列出此扩展依赖的扩展"));
+			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 		}
 		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExtensionPack(manifest)) {
-			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "扩展包"), localize('extensionpacktooltip', "列出将与此扩展一起安装的扩展"));
+			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
 		}
 
 		if ((<IExtensionEditorOptions | undefined>this.options)?.tab) {
@@ -664,12 +669,24 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		// Setup common container structure for all tabs
+		const details = append(template.content, $('.details'));
+		const contentContainer = append(details, $('.content-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+
+		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		// Render additional details synchronously to avoid flicker
+		this.renderAdditionalDetails(additionalDetailsContainer, extension);
+
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
-			case ExtensionEditorTab.Features: return this.openFeatures(template, token);
-			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, template, token);
-			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, contentContainer, token);
+			case ExtensionEditorTab.Features: return this.openFeatures(extension, contentContainer, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, contentContainer, token);
+			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, contentContainer, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, contentContainer, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -696,7 +713,7 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.setAnchorElement(container);
 
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
@@ -704,13 +721,6 @@ export class ExtensionEditor extends EditorPane {
 			this.contentDisposables.add(webview.onDidFocus(() => this._onDidFocus?.fire()));
 
 			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
-
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-				layout: () => {
-					webview.layoutWebviewOverElement(container);
-				}
-			});
-			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 			let isDisposed = false;
 			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -835,24 +845,15 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
-		const additionalDetailsContainer = append(details, $('.additional-details-container'));
-
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
-		layout();
-		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
-
+	private async openDetails(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(extension, manifest, readmeContainer, token);
+			activeElement = await this.openExtensionPackReadme(extension, manifest, contentContainer, token);
 		} else {
-			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "没有可用的 README。"), readmeContainer, WebviewIndex.Readme, localize('Readme title', "自述文件"), token);
+			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), contentContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		}
 
-		this.renderAdditionalDetails(additionalDetailsContainer, extension);
 		return activeElement;
 	}
 
@@ -870,26 +871,40 @@ export class ExtensionEditor extends EditorPane {
 		extensionPackReadme.style.maxWidth = '882px';
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length <= 3) {
-			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length <= 6) {
-			extensionPackReadme.classList.add('two-rows');
-		} else if (manifest.extensionPack!.length <= 9) {
-			extensionPackReadme.classList.add('three-rows');
-		} else {
-			extensionPackReadme.classList.add('more-rows');
-		}
+
+		const packCount = manifest.extensionPack!.length;
+		const headerHeight = 37; // navbar height
+		const contentMinHeight = 200; // minimum height for readme content
+
+		const layout = () => {
+			extensionPackReadme.classList.remove('one-row', 'two-rows', 'three-rows', 'more-rows');
+			const availableHeight = container.clientHeight;
+			const availableForPack = Math.max(availableHeight - headerHeight - contentMinHeight, 0);
+			let rowClass = 'one-row';
+			if (availableForPack >= 302 && packCount > 6) {
+				rowClass = 'more-rows';
+			} else if (availableForPack >= 282 && packCount > 4) {
+				rowClass = 'three-rows';
+			} else if (availableForPack >= 200 && packCount > 2) {
+				rowClass = 'two-rows';
+			} else {
+				rowClass = 'one-row';
+			}
+			extensionPackReadme.classList.add(rowClass);
+		};
+
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));
-		extensionPackHeader.textContent = localize('extension pack', "扩展包 ({0})", manifest.extensionPack!.length);
+		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
 		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
 		extensionPackContent.setAttribute('tabindex', '0');
-		append(extensionPack, $('div.footer'));
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
 			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "没有可用的 README。"), readmeContent, WebviewIndex.Readme, localize('Readme title', "自述文件"), token),
+			this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, localize('Readme title', "Readme"), token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
@@ -909,12 +924,14 @@ export class ExtensionEditor extends EditorPane {
 		scrollableContent.scanDomNode();
 	}
 
-	private openChangelog(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "没有可用的更新日志。"), template.content, WebviewIndex.Changelog, localize('Changelog title', "更新日志"), token);
+	private async openChangelog(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const activeElement = await this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), contentContainer, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+
+		return activeElement;
 	}
 
-	private async openFeatures(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+	private async openFeatures(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
@@ -923,27 +940,28 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		const extensionFeaturesTab = this.contentDisposables.add(this.instantiationService.createInstance(ExtensionFeaturesTab, manifest, (<IExtensionEditorOptions | undefined>this.options)?.feature));
-		const layout = () => extensionFeaturesTab.layout(template.content.clientHeight, template.content.clientWidth);
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const featureLayout = () => extensionFeaturesTab.layout(contentContainer.clientHeight, contentContainer.clientWidth);
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: featureLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-		append(template.content, extensionFeaturesTab.domNode);
-		layout();
+		append(contentContainer, extensionFeaturesTab.domNode);
+		featureLayout();
+
 		return extensionFeaturesTab.domNode;
 	}
 
-	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private openExtensionDependencies(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
 
 		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
-			append(template.content, $('p.nocontent')).textContent = localize('noDependencies', "没有依赖项");
-			return Promise.resolve(template.content);
+			append(contentContainer, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
+			return Promise.resolve(contentContainer);
 		}
 
 		const content = $('div', { class: 'subcontent' });
 		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
+		append(contentContainer, scrollableContent.getDomNode());
 		this.contentDisposables.add(scrollableContent);
 
 		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
@@ -951,31 +969,34 @@ export class ExtensionEditor extends EditorPane {
 			{
 				listBackground: editorBackground
 			});
-		const layout = () => {
+		const depLayout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
 			dependenciesTree.layout(scrollDimensions.height);
 		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout: depLayout });
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 		this.contentDisposables.add(dependenciesTree);
-		scrollableContent.scanDomNode();
+		depLayout();
+
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPack(extension: IExtension, contentContainer: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
+
+		const manifest = await this.loadContents(() => this.extensionManifest!.get(), contentContainer);
 		if (token.isCancellationRequested) {
 			return null;
 		}
 		if (!manifest) {
 			return null;
 		}
-		return this.renderExtensionPack(manifest, template.content, token);
+
+		return this.renderExtensionPack(manifest, contentContainer, token);
 	}
 
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1065,7 +1086,7 @@ class AdditionalDetailsWidget extends Disposable {
 	private renderCategories(container: HTMLElement, extension: IExtension): void {
 		if (extension.categories.length) {
 			const categoriesContainer = append(container, $('.categories-container.additional-details-element'));
-			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "类别")));
+			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
 			const categoriesElement = append(categoriesContainer, $('.categories'));
 			this.extensionGalleryManifestService.getExtensionGalleryManifest()
 				.then(manifest => {
@@ -1085,28 +1106,28 @@ class AdditionalDetailsWidget extends Disposable {
 		const resources: [string, ThemeIcon, URI][] = [];
 		if (extension.repository) {
 			try {
-				resources.push([localize('repository', "仓库"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
+				resources.push([localize('repository', "Repository"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.supportUrl) {
 			try {
-				resources.push([localize('issues', "问题"), ThemeIcon.fromId(Codicon.issues.id), URI.parse(extension.supportUrl)]);
+				resources.push([localize('issues', "Issues"), ThemeIcon.fromId(Codicon.issues.id), URI.parse(extension.supportUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.licenseUrl) {
 			try {
-				resources.push([localize('license', "许可证"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.licenseUrl)]);
+				resources.push([localize('license', "License"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
 		}
 		if (extension.publisherUrl) {
 			resources.push([extension.publisherDisplayName, ThemeIcon.fromId(Codicon.linkExternal.id), extension.publisherUrl]);
 		}
 		if (extension.url) {
-			resources.push([localize('Marketplace', "应用市场"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.url)]);
+			resources.push([localize('Marketplace', "Marketplace"), ThemeIcon.fromId(Codicon.linkExternal.id), URI.parse(extension.url)]);
 		}
 		if (resources.length || extension.publisherSponsorLink) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
-			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "资源")));
+			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
 			for (const [label, icon, uri] of resources) {
 				const resourceElement = append(resourcesElement, $('.resource'));
@@ -1120,17 +1141,17 @@ class AdditionalDetailsWidget extends Disposable {
 
 	private renderInstallInfo(container: HTMLElement, extension: ILocalExtension): void {
 		const installInfoContainer = append(container, $('.more-info-container.additional-details-element'));
-		append(installInfoContainer, $('.additional-details-title', undefined, localize('Install Info', "安装信息")));
+		append(installInfoContainer, $('.additional-details-title', undefined, localize('Install Info', "Installation")));
 		const installInfo = append(installInfoContainer, $('.more-info'));
 		append(installInfo,
 			$('.more-info-entry', undefined,
-				$('div.more-info-entry-name', undefined, localize('id', "标识符")),
+				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.identifier.id)
 			));
 		if (extension.type !== ExtensionType.System) {
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('Version', "版本")),
+					$('div.more-info-entry-name', undefined, localize('Version', "Version")),
 					$('code', undefined, extension.manifest.version)
 				)
 			);
@@ -1138,7 +1159,7 @@ class AdditionalDetailsWidget extends Disposable {
 		if (extension.installedTimestamp) {
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('last updated', "上次更新")),
+					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
 					$('div', {
 						'title': new Date(extension.installedTimestamp).toString()
 					}, fromNow(extension.installedTimestamp, true, true, true))
@@ -1146,15 +1167,17 @@ class AdditionalDetailsWidget extends Disposable {
 			);
 		}
 		if (!extension.isBuiltin && extension.source !== 'gallery') {
-			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "本地"));
+			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "Local"));
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('source', "来源")),
+					$('div.more-info-entry-name', undefined, localize('source', "Source")),
 					element
 				)
 			);
 			if (isNative && extension.source === 'resource' && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
+				element.tabIndex = 0;
+				element.setAttribute('role', 'link');
 				element.title = extension.location.fsPath;
 				this.disposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
@@ -1163,12 +1186,14 @@ class AdditionalDetailsWidget extends Disposable {
 			const element = $('div', undefined, ByteSize.formatSize(extension.size));
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', { title: localize('size when installed', "安装后大小") }, localize('size', "大小")),
+					$('div.more-info-entry-name', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
 					element
 				)
 			);
 			if (isNative && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
+				element.tabIndex = 0;
+				element.setAttribute('role', 'link');
 				element.title = extension.location.fsPath;
 				this.disposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
@@ -1184,11 +1209,13 @@ class AdditionalDetailsWidget extends Disposable {
 				const element = $('div', undefined, ByteSize.formatSize(cacheSize));
 				append(installInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', { title: localize('disk space used', "缓存大小") }, localize('cache size', "缓存")),
+						$('div.more-info-entry-name', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
 						element)
 				);
 				if (isNative && extension.location.scheme === Schemas.file) {
 					element.classList.add('link');
+					element.tabIndex = 0;
+					element.setAttribute('role', 'link');
 					element.title = cacheLocation.fsPath;
 					this.disposables.add(onClick(element, () => this.openerService.open(cacheLocation.with({ scheme: Schemas.file }), { openExternal: true })));
 				}
@@ -1211,31 +1238,31 @@ class AdditionalDetailsWidget extends Disposable {
 	private renderMarketplaceInfo(container: HTMLElement, extension: IExtension): void {
 		const gallery = extension.gallery;
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
-		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "应用市场")));
+		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "Marketplace")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
 		if (gallery) {
 			if (!extension.local) {
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', undefined, localize('id', "标识符")),
+						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 						$('code', undefined, extension.identifier.id)
 					));
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', undefined, localize('Version', "版本")),
+						$('div.more-info-entry-name', undefined, localize('Version', "Version")),
 						$('code', undefined, gallery.version)
 					)
 				);
 			}
 			append(moreInfo,
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('published', "发布日期")),
+					$('div.more-info-entry-name', undefined, localize('published', "Published")),
 					$('div', {
 						'title': new Date(gallery.releaseDate).toString()
 					}, fromNow(gallery.releaseDate, true, true, true))
 				),
 				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('last released', "最近发布")),
+					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
 					$('div', {
 						'title': new Date(gallery.lastUpdated).toString()
 					}, fromNow(gallery.lastUpdated, true, true, true))
@@ -1250,7 +1277,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.extensioneditor.showfind',
-			title: localize('find', "查找"),
+			title: localize('find', "Find"),
 			keybinding: {
 				when: contextKeyExpr,
 				weight: KeybindingWeight.EditorContrib,
@@ -1268,7 +1295,7 @@ registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.extensioneditor.findNext',
-			title: localize('find next', "查找下一个"),
+			title: localize('find next', "Find Next"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					contextKeyExpr,
@@ -1288,7 +1315,7 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 	constructor() {
 		super({
 			id: 'editor.action.extensioneditor.findPrevious',
-			title: localize('find previous', "查找上一个"),
+			title: localize('find previous', "Find Previous"),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					contextKeyExpr,

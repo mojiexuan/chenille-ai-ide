@@ -1,6 +1,6 @@
 {
   "name": "vscode-colorize-tests",
-  "description": "Colorize tests for Chenille",
+  "description": "Colorize tests for VS Code",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "jsonc-parser": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "contributes": {
     "semanticTokenTypes": [

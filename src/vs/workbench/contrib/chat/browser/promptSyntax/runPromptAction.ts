@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
-import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -57,7 +57,7 @@ const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
 /**
  * Action ID for the `Configure Prompt Files...` action.
  */
-const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
+export const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -250,13 +250,7 @@ class ManagePromptFilesAction extends Action2 {
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 11,
-				group: '0_level'
-			},
+			category: CHAT_CATEGORY
 		});
 	}
 
@@ -301,7 +295,7 @@ const RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID = 'workbench.action.chat.run-in-n
 
 const RUN_IN_NEW_CHAT_ACTION_TITLE = localize2(
 	'run-prompt-in-new-chat.capitalized',
-	"在新聊天中运行提示",
+	"Run Prompt In New Chat",
 );
 
 /**

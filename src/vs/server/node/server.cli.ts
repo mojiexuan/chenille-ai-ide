@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as url from 'url';
+import { pathToFileURL } from 'url';
 import * as cp from 'child_process';
-import * as http from 'http';
+import type * as http from 'http';
 import { cwd } from '../../base/common/process.js';
 import { dirname, extname, resolve, join } from '../../base/common/path.js';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
@@ -16,13 +16,14 @@ import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
 import { FileAccess } from '../../base/common/network.js';
+import { hasAgentCommand } from './server.cliAgent.js';
 
 /*
- * Implements a standalone CLI app that opens Chenille from a remote terminal.
+ * Implements a standalone CLI app that opens VS Code from a remote terminal.
  *  - In integrated terminals for remote windows this connects to the remote server though a pipe.
  *    The pipe is passed in env VSCODE_IPC_HOOK_CLI.
- *  - In external terminals for WSL this calls Chenille on the Windows side.
- *    The Chenille desktop executable path is passed in env VSCODE_CLIENT_COMMAND.
+ *  - In external terminals for WSL this calls VS Code on the Windows side.
+ *    The VS Code desktop executable path is passed in env VSCODE_CLIENT_COMMAND.
  */
 
 
@@ -92,6 +93,12 @@ const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
+		return;
+	}
+
+	if (hasAgentCommand(args)) {
+		console.error(`The 'agent' command is not supported by the remote CLI.`);
+		process.exitCode = 1;
 		return;
 	}
 
@@ -394,7 +401,7 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	for (const location of args) {
 		try {
 			if (/^[a-z-]+:\/\/.+/.test(location)) {
-				uris.push(url.parse(location).href);
+				uris.push(new URL(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
 			}
@@ -412,7 +419,8 @@ async function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+async function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
+	const http = await import('http');
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}
@@ -472,18 +480,18 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 }
 
 function fatal(message: string, err: unknown): void {
-	console.error('Unable to connect to Chenille server: ' + message);
+	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);
 }
 
 const preferredCwd = process.env.PWD || cwd(); // prefer process.env.PWD as it does not follow symlinks
 
-function pathToURI(input: string): url.URL {
+function pathToURI(input: string): URL {
 	input = input.trim();
 	input = resolve(preferredCwd, input);
 
-	return url.pathToFileURL(input);
+	return pathToFileURL(input);
 }
 
 function translatePath(input: string, mapFileUri: (input: string) => string, folderURIS: string[], fileURIS: string[]) {

@@ -170,7 +170,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// to schedule sufficiently after Parcel.
 	//
 	// Note: since Parcel 2.0.7, the very first event is
-	// emitted without delay if no events occured over a
+	// emitted without delay if no events occurred over a
 	// duration of 500ms. But we always want to aggregate
 	// events to apply our coleasing logic.
 	//
@@ -618,7 +618,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
-		// Restart watcher delayed to accomodate for
+		// Restart watcher delayed to accommodate for
 		// changes on disk that have triggered the
 		// need for a restart in the first place.
 		const scheduler = new RunOnceScheduler(async () => {
@@ -682,11 +682,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			const path = this.pathToWatcherKey(request.path);
-			if (requestsForCorrelation.has(path)) {
-				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
-			}
+			const previous = requestsForCorrelation.get(path);
+			if (previous && request.correlationId === undefined) {
+				const includes = !previous.includes?.length || !request.includes?.length ? undefined : [...previous.includes, ...request.includes];
+				const excludes = previous.excludes.filter(exclude => request.excludes.includes(exclude));
+				const broad = !request.includes?.length ? request : previous;
+				requestsForCorrelation.set(path, !includes
+					? { ...broad, excludes }
+					: { ...previous, includes, excludes });
+			} else {
+				if (previous) {
+					this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+				}
 
-			requestsForCorrelation.set(path, request);
+				requestsForCorrelation.set(path, request);
+			}
 		}
 
 		const normalizedRequests: IRecursiveWatchRequest[] = [];

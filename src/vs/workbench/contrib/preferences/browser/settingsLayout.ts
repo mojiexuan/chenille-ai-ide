@@ -6,6 +6,7 @@
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 export interface ITOCFilter {
 	include?: {
@@ -27,13 +28,15 @@ export interface ITOCEntry<T> {
 	hide?: boolean;
 }
 
-const defaultCommonlyUsedSettings: string[] = [
+const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.fontSize',
 	'editor.formatOnSave',
 	'files.autoSave',
+	'GitHub.copilot-chat.manageExtension',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
 	'editor.wordWrap',
+	'chat.agent.maxRequests',
 	'files.exclude',
 	'workbench.colorTheme',
 	'editor.tabSize',
@@ -41,7 +44,7 @@ const defaultCommonlyUsedSettings: string[] = [
 	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[]): ITOCEntry<ISetting> {
 	const allSettings = new Map<string, ISetting>();
 	for (const group of settingGroups) {
 		for (const section of group.sections) {
@@ -51,7 +54,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUse
 		}
 	}
 	const settings: ISetting[] = [];
-	for (const id of commonlyUsed) {
+	for (const id of COMMONLY_USED_SETTINGS) {
 		const setting = allSettings.get(id);
 		if (setting) {
 			settings.push(setting);
@@ -59,7 +62,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUse
 	}
 	return {
 		id: 'commonlyUsed',
-		label: localize('commonlyUsed', "常用"),
+		label: localize('commonlyUsed', "Commonly Used"),
 		settings
 	};
 }
@@ -70,202 +73,309 @@ export const tocData: ITOCEntry<string> = {
 	children: [
 		{
 			id: 'editor',
-			label: localize('textEditor', "文本编辑器"),
+			label: localize('textEditor', "Text Editor"),
 			settings: ['editor.*'],
 			children: [
 				{
 					id: 'editor/cursor',
-					label: localize('cursor', "光标"),
+					label: localize('cursor', "Cursor"),
 					settings: ['editor.cursor*']
 				},
 				{
 					id: 'editor/find',
-					label: localize('find', "查找"),
+					label: localize('find', "Find"),
 					settings: ['editor.find.*']
 				},
 				{
 					id: 'editor/font',
-					label: localize('font', "字体"),
+					label: localize('font', "Font"),
 					settings: ['editor.font*']
 				},
 				{
 					id: 'editor/format',
-					label: localize('formatting', "格式化"),
+					label: localize('formatting', "Formatting"),
 					settings: ['editor.format*']
 				},
 				{
 					id: 'editor/diffEditor',
-					label: localize('diffEditor', "差异编辑器"),
+					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
 				},
 				{
 					id: 'editor/multiDiffEditor',
-					label: localize('multiDiffEditor', "多文件差异编辑器"),
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
 					settings: ['multiDiffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
-					label: localize('minimap', "小地图"),
+					label: localize('minimap', "Minimap"),
 					settings: ['editor.minimap.*']
 				},
 				{
 					id: 'editor/suggestions',
-					label: localize('suggestions', "建议"),
+					label: localize('suggestions', "Suggestions"),
 					settings: ['editor.*suggest*']
 				},
 				{
 					id: 'editor/files',
-					label: localize('files', "文件"),
+					label: localize('files', "Files"),
 					settings: ['files.*']
 				}
 			]
 		},
 		{
 			id: 'workbench',
-			label: localize('workbench', "工作台"),
+			label: localize('workbench', "Workbench"),
 			settings: ['workbench.*'],
 			children: [
 				{
 					id: 'workbench/appearance',
-					label: localize('appearance', "外观"),
+					label: localize('appearance', "Appearance"),
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
 				},
 				{
 					id: 'workbench/breadcrumbs',
-					label: localize('breadcrumbs', "面包屑"),
+					label: localize('breadcrumbs', "Breadcrumbs"),
 					settings: ['breadcrumbs.*']
 				},
 				{
 					id: 'workbench/editor',
-					label: localize('editorManagement', "编辑管理"),
+					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
 				},
 				{
 					id: 'workbench/settings',
-					label: localize('settings', "设置编辑器"),
+					label: localize('settings', "Settings Editor"),
 					settings: ['workbench.settings.*']
 				},
 				{
 					id: 'workbench/zenmode',
-					label: localize('zenMode', "禅模式"),
+					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
 				},
 				{
 					id: 'workbench/screencastmode',
-					label: localize('screencastMode', "屏幕放映模式"),
+					label: localize('screencastMode', "Screencast Mode"),
 					settings: ['screencastMode.*']
+				},
+				{
+					id: 'workbench/browser',
+					label: localize('browser', "Browser"),
+					settings: ['workbench.browser.*']
 				}
 			]
 		},
 		{
 			id: 'window',
-			label: localize('window', "窗口"),
+			label: localize('window', "Window"),
 			settings: ['window.*'],
 			children: [
 				{
 					id: 'window/newWindow',
-					label: localize('newWindow', "新建窗口"),
+					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
 				}
 			]
 		},
 		{
+			id: 'chat',
+			label: localize('chat', "Chat"),
+			children: [
+				{
+					id: 'chat/agent',
+					label: localize('chatAgent', "Agent"),
+					settings: [
+						'chat.agent.*',
+						'chat.checkpoints.*',
+						'chat.editRequests',
+						'chat.requestQueuing.*',
+						'chat.undoRequests.*',
+						'chat.customAgentInSubagent.*',
+						'chat.editing.autoAcceptDelay',
+						'chat.editing.confirmEditRequest*',
+						'chat.planAgent.defaultModel'
+					]
+				},
+				{
+					id: 'chat/appearance',
+					label: localize('chatAppearance', "Appearance"),
+					settings: [
+						'chat.editor.*',
+						'chat.fontFamily',
+						'chat.fontSize',
+						'chat.math.*',
+						'chat.agentsControl.*',
+						'chat.alternativeToolAction.*',
+						'chat.codeBlock.*',
+						'chat.editing.explainChanges.enabled',
+						'chat.editorAssociations',
+						'chat.extensionUnification.*',
+						'chat.inlineReferences.*',
+						'chat.notifyWindow*',
+						'chat.statusWidget.*',
+						'chat.tips.*',
+						'chat.unifiedAgentsBar.*',
+						'accessibility.signals.chatUserActionRequired',
+						'accessibility.signals.chatResponseReceived'
+					]
+				},
+				{
+					id: 'chat/sessions',
+					label: localize('chatSessions', "Sessions"),
+					settings: [
+						'chat.agentSessionProjection.*',
+						'chat.sessions.*',
+						'chat.viewProgressBadge.*',
+						'chat.viewSessions.*',
+						'chat.restoreLastPanelSession',
+						'chat.exitAfterDelegation',
+						'chat.repoInfo.*'
+					]
+				},
+				{
+					id: 'chat/tools',
+					label: localize('chatTools', "Tools"),
+					settings: [
+						'chat.tools.*',
+						'chat.extensionTools.*'
+					]
+				},
+				{
+					id: 'chat/mcp',
+					label: localize('chatMcp', "MCP"),
+					settings: ['mcp', 'chat.mcp.*', 'mcp.*']
+				},
+				{
+					id: 'chat/context',
+					label: localize('chatContext', "Context"),
+					settings: [
+						'chat.detectParticipant.*',
+						'chat.experimental.detectParticipant.*',
+						'chat.implicitContext.*',
+						'chat.promptFilesLocations',
+						'chat.instructionsFilesLocations',
+						'chat.modeFilesLocations',
+						'chat.agentFilesLocations',
+						'chat.agentSkillsLocations',
+						'chat.hookFilesLocations',
+						'chat.promptFilesRecommendations',
+						'chat.useAgentsMdFile',
+						'chat.useNestedAgentsMdFiles',
+						'chat.useAgentSkills',
+						'chat.experimental.useSkillAdherencePrompt',
+						'chat.useHooks',
+						'chat.includeApplyingInstructions',
+						'chat.includeReferencedInstructions',
+						'chat.useClaudeMdFile'
+					]
+				},
+				{
+					id: 'chat/inlineChat',
+					label: localize('chatInlineChat', "Inline Chat"),
+					settings: ['inlineChat.*']
+				},
+				{
+					id: 'chat/miscellaneous',
+					label: localize('chatMiscellaneous', "Miscellaneous"),
+					settings: [
+						ChatAIDisabledSettingId,
+						'chat.allowAnonymousAccess'
+					]
+				},
+			]
+		},
+		{
 			id: 'features',
-			label: localize('features', "功能"),
+			label: localize('features', "Features"),
 			children: [
 				{
 					id: 'features/accessibilitySignals',
-					label: localize('accessibility.signals', '无障碍信号'),
+					label: localize('accessibility.signals', 'Accessibility Signals'),
 					settings: ['accessibility.signal*']
 				},
 				{
 					id: 'features/accessibility',
-					label: localize('accessibility', "无障碍"),
+					label: localize('accessibility', "Accessibility"),
 					settings: ['accessibility.*']
 				},
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "资源管理器"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{
 					id: 'features/search',
-					label: localize('search', "搜索"),
+					label: localize('search', "Search"),
 					settings: ['search.*']
 				},
 				{
 					id: 'features/debug',
-					label: localize('debug', "调试"),
+					label: localize('debug', "Debug"),
 					settings: ['debug.*', 'launch']
 				},
 				{
 					id: 'features/testing',
-					label: localize('testing', "测试"),
+					label: localize('testing', "Testing"),
 					settings: ['testing.*']
 				},
 				{
 					id: 'features/scm',
-					label: localize('scm', "源码管理"),
+					label: localize('scm', "Source Control"),
 					settings: ['scm.*']
 				},
 				{
 					id: 'features/extensions',
-					label: localize('extensions', "扩展"),
+					label: localize('extensions', "Extensions"),
 					settings: ['extensions.*']
 				},
 				{
 					id: 'features/terminal',
-					label: localize('terminal', "终端"),
+					label: localize('terminal', "Terminal"),
 					settings: ['terminal.*']
 				},
 				{
 					id: 'features/task',
-					label: localize('task', "任务"),
+					label: localize('task', "Task"),
 					settings: ['task.*']
 				},
 				{
 					id: 'features/problems',
-					label: localize('problems', "问题"),
+					label: localize('problems', "Problems"),
 					settings: ['problems.*']
 				},
 				{
 					id: 'features/output',
-					label: localize('output', "输出"),
+					label: localize('output', "Output"),
 					settings: ['output.*']
 				},
 				{
 					id: 'features/comments',
-					label: localize('comments', "评论"),
+					label: localize('comments', "Comments"),
 					settings: ['comments.*']
 				},
 				{
 					id: 'features/remote',
-					label: localize('remote', "远程"),
+					label: localize('remote', "Remote"),
 					settings: ['remote.*']
 				},
 				{
 					id: 'features/timeline',
-					label: localize('timeline', "时间线"),
+					label: localize('timeline', "Timeline"),
 					settings: ['timeline.*']
 				},
 				{
 					id: 'features/notebook',
-					label: localize('notebook', '笔记本'),
+					label: localize('notebook', 'Notebook'),
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
 					id: 'features/mergeEditor',
-					label: localize('mergeEditor', '合并编辑器'),
+					label: localize('mergeEditor', 'Merge Editor'),
 					settings: ['mergeEditor.*']
 				},
 				{
-					id: 'features/chat',
-					label: localize('chat', '聊天'),
-					settings: ['chat.*', 'inlineChat.*', 'mcp']
-				},
-				{
 					id: 'features/issueReporter',
-					label: localize('issueReporter', '问题报告员'),
+					label: localize('issueReporter', 'Issue Reporter'),
 					settings: ['issueReporter.*'],
 					hide: !isWeb
 				}
@@ -273,41 +383,46 @@ export const tocData: ITOCEntry<string> = {
 		},
 		{
 			id: 'application',
-			label: localize('application', "应用"),
+			label: localize('application', "Application"),
 			children: [
 				{
 					id: 'application/http',
-					label: localize('proxy', "代理"),
+					label: localize('proxy', "Proxy"),
 					settings: ['http.*']
 				},
 				{
 					id: 'application/keyboard',
-					label: localize('keyboard', "键盘"),
+					label: localize('keyboard', "Keyboard"),
 					settings: ['keyboard.*']
 				},
 				{
 					id: 'application/update',
-					label: localize('update', "更新"),
+					label: localize('update', "Update"),
 					settings: ['update.*']
 				},
 				{
 					id: 'application/telemetry',
-					label: localize('telemetry', "遥测"),
+					label: localize('telemetry', "Telemetry"),
 					settings: ['telemetry.*']
 				},
 				{
 					id: 'application/settingsSync',
-					label: localize('settingsSync', "设置同步"),
+					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
 				},
 				{
+					id: 'application/network',
+					label: localize('network', "Network"),
+					settings: ['network.*']
+				},
+				{
 					id: 'application/experimental',
-					label: localize('experimental', "实验性"),
+					label: localize('experimental', "Experimental"),
 					settings: ['application.experimental.*']
 				},
 				{
 					id: 'application/other',
-					label: localize('other', "其他"),
+					label: localize('other', "Other"),
 					settings: ['application.*'],
 					hide: isWindows
 				}
@@ -315,12 +430,12 @@ export const tocData: ITOCEntry<string> = {
 		},
 		{
 			id: 'security',
-			label: localize('security', "安全"),
+			label: localize('security', "Security"),
 			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',
-					label: localize('workspace', "工作区"),
+					label: localize('workspace', "Workspace"),
 					settings: ['security.workspace.*']
 				}
 			]

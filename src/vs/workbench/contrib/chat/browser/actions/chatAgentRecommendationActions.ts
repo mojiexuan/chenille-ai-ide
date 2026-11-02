@@ -19,7 +19,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatSessionRecommendation } from '../../../../../base/common/product.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
 const INSTALL_CONTEXT_PREFIX = 'chat.installRecommendationAvailable';
 
@@ -72,16 +72,6 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 					category: CHAT_CATEGORY,
 					icon: Codicon.extensions,
 					menu: [
-						{
-							id: MenuId.AgentSessionsInstallMenu,
-							group: '0_install',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
-						{
-							id: MenuId.AgentSessionsViewTitle,
-							group: 'navigation@98',
-							when: ContextKeyExpr.equals(availabilityContextId, true)
-						},
 						{
 							id: MenuId.ChatNewMenu,
 							group: '4_recommendations',

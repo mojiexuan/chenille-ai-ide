@@ -22,6 +22,8 @@ import * as types from './extHostTypes.js';
 import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import type { IExtensionPromptFileResult } from '../../contrib/chat/common/promptSyntax/chatPromptFilesContribution.js';
 
 //#region --- NEW world
 
@@ -441,7 +443,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
 		[
 			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
-			ApiCommandArgument.String.with('viewId', 'Custom editor view id. This should be the viewType string for custom editors or the notebookType string for notebooks. Use \'default\' to use Chenille\'s default text editor'),
+			ApiCommandArgument.String.with('viewId', 'Custom editor view id. This should be the viewType string for custom editors or the notebookType string for notebooks. Use \'default\' to use VS Code\'s default text editor'),
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
 				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
@@ -550,9 +552,28 @@ const newCommands: ApiCommand[] = [
 				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				resolveOnResponse: v.resolveOnResponse
 			};
 		})],
 		ApiCommandResult.Void
+	),
+	// --- extension prompt files
+	new ApiCommand(
+		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
+		[],
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType; extensionId: string }[]>(
+			'A promise that resolves to an array of objects containing uri, type, and extensionId.',
+			(value) => {
+				if (!value) {
+					return [];
+				}
+				return value.map(item => ({
+					uri: URI.revive(item.uri),
+					type: item.type,
+					extensionId: item.extensionId
+				}));
+			}
+		)
 	)
 ];
 
@@ -563,6 +584,7 @@ type InlineChatEditorApiArg = {
 	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	resolveOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
@@ -572,6 +594,7 @@ type InlineChatRunOptions = {
 	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	resolveOnResponse?: boolean;
 };
 
 //#endregion

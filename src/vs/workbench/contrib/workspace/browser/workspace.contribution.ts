@@ -48,12 +48,26 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { securityConfigurationNodeBase } from '../../../common/configuration.js';
 import { basename, dirname as uriDirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
+
+/**
+ * Returns a trust note string for the sessions window explaining that trusting
+ * a folder/workspace also persists trust to the parent VS Code install.
+ * Returns `undefined` when not running in the sessions window.
+ */
+function getSessionsWindowTrustNote(environmentService: IWorkbenchEnvironmentService, productService: IProductService, isWorkspace: boolean): string | undefined {
+	if (!environmentService.isSessionsWindow) {
+		return undefined;
+	}
+	if (isWorkspace) {
+		return localize('sessionsWindowWorkspaceTrustNote', "Trusting this workspace will also mark it as trusted in {0}.", productService.nameLong);
+	}
+	return localize('sessionsWindowFolderTrustNote', "Trusting this folder will also mark it as trusted in {0}.", productService.nameLong);
+}
 
 export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchContribution {
 
@@ -91,9 +105,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService) {
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService) {
 		super();
 
 		this.registerListeners();
@@ -112,24 +129,24 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			// Details
 			const markdownDetails = [
 				this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-					localize('openLooseFileWorkspaceDetails', "你正在尝试在受信任的工作区中打开不受信任的文件。") :
-					localize('openLooseFileWindowDetails', "你正在尝试在受信任的窗口中打开不受信任的文件。"),
-				localize('openLooseFileLearnMore', "如果你不想打开不受信任的文件，我们建议在新窗口中以受限模式打开它们，因为这些文件可能是恶意的。请参阅[我们的文档](https://aka.ms/vscode-workspace-trust)了解更多信息。")
+					localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
+					localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
+				localize('openLooseFileLearnMore', "If you don't want to open untrusted files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
 			];
 
 			// Dialog
 			await this.dialogService.prompt<void>({
 				type: Severity.Info,
 				message: this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-					localize('openLooseFileWorkspaceMesssage', "是否允许在此工作区中打开不受信任的文件?") :
-					localize('openLooseFileWindowMesssage', "是否允许在此窗口中打开不受信任的文件?"),
+					localize('openLooseFileWorkspaceMesssage', "Do you want to allow untrusted files in this workspace?") :
+					localize('openLooseFileWindowMesssage', "Do you want to allow untrusted files in this window?"),
 				buttons: [
 					{
-						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "打开(O)"),
+						label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
 						run: ({ checkboxChecked }) => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Open, !!checkboxChecked)
 					},
 					{
-						label: localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "在受限模式下打开(R)"),
+						label: localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "Open in &&Restricted Mode"),
 						run: ({ checkboxChecked }) => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.OpenInNewWindow, !!checkboxChecked)
 					}
 				],
@@ -137,8 +154,44 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					run: () => this.workspaceTrustRequestService.completeOpenFilesTrustRequest(WorkspaceTrustUriResponse.Cancel)
 				},
 				checkbox: {
-					label: localize('openLooseFileWorkspaceCheckbox', "为所有工作区记住我的选择"),
+					label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
 					checked: false
+				},
+				custom: {
+					icon: Codicon.shield,
+					markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+				}
+			});
+		}));
+
+		// Resources trust request
+		this._register(this.workspaceTrustRequestService.onDidInitiateResourcesTrustRequest(async (options) => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
+			// Details
+			const markdownDetails = [
+				options?.message ?? localize('resourcesTrustDetails', "You are trying to open an untrusted folder. Do you trust the authors of this content?"),
+				localize('resourcesTrustLearnMore', "If you don't trust the authors of these files, we recommend not continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+				`\`${this.labelService.getUriLabel(options.uri)}\``
+			];
+
+			const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, false);
+			if (sessionsTrustNote) {
+				markdownDetails.push(sessionsTrustNote);
+			}
+
+			// Dialog
+			await this.dialogService.prompt<void>({
+				type: Severity.Info,
+				message: localize('resourcesTrustMessage', "Do you trust the authors of the files in this folder?"),
+				buttons: [
+					{
+						label: localize({ key: 'trustResources', comment: ['&& denotes a mnemonic'] }, "&&Trust Folder & Continue"),
+						run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Open)
+					}
+				],
+				cancelButton: {
+					run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Cancel)
 				},
 				custom: {
 					icon: Codicon.shield,
@@ -153,34 +206,39 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 			// Title
 			const message = this.useWorkspaceLanguage ?
-				localize('workspaceTrust', "你信任此工作区中文件的作者吗?") :
-				localize('folderTrust', "你信任此文件夹中文件的作者吗?");
+				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+				localize('folderTrust', "Do you trust the authors of the files in this folder?");
 
 			// Message
-			const defaultDetails = localize('immediateTrustRequestMessage', "如果你不信任当前打开的文件或文件夹的来源，你尝试使用的功能可能存在安全风险。");
+			const defaultDetails = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
 			const details = requestOptions?.message ?? defaultDetails;
 
 			// Buttons
 			const buttons = requestOptions?.buttons ?? [
-				{ label: this.useWorkspaceLanguage ? localize({ key: 'grantWorkspaceTrustButton', comment: ['&& denotes a mnemonic'] }, "信任工作区并继续(T)") : localize({ key: 'grantFolderTrustButton', comment: ['&& denotes a mnemonic'] }, "信任文件夹并继续(&&T)"), type: 'ContinueWithTrust' },
-				{ label: localize({ key: 'manageWorkspaceTrustButton', comment: ['&& denotes a mnemonic'] }, "管理(M)"), type: 'Manage' }
+				{ label: this.useWorkspaceLanguage ? localize({ key: 'grantWorkspaceTrustButton', comment: ['&& denotes a mnemonic'] }, "&&Trust Workspace & Continue") : localize({ key: 'grantFolderTrustButton', comment: ['&& denotes a mnemonic'] }, "&&Trust Folder & Continue"), type: 'ContinueWithTrust' },
+				{ label: localize({ key: 'manageWorkspaceTrustButton', comment: ['&& denotes a mnemonic'] }, "&&Manage"), type: 'Manage' }
 			];
 
 			// Add Cancel button if not provided
 			if (!buttons.some(b => b.type === 'Cancel')) {
-				buttons.push({ label: localize('cancelWorkspaceTrustButton', "取消"), type: 'Cancel' });
+				buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
 			}
 
 			// Dialog
+			const markdownDetails = [
+				{ markdown: new MarkdownString(details) },
+				{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+			];
+			const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, this.useWorkspaceLanguage);
+			if (sessionsTrustNote) {
+				markdownDetails.push({ markdown: new MarkdownString(sessionsTrustNote) });
+			}
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Info,
 				message,
 				custom: {
 					icon: Codicon.shield,
-					markdownDetails: [
-						{ markdown: new MarkdownString(details) },
-						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "如果你不信任这些文件的作者，我们不建议继续操作，因为这些文件可能是恶意的。请参阅[我们的文档](https://aka.ms/vscode-workspace-trust)了解更多信息。")) }
-					]
+					markdownDetails
 				},
 				buttons: buttons.filter(b => b.type !== 'Cancel').map(button => {
 					return {
@@ -246,7 +304,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IHostService private readonly hostService: IHostService,
 		@IProductService private readonly productService: IProductService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
@@ -293,11 +351,16 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
 
 					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
+						let detail = localize('addWorkspaceFolderDetail', "You are adding files that are not currently trusted to a trusted workspace. Do you trust the authors of these new files?");
+						const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, false);
+						if (sessionsTrustNote) {
+							detail += '\n\n' + sessionsTrustNote;
+						}
 						const { confirmed } = await this.dialogService.confirm({
 							type: Severity.Info,
-							message: localize('addWorkspaceFolderMessage', "你信任此文件夹中文件的作者吗?"),
-							detail: localize('addWorkspaceFolderDetail', "你正在将当前不受信任的文件添加到受信任的工作区。你信任这些新文件的作者吗?"),
-							cancelButton: localize('no', '否'),
+							message: localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
+							detail,
+							cancelButton: localize('no', 'No'),
 							custom: { icon: Codicon.shield }
 						});
 
@@ -331,8 +394,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			}
 
 			const title = titleString ?? (this.useWorkspaceLanguage ?
-				localize('workspaceTrust', "你信任此工作区中文件的作者吗?") :
-				localize('folderTrust', "你信任此文件夹中文件的作者吗?"));
+				localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+				localize('folderTrust', "Do you trust the authors of the files in this folder?"));
 
 			let checkboxText: string | undefined;
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
@@ -340,22 +403,27 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const isEmptyWindow = isEmptyWorkspaceIdentifier(workspaceIdentifier);
 			if (!isAiGeneratedWorkspace && this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 				const name = basename(uriDirname((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri));
-				checkboxText = localize('checkboxString', "信任父文件夹 '{0}' 中所有文件的作者", name);
+				checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 			}
 
 			// Show Workspace Trust Start Dialog
+			const markdownStrings = [
+				!isSingleFolderWorkspace ?
+					localize('workspaceStartupTrustDetails', "{0} provides features that may automatically execute files in this workspace.", this.productService.nameShort) :
+					localize('folderStartupTrustDetails', "{0} provides features that may automatically execute files in this folder.", this.productService.nameShort),
+				learnMoreString ?? localize('startupTrustRequestLearnMore', "If you don't trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more."),
+				!isEmptyWindow ?
+					`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: Verbosity.LONG })}\`` : '',
+			];
+			const sessionsTrustNote = getSessionsWindowTrustNote(this.environmentService, this.productService, !isSingleFolderWorkspace);
+			if (sessionsTrustNote) {
+				markdownStrings.push(sessionsTrustNote);
+			}
 			this.doShowModal(
 				title,
-				{ label: trustOption ?? localize({ key: 'trustOption', comment: ['&& denotes a mnemonic'] }, "是的，我信任作者(Y)"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "信任文件夹并启用所有功能") : localize('trustWorkspaceOptionDescription', "信任工作区并启用所有功能") },
-				{ label: dontTrustOption ?? localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "不，我不信任作者(N)"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "在受限模式下浏览文件夹") : localize('dontTrustWorkspaceOptionDescription', "在受限模式下浏览工作区") },
-				[
-					!isSingleFolderWorkspace ?
-						localize('workspaceStartupTrustDetails', "{0} 提供的功能可能会自动执行此工作区中的文件。", this.productService.nameShort) :
-						localize('folderStartupTrustDetails', "{0} 提供的功能可能会自动执行此文件夹中的文件。", this.productService.nameShort),
-					learnMoreString ?? localize('startupTrustRequestLearnMore', "如果你不信任这些文件的作者，我们建议以受限模式继续，因为这些文件可能是恶意的。请参阅[我们的文档](https://aka.ms/vscode-workspace-trust)了解更多信息。"),
-					!isEmptyWindow ?
-						`\`${this.labelService.getWorkspaceLabel(workspaceIdentifier, { verbose: Verbosity.LONG })}\`` : '',
-				],
+				{ label: trustOption ?? localize({ key: 'trustOption', comment: ['&& denotes a mnemonic'] }, "&&Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
+				{ label: dontTrustOption ?? localize({ key: 'dontTrustOption', comment: ['&& denotes a mnemonic'] }, "&&No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Open folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Open workspace in restricted mode") },
+				markdownStrings,
 				checkboxText
 			);
 		}));
@@ -500,11 +568,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		const actions =
 			[
 				{
-					label: localize('restrictedModeBannerManage', "管理"),
+					label: localize('restrictedModeBannerManage', "Manage"),
 					href: 'command:' + MANAGE_TRUST_COMMAND_ID
 				},
 				{
-					label: localize('restrictedModeBannerLearnMore', "了解更多"),
+					label: localize('restrictedModeBannerLearnMore', "Learn More"),
 					href: 'https://aka.ms/vscode-workspace-trust'
 				}
 			];
@@ -526,22 +594,22 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	private getBannerItemAriaLabels(): string {
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY:
-				return localize('restrictedModeBannerAriaLabelWindow', "受限模式用于安全地浏览代码。信任此窗口以启用所有功能。使用导航键访问横幅操作。");
+				return localize('restrictedModeBannerAriaLabelWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features. Use navigation keys to access banner actions.");
 			case WorkbenchState.FOLDER:
-				return localize('restrictedModeBannerAriaLabelFolder', "受限模式用于安全地浏览代码。信任此文件夹以启用所有功能。使用导航键访问横幅操作。");
+				return localize('restrictedModeBannerAriaLabelFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions.");
 			case WorkbenchState.WORKSPACE:
-				return localize('restrictedModeBannerAriaLabelWorkspace', "受限模式用于安全地浏览代码。信任此工作区以启用所有功能。使用导航键访问横幅操作。");
+				return localize('restrictedModeBannerAriaLabelWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features. Use navigation keys to access banner actions.");
 		}
 	}
 
 	private getBannerItemMessages(): string {
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY:
-				return localize('restrictedModeBannerMessageWindow', "受限模式用于安全地浏览代码。信任此窗口以启用所有功能。");
+				return localize('restrictedModeBannerMessageWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features.");
 			case WorkbenchState.FOLDER:
-				return localize('restrictedModeBannerMessageFolder', "受限模式用于安全地浏览代码。信任此文件夹以启用所有功能。");
+				return localize('restrictedModeBannerMessageFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features.");
 			case WorkbenchState.WORKSPACE:
-				return localize('restrictedModeBannerMessageWorkspace', "受限模式用于安全地浏览代码。信任此工作区以启用所有功能。");
+				return localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.");
 		}
 	}
 
@@ -566,11 +634,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				ariaLabel = localize('status.ariaUntrustedWindow', "受限模式: 由于此窗口不受信任，某些功能已被禁用。");
+				ariaLabel = localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
 				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWindow2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `window is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"正在受限模式下运行\n\n由于此[窗口不受信任]({1})，某些[功能已被禁用]({0})。",
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [window is not trusted]({1}).",
 						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
 						`command:${MANAGE_TRUST_COMMAND_ID}`
 					),
@@ -580,11 +648,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				ariaLabel = localize('status.ariaUntrustedFolder', "受限模式: 由于此文件夹不受信任，某些功能已被禁用。");
+				ariaLabel = localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
 				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedFolder2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `folder is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"正在受限模式下运行\n\n由于此[文件夹不受信任]({1})，某些[功能已被禁用]({0})。",
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [folder is not trusted]({1}).",
 						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
 						`command:${MANAGE_TRUST_COMMAND_ID}`
 					),
@@ -594,11 +662,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				ariaLabel = localize('status.ariaUntrustedWorkspace', "受限模式: 由于此工作区不受信任，某些功能已被禁用。");
+				ariaLabel = localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
 				toolTip = {
 					value: localize(
 						{ key: 'status.tooltipUntrustedWorkspace2', comment: ['[abc]({n}) are links. Only translate `features are disabled` and `workspace is not trusted`. Do not change brackets and parentheses or {n}'] },
-						"正在受限模式下运行\n\n由于此[工作区不受信任]({1})，某些[功能已被禁用]({0})。",
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [workspace is not trusted]({1}).",
 						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
 						`command:${MANAGE_TRUST_COMMAND_ID}`
 					),
@@ -610,8 +678,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		}
 
 		return {
-			name: localize('status.WorkspaceTrust', "工作区信任"),
-			text: `$(shield) ${localize('untrusted', "受限模式")}`,
+			name: localize('status.WorkspaceTrust', "Workspace Trust"),
+			text: `$(shield) ${localize('untrusted', "Restricted Mode")}`,
 			ariaLabel: ariaLabel,
 			tooltip: toolTip,
 			command: MANAGE_TRUST_COMMAND_ID,
@@ -663,7 +731,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		WorkspaceTrustEditor,
 		WorkspaceTrustEditor.ID,
-		localize('workspaceTrustEditor', "工作区信任编辑器")
+		localize('workspaceTrustEditor', "Workspace Trust Editor")
 	),
 	[
 		new SyncDescriptor(WorkspaceTrustEditorInput)
@@ -678,13 +746,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 // Configure Workspace Trust Settings
 
 const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
-const WORKSPACES_CATEGORY = localize2('workspacesCategory', '工作区');
+const WORKSPACES_CATEGORY = localize2('workspacesCategory', 'Workspaces');
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_TRUST_COMMAND_ID,
-			title: localize2('configureWorkspaceTrustSettings', "配置工作区信任设置"),
+			title: localize2('configureWorkspaceTrustSettings', "Configure Workspace Trust Settings"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true
@@ -702,7 +770,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
-			title: localize2('manageWorkspaceTrust', "管理工作区信任"),
+			title: localize2('manageWorkspaceTrust', "Manage Workspace Trust"),
 			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: WORKSPACES_CATEGORY,
 			f1: true,
@@ -731,53 +799,53 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
 				default: true,
-				description: localize('workspace.trust.description', "控制是否在 Chenille 中启用工作区信任。"),
+				description: localize('workspace.trust.description', "Controls whether or not Workspace Trust is enabled within VS Code."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
 				type: 'string',
-				default: 'once',
-				description: localize('workspace.trust.startupPrompt.description', "控制何时显示信任工作区的启动提示。"),
+				default: 'never',
+				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['always', 'once', 'never'],
 				enumDescriptions: [
-					localize('workspace.trust.startupPrompt.always', "每次打开不受信任的工作区时都询问是否信任。"),
-					localize('workspace.trust.startupPrompt.once', "首次打开不受信任的工作区时询问是否信任。"),
-					localize('workspace.trust.startupPrompt.never', "打开不受信任的工作区时不询问是否信任。"),
+					localize('workspace.trust.startupPrompt.always', "Ask for trust every time an untrusted workspace is opened."),
+					localize('workspace.trust.startupPrompt.once', "Ask for trust the first time an untrusted workspace is opened."),
+					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
 				]
 			},
 			[WORKSPACE_TRUST_BANNER]: {
 				type: 'string',
 				default: 'untilDismissed',
-				description: localize('workspace.trust.banner.description', "控制何时显示受限模式横幅。"),
+				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['always', 'untilDismissed', 'never'],
 				enumDescriptions: [
-					localize('workspace.trust.banner.always', "每次打开不受信任的工作区时都显示横幅。"),
-					localize('workspace.trust.banner.untilDismissed', "打开不受信任的工作区时显示横幅，直到被关闭。"),
-					localize('workspace.trust.banner.never', "打开不受信任的工作区时不显示横幅。"),
+					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
+					localize('workspace.trust.banner.untilDismissed', "Show the banner when an untrusted workspace is opened until dismissed."),
+					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
 				]
 			},
 			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {
 				type: 'string',
 				default: 'prompt',
-				markdownDescription: localize('workspace.trust.untrustedFiles.description', "控制如何处理在受信任的工作区中打开不受信任的文件。此设置也适用于在通过 `#{0}#` 信任的空窗口中打开文件。", WORKSPACE_TRUST_EMPTY_WINDOW),
+				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
-					localize('workspace.trust.untrustedFiles.prompt', "针对每个工作区询问如何处理不受信任的文件。一旦不受信任的文件被引入受信任的工作区，将不再提示。"),
-					localize('workspace.trust.untrustedFiles.open', "始终允许将不受信任的文件引入受信任的工作区，而不提示。"),
-					localize('workspace.trust.untrustedFiles.newWindow', "始终在单独的窗口中以受限模式打开不受信任的文件，而不提示。"),
+					localize('workspace.trust.untrustedFiles.prompt', "Ask how to handle untrusted files for each workspace. Once untrusted files are introduced to a trusted workspace, you will not be prompted again."),
+					localize('workspace.trust.untrustedFiles.open', "Always allow untrusted files to be introduced to a trusted workspace without prompting."),
+					localize('workspace.trust.untrustedFiles.newWindow', "Always open untrusted files in a separate window in restricted mode without prompting."),
 				]
 			},
 			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
 				type: 'boolean',
 				default: true,
-				markdownDescription: localize('workspace.trust.emptyWindow.description', "控制在 Chenille 中是否默认信任空窗口。与 `#{0}#` 一起使用时，可以在空窗口中启用 Chenille 的全部功能而无需提示。", WORKSPACE_TRUST_UNTRUSTED_FILES),
+				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION
 			}

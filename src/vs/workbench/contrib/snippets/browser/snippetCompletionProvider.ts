@@ -105,7 +105,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
-		const snippets = new Set(await this._snippets.getSnippets(languageId));
+		const snippets = new Set(await this._snippets.getSnippets(languageId, model.uri));
 		const suggestions: SnippetCompletion[] = [];
 
 		for (const snippet of snippets) {
@@ -165,7 +165,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			snippets.delete(snippet);
 		}
 
-		// add remaing snippets when the current prefix ends in whitespace or when line is empty
+		// add remaining snippets when the current prefix ends in whitespace or when line is empty
 		// and when not having a trigger character
 		if (!triggerCharacterLow && (/\s/.test(lineContentLow[position.column - 2]) /*end in whitespace */ || !lineContentLow /*empty line*/)) {
 			for (const snippet of snippets) {

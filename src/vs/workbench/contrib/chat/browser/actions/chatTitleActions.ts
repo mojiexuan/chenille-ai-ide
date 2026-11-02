@@ -19,14 +19,15 @@ import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/in
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
+import { ChatAgentVoteDirection, IChatService } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
+export const MarkHelpfulActionId = 'workbench.action.chat.markHelpful';
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
@@ -35,7 +36,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
-				title: localize2('interactive.helpful.label', "有帮助"),
+				title: localize2('interactive.helpful.label', "Helpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
@@ -44,12 +45,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.responseHasFeedbackSurvey.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -70,11 +71,9 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Up,
-					reason: undefined
 				}
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
-			item.setVoteDownReason(undefined);
 		}
 	});
 
@@ -82,7 +81,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: MarkUnhelpfulActionId,
-				title: localize2('interactive.unhelpful.label', "没帮助"),
+				title: localize2('interactive.unhelpful.label', "Unhelpful"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
@@ -91,12 +90,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.responseHasFeedbackSurvey.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
+					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig), ChatContextKeys.lockedToCodingAgent.negate())
 				}]
 			});
 		}
@@ -107,13 +106,7 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const reason = args[1];
-			if (typeof reason !== 'string') {
-				return;
-			}
-
 			item.setVote(ChatAgentVoteDirection.Down);
-			item.setVoteDownReason(reason as ChatAgentVoteDownReason);
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
@@ -125,7 +118,6 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: ChatAgentVoteDirection.Down,
-					reason: item.voteDownReason
 				}
 			});
 		}
@@ -135,7 +127,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.reportIssueForBug',
-				title: localize2('interactive.reportIssueForBug.label', "报告问题"),
+				title: localize2('interactive.reportIssueForBug.label', "Report Issue"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.report,
@@ -177,7 +169,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.retry',
-				title: localize2('chat.retry.label', "重试"),
+				title: localize2('chat.retry.label', "Retry"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.refresh,
@@ -187,12 +179,13 @@ export function registerChatTitleActions() {
 						group: 'navigation',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isResponse,
-							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
+							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
+							ChatContextKeys.lockedToCodingAgent.negate())
 					},
 					{
 						id: MenuId.ChatEditingWidgetToolbar,
 						group: 'navigation',
-						when: applyingChatEditsFailedContextKey,
+						when: ContextKeyExpr.and(applyingChatEditsFailedContextKey, ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 0
 					}
 				]
@@ -201,6 +194,10 @@ export function registerChatTitleActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			const chatService = accessor.get(IChatService);
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
 
 			let item = args[0];
 			if (isChatEditingActionContext(item)) {
@@ -211,7 +208,6 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionResource);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -221,8 +217,6 @@ export function registerChatTitleActions() {
 			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
-				const configurationService = accessor.get(IConfigurationService);
-				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
@@ -233,12 +227,12 @@ export function registerChatTitleActions() {
 				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
-						title: localize('chat.retryLast.confirmation.title2', "是否要重试上一个请求?"),
+						title: localize('chat.retryLast.confirmation.title2', "Do you want to retry your last request?"),
 						message: entriesModifiedInLastRequest.length === 1
-							? localize('chat.retry.confirmation.message2', "这将撤销自此请求以来对 {0} 所做的编辑。", basename(entriesModifiedInLastRequest[0].modifiedURI))
-							: localize('chat.retryLast.confirmation.message2', "这将撤销自此请求以来对工作集中 {0} 个文件所做的编辑。是否要继续?", entriesModifiedInLastRequest.length),
-						primaryButton: localize('chat.retry.confirmation.primaryButton', "是"),
-						checkbox: { label: localize('chat.retry.confirmation.checkbox', "不再询问"), checked: false },
+							? localize('chat.retry.confirmation.message2', "This will undo edits made to {0} since this request.", basename(entriesModifiedInLastRequest[0].modifiedURI))
+							: localize('chat.retryLast.confirmation.message2', "This will undo edits made to {0} files in your working set since this request. Do you want to proceed?", entriesModifiedInLastRequest.length),
+						primaryButton: localize('chat.retry.confirmation.primaryButton', "Yes"),
+						checkbox: { label: localize('chat.retry.confirmation.checkbox', "Don't ask again"), checked: false },
 						type: 'info'
 					})
 					: { confirmed: true };
@@ -258,10 +252,10 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			const languageModelId = widget?.input.currentLanguageModel;
 
+			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
-				userSelectedModelId: languageModelId,
+				...widget?.getSelectedModelRequestOptions(),
 				attempt: (request?.attempt ?? -1) + 1,
 				...widget?.getModeRequestOptions(),
 			});
@@ -272,7 +266,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
-				title: localize2('interactive.insertIntoNotebook.label', "插入到笔记本"),
+				title: localize2('interactive.insertIntoNotebook.label', "Insert into Notebook"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -280,7 +274,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate())
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate(), ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			});
 		}

@@ -31,8 +31,7 @@ import { NotificationsToasts } from './parts/notifications/notificationsToasts.j
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
-import { ILogService } from '../../platform/log/common/log.js';
-import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { createUnexpectedErrorHandler, ILogService } from '../../platform/log/common/log.js';
 import { WorkbenchContextKeysHandler } from './contextkeys.js';
 import { coalesce } from '../../base/common/arrays.js';
 import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
@@ -88,6 +87,11 @@ export class Workbench extends Layout {
 
 	private registerErrorHandler(logService: ILogService): void {
 
+		// Increase stack trace limit for better errors stacks
+		if (!isFirefox) {
+			Error.stackTraceLimit = 100;
+		}
+
 		// Listen on unhandled rejection events
 		// Note: intentionally not registered as disposable to handle
 		//       errors that can occur during shutdown phase.
@@ -101,26 +105,7 @@ export class Workbench extends Layout {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
-	}
-
-	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
-	private handleUnexpectedError(error: unknown, logService: ILogService): void {
-		const message = toErrorMessage(error, true);
-		if (!message) {
-			return;
-		}
-
-		const now = Date.now();
-		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
-			return; // Return if error message identical to previous and shorter than 1 second
-		}
-
-		this.previousUnexpectedError.time = now;
-		this.previousUnexpectedError.message = message;
-
-		// Log it
-		logService.error(message);
+		setUnexpectedErrorHandler(createUnexpectedErrorHandler(logService));
 	}
 
 	startup(): IInstantiationService {
@@ -393,7 +378,7 @@ export class Workbench extends Layout {
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+		this._register(registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model));
 
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());

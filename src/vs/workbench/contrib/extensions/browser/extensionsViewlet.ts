@@ -13,10 +13,13 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { Event } from '../../../../base/common/event.js';
 import { Action } from '../../../../base/common/actions.js';
 import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus, addDisposableListener, EventType, clearNode } from '../../../../base/browser/dom.js';
+import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, ExtensionRuntimeActionType, SearchMcpServersContext, DefaultViewsContext, CONTEXT_EXTENSIONS_GALLERY_STATUS } from '../common/extensions.js';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, ExtensionRuntimeActionType, SearchMcpServersContext, SearchAgentPluginsContext, DefaultViewsContext, CONTEXT_EXTENSIONS_GALLERY_STATUS } from '../common/extensions.js';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from './extensionsActions.js';
 import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -28,7 +31,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IActivityService, IBadge, NumberBadge, WarningBadge } from '../../../services/activity/common/activity.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation, IViewContainersRegistry } from '../../../common/views.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -62,13 +65,12 @@ import { registerNavigableContainer } from '../../../browser/actions/widgetNavig
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -85,6 +87,7 @@ export const BuiltInExtensionsContext = new RawContextKey<boolean>('builtInExten
 const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltInExtensions', false);
 const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('searchUnsupportedWorkspaceExtensions', false);
 const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDeprecatedExtensions', false);
+const SearchRestartRequiredExtensionsContext = new RawContextKey<boolean>('searchRestartRequiredExtensions', false);
 export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
 export const ExtensionsSearchValueContext = new RawContextKey<string>('extensionsSearchValue', '');
@@ -102,12 +105,11 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
+		this.container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(VIEWLET_ID)!;
 		this.registerViews();
 	}
 
@@ -135,7 +137,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.marketplaceAccess',
-			name: localize2('marketPlace', "市场"),
+			name: localize2('marketPlace', "Marketplace"),
 			ctorDescriptor: new SyncDescriptor(class extends ViewPane {
 				public override shouldShowWelcome() {
 					return true;
@@ -145,7 +147,10 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				ContextKeyExpr.or(
 					ContextKeyExpr.has('searchMarketplaceExtensions'), ContextKeyExpr.and(DefaultViewsContext)
 				),
-				ContextKeyExpr.or(CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn), CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied))
+				ContextKeyExpr.or(
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn),
+					CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
+				)
 			),
 			order: -1,
 		});
@@ -154,12 +159,13 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewRegistry.registerViews(viewDescriptors, this.container);
 
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('sign in', "[登录以访问扩展市场]({0})", `command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`),
+			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:workbench.extensions.actions.gallery.signIn`),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
 		});
 
+		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
-			content: localize('access denied', "您的帐户无权访问扩展市场。请联系您的管理员。"),
+			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
 		});
 	}
@@ -191,7 +197,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		}
 		const serverLabelChangeEvent = Event.any(this.labelService.onDidChangeFormatters, installedWebExtensionsContextChangeEvent);
 		for (const server of servers) {
-			const getInstalledViewName = (): string => getViewName(localize('installed', "已安装"), server);
+			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
 			const onDidChangeTitle = Event.map<void, string>(serverLabelChangeEvent, () => getInstalledViewName());
 			const id = servers.length > 1 ? `workbench.views.extensions.${server.id}.installed` : `workbench.views.extensions.installed`;
 			/* Installed extensions view */
@@ -217,7 +223,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 						super({
 							id: 'workbench.extensions.installLocalExtensions',
 							get title() {
-								return localize2('select and install local extensions', "安装本地扩展，从 '{0}'...", server.label);
+								return localize2('select and install local extensions', "Install Local Extensions in '{0}'...", server.label);
 							},
 							category: REMOTE_CATEGORY,
 							icon: installLocalInRemoteIcon,
@@ -241,7 +247,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				constructor() {
 					super({
 						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
-						title: localize2('install remote in local', '在本地安装远程扩展...'),
+						title: localize2('install remote in local', 'Install Remote Extensions Locally...'),
 						category: REMOTE_CATEGORY,
 						f1: true
 					});
@@ -259,7 +265,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.popular',
-			name: localize2('popularExtensions', "流行的"),
+			name: localize2('popularExtensions', "Popular"),
 			ctorDescriptor: new SyncDescriptor(DefaultPopularExtensionsView, [{ hideBadge: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('hasInstalledExtensions'), CONTEXT_HAS_GALLERY),
 			weight: 60,
@@ -274,7 +280,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'extensions.recommendedList',
-			name: localize2('recommendedExtensions', "推荐"),
+			name: localize2('recommendedExtensions', "Recommended"),
 			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, SortByUpdateDateContext.negate(), ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand'), CONTEXT_HAS_GALLERY),
 			weight: 40,
@@ -290,7 +296,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			 */
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.enabled',
-				name: localize2('enabledExtensions', "启用"),
+				name: localize2('enabledExtensions', "Enabled"),
 				ctorDescriptor: new SyncDescriptor(EnabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
@@ -305,7 +311,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			 */
 			viewDescriptors.push({
 				id: 'workbench.views.extensions.disabled',
-				name: localize2('disabledExtensions', "禁用"),
+				name: localize2('disabledExtensions', "Disabled"),
 				ctorDescriptor: new SyncDescriptor(DisabledExtensionsView, [{}]),
 				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has('hasInstalledExtensions')),
 				hideByDefault: true,
@@ -327,7 +333,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.marketplace',
-			name: localize2('marketPlace', "市场"),
+			name: localize2('marketPlace', "Marketplace"),
 			ctorDescriptor: new SyncDescriptor(SearchMarketplaceExtensionsView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchMarketplaceExtensions'), CONTEXT_HAS_GALLERY)
 		});
@@ -337,7 +343,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchInstalled',
-			name: localize2('installed', "已安装"),
+			name: localize2('installed', "Installed"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.or(ContextKeyExpr.has('searchInstalledExtensions'), ContextKeyExpr.has('installedExtensions')),
 		});
@@ -347,7 +353,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchRecentlyUpdated',
-			name: localize2('recently updated', "最近更新"),
+			name: localize2('recently updated', "Recently Updated"),
 			ctorDescriptor: new SyncDescriptor(RecentlyUpdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchRecentlyUpdatedExtensions')),
 			order: 2,
@@ -358,7 +364,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchEnabled',
-			name: localize2('enabled', "启用"),
+			name: localize2('enabled', "Enabled"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchEnabledExtensions')),
 		});
@@ -368,7 +374,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchDisabled',
-			name: localize2('disabled', "禁用"),
+			name: localize2('disabled', "Disabled"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchDisabledExtensions')),
 		});
@@ -378,7 +384,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: OUTDATED_EXTENSIONS_VIEW_ID,
-			name: localize2('availableUpdates', "可用更新"),
+			name: localize2('availableUpdates', "Available Updates"),
 			ctorDescriptor: new SyncDescriptor(OutdatedExtensionsView, [{}]),
 			when: ContextKeyExpr.or(SearchExtensionUpdatesContext, ContextKeyExpr.has('searchOutdatedExtensions')),
 			order: 1,
@@ -389,7 +395,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchBuiltin',
-			name: localize2('builtin', "内置"),
+			name: localize2('builtin', "Builtin"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 		});
@@ -399,7 +405,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		 */
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.searchWorkspaceUnsupported',
-			name: localize2('workspaceUnsupported', "工作区不受支持"),
+			name: localize2('workspaceUnsupported', "Workspace Unsupported"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchWorkspaceUnsupportedExtensions')),
 		});
@@ -412,7 +418,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: WORKSPACE_RECOMMENDATIONS_VIEW_ID,
-			name: localize2('workspaceRecommendedExtensions', "工作空间建议"),
+			name: localize2('workspaceRecommendedExtensions', "Workspace Recommendations"),
 			ctorDescriptor: new SyncDescriptor(WorkspaceRecommendedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), WorkbenchStateContext.notEqualsTo('empty')),
 			order: 1
@@ -420,7 +426,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.otherRecommendations',
-			name: localize2('otherRecommendedExtensions', "其他建议"),
+			name: localize2('otherRecommendedExtensions', "Other Recommendations"),
 			ctorDescriptor: new SyncDescriptor(RecommendedExtensionsView, [{}]),
 			when: ContextKeyExpr.has('recommendedExtensions'),
 			order: 2
@@ -438,21 +444,21 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		const otherCategoriesQuery = `${otherCategories.map(c => `category:"${c}"`).join(' ')} ${configuredCategories.map(c => `category:"-${c}"`).join(' ')}`;
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinFeatureExtensions',
-			name: localize2('builtinFeatureExtensions', "特性"),
+			name: localize2('builtinFeatureExtensions', "Features"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin ${otherCategoriesQuery}` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinThemeExtensions',
-			name: localize2('builtInThemesExtensions', "主题"),
+			name: localize2('builtInThemesExtensions', "Themes"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:themes` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinProgrammingLanguageExtensions',
-			name: localize2('builtinProgrammingLanguageExtensions', "编程语言"),
+			name: localize2('builtinProgrammingLanguageExtensions', "Programming Languages"),
 			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:"programming languages"` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
@@ -465,28 +471,28 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
-			name: localize2('untrustedUnsupportedExtensions', "在受限模式下禁用"),
+			name: localize2('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
-			name: localize2('untrustedPartiallySupportedExtensions', "受限模式下的限制"),
+			name: localize2('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.virtualUnsupportedExtensions',
-			name: localize2('virtualUnsupportedExtensions', "在虚拟工作区中禁用"),
+			name: localize2('virtualUnsupportedExtensions', "Disabled in Virtual Workspaces"),
 			ctorDescriptor: new SyncDescriptor(VirtualWorkspaceUnsupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(VirtualWorkspaceContext, SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.virtualPartiallySupportedExtensions',
-			name: localize2('virtualPartiallySupportedExtensions', "虚拟工作空间有限"),
+			name: localize2('virtualPartiallySupportedExtensions', "Limited in Virtual Workspaces"),
 			ctorDescriptor: new SyncDescriptor(VirtualWorkspacePartiallySupportedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(VirtualWorkspaceContext, SearchUnsupportedWorkspaceExtensionsContext),
 		});
@@ -499,9 +505,16 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.deprecatedExtensions',
-			name: localize2('deprecated', "已弃用"),
+			name: localize2('deprecated', "Deprecated"),
 			ctorDescriptor: new SyncDescriptor(DeprecatedExtensionsView, [{}]),
 			when: ContextKeyExpr.and(SearchDeprecatedExtensionsContext),
+		});
+
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.restartRequired',
+			name: localize2('restart required', "Restart Required"),
+			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
+			when: ContextKeyExpr.and(SearchRestartRequiredExtensionsContext),
 		});
 
 		return viewDescriptors;
@@ -516,6 +529,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 	private readonly sortByContextKey: IContextKey<string>;
 	private readonly searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
 	private readonly searchMcpServersContextKey: IContextKey<boolean>;
+	private readonly searchAgentPluginsContextKey: IContextKey<boolean>;
 	private readonly searchHasTextContextKey: IContextKey<boolean>;
 	private readonly sortByUpdateDateContextKey: IContextKey<boolean>;
 	private readonly installedExtensionsContextKey: IContextKey<boolean>;
@@ -530,6 +544,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 	private readonly searchBuiltInExtensionsContextKey: IContextKey<boolean>;
 	private readonly searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
 	private readonly searchDeprecatedExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchRestartRequiredExtensionsContextKey: IContextKey<boolean>;
 	private readonly recommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
@@ -562,15 +577,17 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService logService: ILogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
-		this.searchDelayer = new Delayer(500);
+		this.searchDelayer = this._register(new Delayer(500));
 		this.extensionsSearchValueContextKey = ExtensionsSearchValueContext.bindTo(contextKeyService);
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.sortByContextKey = ExtensionsSortByContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
 		this.searchMcpServersContextKey = SearchMcpServersContext.bindTo(contextKeyService);
+		this.searchAgentPluginsContextKey = SearchAgentPluginsContext.bindTo(contextKeyService);
 		this.searchHasTextContextKey = SearchHasTextContext.bindTo(contextKeyService);
 		this.sortByUpdateDateContextKey = SortByUpdateDateContext.bindTo(contextKeyService);
 		this.installedExtensionsContextKey = InstalledExtensionsContext.bindTo(contextKeyService);
@@ -579,6 +596,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		this.searchExtensionUpdatesContextKey = SearchExtensionUpdatesContext.bindTo(contextKeyService);
 		this.searchWorkspaceUnsupportedExtensionsContextKey = SearchUnsupportedWorkspaceExtensionsContext.bindTo(contextKeyService);
 		this.searchDeprecatedExtensionsContextKey = SearchDeprecatedExtensionsContext.bindTo(contextKeyService);
+		this.searchRestartRequiredExtensionsContextKey = SearchRestartRequiredExtensionsContext.bindTo(contextKeyService);
 		this.searchOutdatedExtensionsContextKey = SearchOutdatedExtensionsContext.bindTo(contextKeyService);
 		this.searchEnabledExtensionsContextKey = SearchEnabledExtensionsContext.bindTo(contextKeyService);
 		this.searchDisabledExtensionsContextKey = SearchDisabledExtensionsContext.bindTo(contextKeyService);
@@ -614,7 +632,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		hide(overlay);
 
 		this.header = append(this.root, $('.header'));
-		const placeholder = localize('searchExtensions', "市场中的搜索扩展");
+		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
 
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
@@ -758,45 +776,77 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		clearNode(this.notificationContainer);
 		this.notificationDisposables.value = new DisposableStore();
 		const status = this.extensionsWorkbenchService.getExtensionsNotification();
-		const query = status?.extensions.map(extension => `@id:${extension.identifier.id}`).join(' ');
+		const query = status?.query ?? status?.extensions.map(extension => `@id:${extension.identifier.id}`).join(' ');
 		if (status && (query === this.searchBox?.getValue() || !this.searchMarketplaceExtensionsContextKey.get())) {
-			this.notificationContainer.setAttribute('aria-label', status.message);
+			const messagePlainText = isMarkdownString(status.message) ? renderAsPlaintext(status.message) : status.message;
+			this.notificationContainer.setAttribute('aria-label', messagePlainText);
 			this.notificationContainer.classList.remove('hidden');
 			const messageContainer = append(this.notificationContainer, $('.message-container'));
 			append(messageContainer, $('span')).className = SeverityIcon.className(status.severity);
-			append(messageContainer, $('span.message', undefined, status.message));
-			const showAction = append(messageContainer,
-				$('span.message-text-action', {
-					'tabindex': '0',
-					'role': 'button',
-					'aria-label': `${status.message}. ${localize('click show', "单击以显示")}`
-				}, localize('show', "Show")));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
-			this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(e);
-				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-					this.search(query ?? '');
-				}
-				standardKeyboardEvent.stopPropagation();
-			}));
-			const dismissAction = append(this.notificationContainer,
-				$(`span.message-action${ThemeIcon.asCSSSelector(Codicon.close)}`, {
-					'tabindex': '0',
-					'role': 'button',
-					'aria-label': localize('dismiss', "解雇"),
-					'title': localize('dismiss', "解雇")
+			const messageText = append(messageContainer, $('span.message-text'));
+			const messageElement = append(messageText, $('span.message'));
+			if (isMarkdownString(status.message)) {
+				const isTrusted = status.message.isTrusted;
+				const allowCommands = typeof isTrusted === 'object' ? isTrusted.enabledCommands : !!isTrusted;
+				this.notificationDisposables.value.add(renderMarkdown(status.message, {
+					actionHandler: link => { this.openerService.open(link, { allowCommands }); },
+				}, messageElement));
+			} else {
+				messageElement.textContent = status.message;
+			}
+			const actionsContainer = status.action || status.extensions.length
+				? append(this.notificationContainer, $('.notification-actions'))
+				: undefined;
+			const action = status.action;
+			if (action && actionsContainer) {
+				const actionButton = this.notificationDisposables.value.add(new Button(actionsContainer, { ...defaultButtonStyles, ariaLabel: action.label }));
+				actionButton.element.classList.add('message-action-button');
+				actionButton.label = action.label;
+				this.notificationDisposables.value.add(actionButton.onDidClick(() => {
+					Promise.resolve(action.run()).catch(error => this.notificationService.error(error));
 				}));
-			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.CLICK, () => status.dismiss()));
-			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(e);
-				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-					status.dismiss();
-				}
-				standardKeyboardEvent.stopPropagation();
-			}));
+			}
+			if (status.extensions.length && actionsContainer) {
+				const showAction = append(actionsContainer,
+					$('span.message-text-action', {
+						'tabindex': '0',
+						'role': 'button',
+						'aria-label': `${messagePlainText}. ${localize('click show', "Click to Show")}`
+					}, localize('show', "Show")));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? '')));
+				this.notificationDisposables.value.add(addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const standardKeyboardEvent = new StandardKeyboardEvent(e);
+					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+						this.search(query ?? '');
+					}
+					standardKeyboardEvent.stopPropagation();
+				}));
+			}
+			const dismiss = status.dismiss;
+			if (dismiss) {
+				const dismissLabel = localize('dismiss notification', "Dismiss");
+				const dismissButton = append(this.notificationContainer,
+					$('span.dismiss-action.codicon.codicon-close', {
+						'tabindex': '0',
+						'role': 'button',
+						'aria-label': dismissLabel,
+						'title': dismissLabel,
+					}));
+				this.notificationDisposables.value.add(addDisposableListener(dismissButton, EventType.CLICK, () => dismiss()));
+				this.notificationDisposables.value.add(addDisposableListener(dismissButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const standardKeyboardEvent = new StandardKeyboardEvent(e);
+					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+						dismiss();
+					}
+					standardKeyboardEvent.stopPropagation();
+				}));
+			}
 		} else {
 			this.notificationContainer.removeAttribute('aria-label');
 			this.notificationContainer.classList.add('hidden');
+			if (this.searchBox && ExtensionsListView.isRestartRequiredQuery(this.searchBox.getValue())) {
+				this.search('');
+			}
 		}
 
 		if (this._dimension) {
@@ -851,10 +901,12 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 			this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isSearchBuiltInExtensionsQuery(value));
 			this.searchWorkspaceUnsupportedExtensionsContextKey.set(ExtensionsListView.isSearchWorkspaceUnsupportedExtensionsQuery(value));
 			this.searchDeprecatedExtensionsContextKey.set(ExtensionsListView.isSearchDeprecatedExtensionsQuery(value));
+			this.searchRestartRequiredExtensionsContextKey.set(ExtensionsListView.isRestartRequiredQuery(value));
 			this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 			this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 			this.searchMcpServersContextKey.set(!!value && /@mcp\s?.*/i.test(value));
-			this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery && !this.searchMcpServersContextKey.get());
+			this.searchAgentPluginsContextKey.set(!!value && /@agentPlugins\s?.*/i.test(value));
+			this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery && !this.searchMcpServersContextKey.get() && !this.searchAgentPluginsContextKey.get());
 			this.sortByUpdateDateContextKey.set(ExtensionsListView.isSortUpdateDateQuery(value));
 			this.defaultViewsContextKey.set(!value || ExtensionsListView.isSortInstalledExtensionsQuery(value));
 		});
@@ -886,16 +938,16 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 				break;
 			case 1:
 				if (view) {
-					alert(localize('extensionFoundInSection', "在｛0｝节中找到1个扩展名。", view.name.value));
+					alert(localize('extensionFoundInSection', "1 extension found in the {0} section.", view.name.value));
 				} else {
-					alert(localize('extensionFound', "找到1个扩展名。"));
+					alert(localize('extensionFound', "1 extension found."));
 				}
 				break;
 			default:
 				if (view) {
-					alert(localize('extensionsFoundInSection', "在｛1｝节中找到｛0｝个扩展名。", count, view.name.value));
+					alert(localize('extensionsFoundInSection', "{0} extensions found in the {1} section.", count, view.name.value));
 				} else {
-					alert(localize('extensionsFound', "找到｛0｝个扩展名。", count));
+					alert(localize('extensionsFound', "{0} extensions found.", count));
 				}
 				break;
 		}
@@ -945,8 +997,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 		const message = err && err.message || '';
 
 		if (/ECONNREFUSED/.test(message)) {
-			const error = createErrorWithActions(localize('suggestProxyError', "市场返回“ECONNREFUSED”。请检查“http.proxy”设置。"), [
-				new Action('open user settings', localize('open user settings', "打开用户设置"), undefined, true, () => this.preferencesService.openUserSettings())
+			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), [
+				new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
 			]);
 
 			this.notificationService.error(error);
@@ -986,26 +1038,24 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		let badge: IBadge | undefined;
 
 		const extensionsNotification = this.extensionsWorkbenchService.getExtensionsNotification();
-		if (extensionsNotification) {
-			if (extensionsNotification.severity === Severity.Warning) {
-				badge = new WarningBadge(() => extensionsNotification.message);
-			}
+		if (extensionsNotification && extensionsNotification.severity === Severity.Warning) {
+			badge = new WarningBadge(() => isMarkdownString(extensionsNotification.message) ? renderAsPlaintext(extensionsNotification.message) : extensionsNotification.message);
 		}
 
-		else {
+		if (!badge) {
 			const actionRequired = this.configurationService.getValue(AutoRestartConfigurationKey) === true ? [] : this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
-			const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0), 0);
+			const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) && !this.extensionsWorkbenchService.isAutoUpdateDelayed(e) ? 1 : 0), 0);
 			const newBadgeNumber = outdated + actionRequired.length;
 			if (newBadgeNumber > 0) {
 				let msg = '';
 				if (outdated) {
-					msg += outdated === 1 ? localize('extensionToUpdate', '｛0｝需要更新', outdated) : localize('extensionsToUpdate', '｛0｝需要更新', outdated);
+					msg += outdated === 1 ? localize('extensionToUpdate', '{0} requires update', outdated) : localize('extensionsToUpdate', '{0} require update', outdated);
 				}
 				if (outdated > 0 && actionRequired.length > 0) {
 					msg += ', ';
 				}
 				if (actionRequired.length) {
-					msg += actionRequired.length === 1 ? localize('extensionToReload', '｛0｝需要重新启动', actionRequired.length) : localize('extensionsToReload', '｛0｝需要重新启动', actionRequired.length);
+					msg += actionRequired.length === 1 ? localize('extensionToReload', '{0} requires restart', actionRequired.length) : localize('extensionsToReload', '{0} require restart', actionRequired.length);
 				}
 				badge = new NumberBadge(newBadgeNumber, () => msg);
 			}
@@ -1054,19 +1104,19 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					const buttons: IPromptChoice[] = [];
 					if (shouldRestartExtensions || shouldReloadWindow) {
 						buttons.push({
-							label: shouldRestartExtensions ? localize('restartNow', "重启扩展") : localize('reloadNow', "立即重载"),
+							label: shouldRestartExtensions ? localize('restartNow', "Restart Extensions") : localize('reloadNow', "Reload Now"),
 							run: () => shouldRestartExtensions ? this.extensionsWorkbenchService.updateRunningExtensions() : this.hostService.reload()
 						});
 					}
 					if (link) {
 						buttons.push({
-							label: localize('learnMore', "了解更多"),
+							label: localize('learnMore', "Learn More"),
 							run: () => this.commandService.executeCommand('vscode.open', URI.parse(link))
 						});
 					}
 					this.notificationService.prompt(
 						Severity.Warning,
-						localize('malicious warning', "发现扩展'｛0｝'有问题，已将其卸载", extension.manifest.displayName || extension.identifier.id),
+						localize('malicious warning', "The extension '{0}' was found to be problematic and has been uninstalled", extension.manifest.displayName || extension.identifier.id),
 						buttons,
 						{
 							sticky: true,
@@ -1104,10 +1154,10 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 
 		switch (status) {
 			case ExtensionGalleryManifestStatus.RequiresSignIn:
-				badge = new NumberBadge(1, () => localize('signInRequired', "需要登录才能访问市场"));
+				badge = new NumberBadge(1, () => localize('signInRequired', "Sign in required to access marketplace"));
 				break;
 			case ExtensionGalleryManifestStatus.AccessDenied:
-				badge = new WarningBadge(() => localize('accessDenied', "拒绝进入市场"));
+				badge = new WarningBadge(() => localize('accessDenied', "Access denied to marketplace"));
 				break;
 		}
 
@@ -1117,7 +1167,7 @@ export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWo
 
 		this.accountBadgeDisposable.clear();
 		if (status === ExtensionGalleryManifestStatus.RequiresSignIn) {
-			const badge = new NumberBadge(1, () => localize('sign in enterprise marketplace', "登录以访问市场"));
+			const badge = new NumberBadge(1, () => localize('sign in enterprise marketplace', "Sign in to access Marketplace"));
 			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 		}
 	}

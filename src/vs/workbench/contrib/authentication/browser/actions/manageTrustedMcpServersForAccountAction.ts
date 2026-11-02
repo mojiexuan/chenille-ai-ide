@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,17 +17,17 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { AllowedMcpServer } from '../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IAuthenticationQueryService, IAccountQuery } from '../../../../services/authentication/common/authenticationQuery.js';
-import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
 export class ManageTrustedMcpServersForAccountAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageTrustedMCPServersForAccount',
-			title: localize2('manageTrustedMcpServersForAccount', "管理帐户的受信任 MCP 服务器"),
-			category: localize2('accounts', "帐户"),
+			title: localize2('manageTrustedMcpServersForAccount', "Manage Trusted MCP Servers For Account"),
+			category: localize2('accounts', "Accounts"),
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate()
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate())
 		});
 	}
 
@@ -76,7 +77,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 
 		const accounts = await this._getAllAvailableAccounts();
 		const pick = await this._quickInputService.pick(accounts, {
-			placeHolder: localize('pickAccount', "选择要管理受信任 MCP 服务器的帐户"),
+			placeHolder: localize('pickAccount', "Pick an account to manage trusted MCP servers for"),
 			matchOnDescription: true,
 		});
 
@@ -111,44 +112,66 @@ class ManageTrustedMcpServersForAccountActionImpl {
 	private async _getItems(accountQuery: IAccountQuery) {
 		const allowedMcpServers = accountQuery.mcpServers().getAllowedMcpServers();
 		const serverIdToLabel = new Map<string, string>(this._mcpServerService.servers.get().map(s => [s.definition.id, s.definition.label]));
-		const filteredMcpServers = allowedMcpServers
-			// Filter out MCP servers that are not in the current list of servers
-			.filter(server => serverIdToLabel.has(server.id))
-			.map(server => {
-				const usage = accountQuery.mcpServer(server.id).getUsage();
-				return {
-					...server,
-					// Use the server name from the MCP service
-					name: serverIdToLabel.get(server.id)!,
-					lastUsed: usage.length > 0 ? Math.max(...usage.map(u => u.lastUsed)) : server.lastUsed
-				};
-			});
+		const withLastUsed = <T extends AllowedMcpServer>(server: T): T => {
+			const usage = accountQuery.mcpServer(server.id).getUsage();
+			return { ...server, lastUsed: usage.length > 0 ? Math.max(...usage.map(u => u.lastUsed)) : server.lastUsed };
+		};
 
-		if (!filteredMcpServers.length) {
-			this._dialogService.info(localize('noTrustedMcpServers', "此帐户尚未被任何 MCP 服务器使用。"));
+		// Agent-host MCP servers run inside the agent-host process and are not registered with the
+		// workbench `IMcpService`, so they are kept regardless of the registry and surfaced in their
+		// own per-host section(s) rather than being filtered out.
+		const agentHostServers = allowedMcpServers
+			.filter((server): server is AllowedMcpServer & { agentHost: NonNullable<AllowedMcpServer['agentHost']> } => !!server.agentHost)
+			.map(withLastUsed);
+
+		// Workbench MCP servers: filter out any not in the current list of servers, and use the
+		// server name from the MCP service.
+		const workbenchServers = allowedMcpServers
+			.filter(server => !server.agentHost && serverIdToLabel.has(server.id))
+			.map(server => withLastUsed({ ...server, name: serverIdToLabel.get(server.id)! }));
+
+		if (!agentHostServers.length && !workbenchServers.length) {
+			this._dialogService.info(localize('noTrustedMcpServers', "This account has not been used by any MCP servers."));
 			return [];
 		}
 
-		const trustedServers = filteredMcpServers.filter(s => s.trusted);
-		const otherServers = filteredMcpServers.filter(s => !s.trusted);
+		const trustedServers = workbenchServers.filter(s => s.trusted);
+		const otherServers = workbenchServers.filter(s => !s.trusted);
 		const sortByLastUsed = (a: AllowedMcpServer, b: AllowedMcpServer) => (b.lastUsed || 0) - (a.lastUsed || 0);
 
-		return [
-			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem),
-			{ type: 'separator', label: localize('trustedMcpServers', "受 Microsoft 信任") } satisfies IQuickPickSeparator,
-			...trustedServers.sort(sortByLastUsed).map(this._toQuickPickItem)
+		const items: Array<TrustedMcpServersQuickPickItem | IQuickPickSeparator> = [
+			...otherServers.sort(sortByLastUsed).map(this._toQuickPickItem)
 		];
+
+		// One section per distinct agent host, keyed by the stable authority
+		// (labels can collide across hosts) but displayed using the label.
+		const byAuthority = new Map<string, { label: string; servers: AllowedMcpServer[] }>();
+		for (const server of agentHostServers) {
+			const group = byAuthority.get(server.agentHost.authority) ?? { label: server.agentHost.label, servers: [] };
+			group.servers.push(server);
+			byAuthority.set(server.agentHost.authority, group);
+		}
+		const sortedGroups = [...byAuthority.values()].sort((a, b) => a.label.localeCompare(b.label));
+		for (const { label, servers } of sortedGroups) {
+			items.push({ type: 'separator', label: localize({ key: 'agentHostMcpServers', comment: ['The placeholder {0} is the name of an agent host, e.g. a remote machine or the local machine'] }, "MCP Servers in {0}", label) } satisfies IQuickPickSeparator);
+			items.push(...servers.sort(sortByLastUsed).map(this._toQuickPickItem));
+		}
+
+		items.push({ type: 'separator', label: localize('trustedMcpServers', "Trusted by Microsoft") } satisfies IQuickPickSeparator);
+		items.push(...trustedServers.sort(sortByLastUsed).map(this._toQuickPickItem));
+
+		return items;
 	}
 
 	private _toQuickPickItem(mcpServer: AllowedMcpServer): TrustedMcpServersQuickPickItem {
 		const lastUsed = mcpServer.lastUsed;
 		const description = lastUsed
-			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "上次使用此帐户: {0}", fromNow(lastUsed, true))
-			: localize('notUsed', "尚未使用此帐户");
+			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(lastUsed, true))
+			: localize('notUsed', "Has not used this account");
 		let tooltip: string | undefined;
 		let disabled: boolean | undefined;
 		if (mcpServer.trusted) {
-			tooltip = localize('trustedMcpServerTooltip', "此 MCP 服务器受 Microsoft 信任，\n始终可以访问此帐户");
+			tooltip = localize('trustedMcpServerTooltip', "This MCP server is trusted by Microsoft and\nalways has access to this account");
 			disabled = true;
 		}
 		return {
@@ -158,7 +181,7 @@ class ManageTrustedMcpServersForAccountActionImpl {
 			tooltip,
 			disabled,
 			buttons: [{
-				tooltip: localize('accountPreferences', "管理此 MCP 服务器的帐户首选项"),
+				tooltip: localize('accountPreferences', "Manage account preferences for this MCP server"),
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			}],
 			picked: mcpServer.allowed === undefined || mcpServer.allowed
@@ -172,9 +195,10 @@ class ManageTrustedMcpServersForAccountActionImpl {
 		// Configure quick pick
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
-		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', '取消');
-		quickPick.title = localize('manageTrustedMcpServers', "管理受信任的 MCP 服务器");
-		quickPick.placeholder = localize('manageMcpServers', "选择哪些 MCP 服务器可以访问此帐户");
+		quickPick.customLabel = localize('manageTrustedMcpServers.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
+		quickPick.title = localize('manageTrustedMcpServers', "Manage Trusted MCP Servers");
+		quickPick.placeholder = localize('manageMcpServers', "Choose which MCP servers can access this account");
 
 		// Set up event handlers
 		disposableStore.add(quickPick.onDidAccept(() => {

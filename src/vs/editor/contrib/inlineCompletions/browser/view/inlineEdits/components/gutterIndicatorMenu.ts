@@ -36,7 +36,7 @@ export class GutterIndicatorMenuContent {
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _data: InlineSuggestionGutterMenuData,
-		private readonly _close: (focusEditor: boolean) => void,
+		private readonly _close: (focusEditor: boolean, commandId?: string) => void,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -59,24 +59,48 @@ export class GutterIndicatorMenuContent {
 				isActive: activeElement.map(v => v === options.id),
 				onHoverChange: v => activeElement.set(v ? options.id : undefined, undefined),
 				onAction: () => {
-					this._close(true);
-					return this._commandService.executeCommand(typeof options.commandId === 'string' ? options.commandId : options.commandId.get(), ...(options.commandArgs ?? []));
+					const commandId = typeof options.commandId === 'string' ? options.commandId : options.commandId.get();
+					this._close(true, commandId);
+					return this._commandService.executeCommand(commandId, ...(options.commandArgs ?? []));
 				},
 			};
 		};
+
+		const extensionCommandGroups = this._data.extensionCommands.map(group =>
+			group.map((c, idx) => option(createOptionArgs({
+				id: c.command.id + '_' + idx,
+				title: c.command.title,
+				icon: c.icon ?? Codicon.symbolEvent,
+				commandId: c.command.id,
+				commandArgs: c.command.arguments
+			})))
+		);
+
+		const extensionCommandNodes: ChildNode = [];
+		for (const group of extensionCommandGroups) {
+			if (group.length > 0) {
+				extensionCommandNodes.push(separator());
+				extensionCommandNodes.push(...group);
+			}
+		}
+
+		if (this._data.extensionCommandsOnly) {
+			// drop leading separator
+			return hoverContent(extensionCommandNodes.slice(1));
+		}
 
 		const title = header(this._data.displayName);
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
-			title: `${localize('goto', "转到")} / ${localize('accept', "接受")}`,
+			title: localize('gotoAndAccept', "Go To / Accept"),
 			icon: Codicon.check,
 			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
 			id: 'reject',
-			title: localize('reject', "拒绝"),
+			title: localize('reject', "Reject"),
 			icon: Codicon.close,
 			commandId: hideInlineCompletionId
 		}));
@@ -87,14 +111,6 @@ export class GutterIndicatorMenuContent {
 			icon: this._data.alternativeAction.icon,
 			commandId: inlineSuggestCommitAlternativeActionId,
 		})) : undefined;
-
-		const extensionCommands = this._data.extensionCommands.map((c, idx) => option(createOptionArgs({
-			id: c.command.id + '_' + idx,
-			title: c.command.title,
-			icon: c.icon ?? Codicon.symbolEvent,
-			commandId: c.command.id,
-			commandArgs: c.command.arguments
-		})));
 
 		const showModelEnabled = false;
 		const modelOptions = showModelEnabled ? this._data.modelInfo?.models.map((m: { id: string; name: string }) => option({
@@ -112,13 +128,13 @@ export class GutterIndicatorMenuContent {
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
 				id: 'showExpanded',
-				title: localize('showExpanded', "显示展开"),
+				title: localize('showExpanded', "Show Expanded"),
 				icon: Codicon.expandAll,
 				commandId: toggleShowCollapsedId
 			}))
 			: option(createOptionArgs({
 				id: 'showCollapsed',
-				title: localize('showCollapsed', "显示折叠"),
+				title: localize('showCollapsed', "Show Collapsed"),
 				icon: Codicon.collapseAll,
 				commandId: toggleShowCollapsedId
 			}))
@@ -126,14 +142,14 @@ export class GutterIndicatorMenuContent {
 
 		const snooze = option(createOptionArgs({
 			id: 'snooze',
-			title: localize('snooze', "暂停提醒"),
+			title: localize('snooze', "Snooze"),
 			icon: Codicon.bellSlash,
 			commandId: 'editor.action.inlineSuggest.snooze'
 		}));
 
 		const settings = option(createOptionArgs({
 			id: 'settings',
-			title: localize('settings', "设置"),
+			title: localize('settings', "Settings"),
 			icon: Codicon.gear,
 			commandId: 'workbench.action.openSettings',
 			commandArgs: ['@tag:nextEditSuggestions']
@@ -160,11 +176,10 @@ export class GutterIndicatorMenuContent {
 			toggleCollapsedMode,
 			modelOptions.length ? separator() : undefined,
 			...modelOptions,
-			extensionCommands.length ? separator() : undefined,
 			snooze,
 			settings,
 
-			...extensionCommands,
+			...extensionCommandNodes,
 
 			actionBarFooter ? separator() : undefined,
 			actionBarFooter

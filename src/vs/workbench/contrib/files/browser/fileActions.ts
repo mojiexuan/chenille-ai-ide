@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Action } from '../../../../base/common/actions.js';
 import { dispose, IDisposable } from '../../../../base/common/lifecycle.js';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from '../common/files.js';
+import { VIEWLET_ID, IFilesConfiguration, UndoConfirmLevel } from '../common/files.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IQuickInputService, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
@@ -25,7 +25,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IDialogService, IConfirmationResult, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -34,7 +34,6 @@ import { Constants } from '../../../../base/common/uint.js';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { ExplorerItem, NewExplorerItem } from '../common/explorerModel.js';
-import { getErrorMessage } from '../../../../base/common/errors.js';
 import { triggerUpload } from '../../../../base/browser/dom.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -54,7 +53,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
-import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanToggleReadonlyContext, ActiveEditorContext, EmptyWorkspaceSupportContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -63,18 +62,18 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
-export const NEW_FILE_LABEL = nls.localize2('newFile', "新建文件...");
+export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
 export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
-export const NEW_FOLDER_LABEL = nls.localize2('newFolder', "新建文件夹...");
-export const TRIGGER_RENAME_LABEL = nls.localize('rename', "重命名...");
-export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "删除");
-export const COPY_FILE_LABEL = nls.localize('copyFile', "复制");
-export const PASTE_FILE_LABEL = nls.localize('pasteFile', "粘贴");
+export const NEW_FOLDER_LABEL = nls.localize2('newFolder', "New Folder...");
+export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename...");
+export const MOVE_FILE_TO_TRASH_LABEL = nls.localize('delete', "Delete");
+export const COPY_FILE_LABEL = nls.localize('copyFile', "Copy");
+export const PASTE_FILE_LABEL = nls.localize('pasteFile', "Paste");
 export const FileCopiedContext = new RawContextKey<boolean>('fileCopied', false);
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
-export const DOWNLOAD_LABEL = nls.localize('download', "下载...");
+export const DOWNLOAD_LABEL = nls.localize('download', "Download...");
 export const UPLOAD_COMMAND_ID = 'explorer.upload';
-export const UPLOAD_LABEL = nls.localize('upload', "上传...");
+export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
@@ -88,9 +87,9 @@ async function refreshIfSeparator(value: string, explorerService: IExplorerServi
 async function deleteFiles(explorerService: IExplorerService, workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, filesConfigurationService: IFilesConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false, ignoreIfNotExists = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
-		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "移动到回收站") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "移动到回收站");
+		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
 	} else {
-		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "删除");
+		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 	}
 
 	// Handle dirty
@@ -105,21 +104,21 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
-			message = nls.localize('dirtyMessageFilesDelete', "您正在删除具有未保存更改的文件。您想继续吗？");
+			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
 		} else if (distinctElements[0].isDirectory) {
 			if (dirtyWorkingCopies.size === 1) {
-				message = nls.localize('dirtyMessageFolderOneDelete', "你正在删除文件夹 {0}，其中有 1 个文件包含未保存的更改。是否继续？", distinctElements[0].name);
+				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder {0} with unsaved changes in 1 file. Do you want to continue?", distinctElements[0].name);
 			} else {
-				message = nls.localize('dirtyMessageFolderDelete', "你正在删除文件夹 {0}，其中有 {1} 个文件包含未保存的更改。是否继续？", distinctElements[0].name, dirtyWorkingCopies.size);
+				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.size);
 			}
 		} else {
-			message = nls.localize('dirtyMessageFileDelete', "你正在删除 {0}，其中包含未保存的更改。是否继续？", distinctElements[0].name);
+			message = nls.localize('dirtyMessageFileDelete', "You are deleting {0} with unsaved changes. Do you want to continue?", distinctElements[0].name);
 		}
 
 		const response = await dialogService.confirm({
 			type: 'warning',
 			message,
-			detail: nls.localize('dirtyWarning', "如果不保存，您的更改将丢失。"),
+			detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 			primaryButton
 		});
 
@@ -136,18 +135,18 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		if (readonlyResources.length) {
 			let message: string;
 			if (readonlyResources.length > 1) {
-				message = nls.localize('readonlyMessageFilesDelete', "你正在删除配置为只读的文件。是否继续？");
+				message = nls.localize('readonlyMessageFilesDelete', "You are deleting files that are configured to be read-only. Do you want to continue?");
 			} else if (readonlyResources[0].isDirectory) {
-				message = nls.localize('readonlyMessageFolderOneDelete', "你正在删除配置为只读的文件夹 {0}。是否继续？", distinctElements[0].name);
+				message = nls.localize('readonlyMessageFolderOneDelete', "You are deleting a folder {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
 			} else {
-				message = nls.localize('readonlyMessageFolderDelete', "你正在删除配置为只读的文件 {0}。是否继续？", distinctElements[0].name);
+				message = nls.localize('readonlyMessageFolderDelete', "You are deleting a file {0} that is configured to be read-only. Do you want to continue?", distinctElements[0].name);
 			}
 
 			const response = await dialogService.confirm({
 				type: 'warning',
 				message,
-				detail: nls.localize('continueDetail', "如果继续，只读保护将被覆盖。"),
-				primaryButton: nls.localize('continueButtonLabel', "继续")
+				detail: nls.localize('continueDetail', "The read-only protection will be overridden if you continue."),
+				primaryButton: nls.localize('continueButtonLabel', "Continue")
 			});
 
 			if (!response.confirmed) {
@@ -158,12 +157,12 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 
 	let confirmation: IConfirmationResult;
 
-	// We do not support undo of folders, so in that case the delete action is irreversible
-	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "此操作不可撤销！") :
-		distinctElements.length > 1 ? nls.localize('restorePlural', "你可以使用撤销命令恢复这些文件。") : nls.localize('restore', "你可以使用撤销命令恢复此文件。");
+	// We cannot restore folders or unknown file types, so deleting them is irreversible
+	const deleteDetail = distinctElements.some(e => e.isDirectory || e.isUnknown) ? nls.localize('irreversible', "This action is irreversible!") :
+		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
 
 	// Check if we need to ask for confirmation at all
-	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
+	if (skipConfirm || configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false) {
 		confirmation = { confirmed: true };
 	}
 
@@ -172,9 +171,9 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		let { message, detail } = getMoveToTrashMessage(distinctElements);
 		detail += detail ? '\n' : '';
 		if (isWindows) {
-			detail += distinctElements.length > 1 ? nls.localize('undoBinFiles', "你可以从回收站恢复这些文件。") : nls.localize('undoBin', "你可以从回收站恢复此文件。");
+			detail += distinctElements.length > 1 ? nls.localize('undoBinFiles', "You can restore these files from the Recycle Bin.") : nls.localize('undoBin', "You can restore this file from the Recycle Bin.");
 		} else {
-			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "你可以从回收站恢复这些文件。") : nls.localize('undoTrash', "你可以从回收站恢复此文件。");
+			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "You can restore these files from the Trash.") : nls.localize('undoTrash', "You can restore this file from the Trash.");
 		}
 
 		confirmation = await dialogService.confirm({
@@ -182,7 +181,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 			detail,
 			primaryButton,
 			checkbox: {
-				label: nls.localize('doNotAskAgain', "不再询问")
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
 			}
 		});
 	}
@@ -214,8 +213,8 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	try {
 		const resourceFileEdits = distinctElements.map(e => new ResourceFileEdit(e.resource, undefined, { recursive: true, folder: e.isDirectory, ignoreIfNotExists, skipTrashBin: !useTrash, maxSize: MAX_UNDO_FILE_SIZE }));
 		const options = {
-			undoLabel: distinctElements.length > 1 ? nls.localize({ key: 'deleteBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "删除 {0} 个文件", distinctElements.length) : nls.localize({ key: 'deleteFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "删除 {0}", distinctElements[0].name),
-			progressLabel: distinctElements.length > 1 ? nls.localize({ key: 'deletingBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "正在删除 {0} 个文件", distinctElements.length) : nls.localize({ key: 'deletingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "正在删除 {0}", distinctElements[0].name),
+			undoLabel: distinctElements.length > 1 ? nls.localize({ key: 'deleteBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Delete {0} files", distinctElements.length) : nls.localize({ key: 'deleteFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Delete {0}", distinctElements[0].name),
+			progressLabel: distinctElements.length > 1 ? nls.localize({ key: 'deletingBulkEdit', comment: ['Placeholder will be replaced by the number of files deleted'] }, "Deleting {0} files", distinctElements.length) : nls.localize({ key: 'deletingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file deleted'] }, "Deleting {0}", distinctElements[0].name),
 		};
 		await explorerService.applyBulkEdit(resourceFileEdits, options);
 	} catch (error) {
@@ -225,12 +224,12 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 		let detailMessage: string | undefined;
 		let primaryButton: string;
 		if (useTrash) {
-			errorMessage = isWindows ? nls.localize('binFailed', "使用回收站删除失败。是否改为永久删除？") : nls.localize('trashFailed', "使用回收站删除失败。是否改为永久删除？");
+			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
 			detailMessage = deleteDetail;
-			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "永久删除");
+			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
 		} else {
 			errorMessage = toErrorMessage(error, false);
-			primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "重试");
+			primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
 		}
 
 		const res = await dialogService.confirm({
@@ -256,7 +255,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
-			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "确定要删除以下 {0} 个文件/目录及其内容吗？", distinctElements.length),
+			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
@@ -264,28 +263,28 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
 			return {
-				message: nls.localize('confirmMoveTrashMessageMultipleDirectories', "确定要删除以下 {0} 个目录及其内容吗？", distinctElements.length),
+				message: nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length),
 				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 			};
 		}
 
 		return {
-			message: nls.localize('confirmMoveTrashMessageMultiple', "确定要删除以下 {0} 个文件吗？", distinctElements.length),
+			message: nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
 
 	if (distinctElements[0].isDirectory && !distinctElements[0].isSymbolicLink) {
-		return { message: nls.localize('confirmMoveTrashMessageFolder', "确定要删除{0}及其内容吗？", distinctElements[0].name), detail: '' };
+		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return { message: nls.localize('confirmMoveTrashMessageFile', "确定要删除{0}吗？", distinctElements[0].name), detail: '' };
+	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
 function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
-			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "确定要永久删除以下 {0} 个文件/目录及其内容吗？", distinctElements.length),
+			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
@@ -293,22 +292,22 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string; 
 	if (distinctElements.length > 1) {
 		if (distinctElements[0].isDirectory) {
 			return {
-				message: nls.localize('confirmDeleteMessageMultipleDirectories', "确定要永久删除以下 {0} 个目录及其内容吗？", distinctElements.length),
+				message: nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length),
 				detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 			};
 		}
 
 		return {
-			message: nls.localize('confirmDeleteMessageMultiple', "确定要永久删除以下 {0} 个文件吗？", distinctElements.length),
+			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return { message: nls.localize('confirmDeleteMessageFolder', "确定要永久删除{0}及其内容吗？", distinctElements[0].name), detail: '' };
+		return { message: nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return { message: nls.localize('confirmDeleteMessageFile', "确定要永久删除{0}吗？", distinctElements[0].name), detail: '' };
+	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
@@ -487,8 +486,8 @@ async function askForOverwrite(fileService: IFileService, dialogService: IDialog
 	// Ask for overwrite confirmation
 	const { confirmed } = await dialogService.confirm({
 		type: Severity.Warning,
-		message: nls.localize('confirmOverwrite', "目标文件夹中已存在名为{0}的文件或文件夹。是否替换？", basename(targetResource.path)),
-		primaryButton: nls.localize('replaceButtonLabel', "替换")
+		message: nls.localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", basename(targetResource.path)),
+		primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
 	});
 	return confirmed;
 }
@@ -497,7 +496,7 @@ async function askForOverwrite(fileService: IFileService, dialogService: IDialog
 export class GlobalCompareResourcesAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareFileWith';
-	static readonly LABEL = nls.localize2('globalCompareFile', "将活动文件与...比较");
+	static readonly LABEL = nls.localize2('globalCompareFile', "Compare Active File With...");
 
 	constructor() {
 		super({
@@ -505,9 +504,9 @@ export class GlobalCompareResourcesAction extends Action2 {
 			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext,
+			precondition: ContextKeyExpr.and(ActiveEditorContext, IsSessionsWindowContext.negate()),
 			metadata: {
-				description: nls.localize2('compareFileWithMeta', "打开选择器以选择要与活动编辑器进行差异比较的文件。")
+				description: nls.localize2('compareFileWithMeta', "Opens a picker to select a file to diff with the active editor.")
 			}
 		});
 	}
@@ -541,10 +540,11 @@ export class ToggleAutoSaveAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleAutoSaveAction.ID,
-			title: nls.localize2('toggleAutoSave', "切换自动保存"),
+			title: nls.localize2('toggleAutoSave', "Toggle Auto Save"),
 			f1: true,
 			category: Categories.File,
-			metadata: { description: nls.localize2('toggleAutoSaveDescription', "切换输入后自动保存文件的功能") }
+			precondition: IsSessionsWindowContext.negate(),
+			metadata: { description: nls.localize2('toggleAutoSaveDescription', "Toggle the ability to save files automatically after typing") }
 		});
 	}
 
@@ -600,7 +600,7 @@ abstract class BaseSaveAllAction extends Action {
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	static readonly ID = 'workbench.files.action.saveAllInGroup';
-	static readonly LABEL = nls.localize('saveAllInGroup', "保存组中全部");
+	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	override get class(): string {
 		return 'explorer-action ' + ThemeIcon.asClassName(Codicon.saveAll);
@@ -614,7 +614,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 export class CloseGroupAction extends Action {
 
 	static readonly ID = 'workbench.files.action.closeGroup';
-	static readonly LABEL = nls.localize('closeGroup', "关闭组");
+	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
 		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
@@ -628,7 +628,7 @@ export class CloseGroupAction extends Action {
 export class FocusFilesExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.focusFilesExplorer';
-	static readonly LABEL = nls.localize2('focusFilesExplorer', "聚焦到文件资源管理器");
+	static readonly LABEL = nls.localize2('focusFilesExplorer', "Focus on Files Explorer");
 
 	constructor() {
 		super({
@@ -636,8 +636,9 @@ export class FocusFilesExplorer extends Action2 {
 			title: FocusFilesExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
-				description: nls.localize2('focusFilesExplorerMetadata', "将焦点移动到文件资源管理器视图容器。")
+				description: nls.localize2('focusFilesExplorerMetadata', "Moves focus to the file explorer view container.")
 			}
 		});
 	}
@@ -651,7 +652,7 @@ export class FocusFilesExplorer extends Action2 {
 export class ShowActiveFileInExplorer extends Action2 {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize2('showInExplorer', "在资源管理器视图中显示活动文件");
+	static readonly LABEL = nls.localize2('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor() {
 		super({
@@ -659,8 +660,9 @@ export class ShowActiveFileInExplorer extends Action2 {
 			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
-				description: nls.localize2('showInExplorerMetadata', "在资源管理器视图中显示并选中活动文件。")
+				description: nls.localize2('showInExplorerMetadata', "Reveals and selects the active file within the explorer view.")
 			}
 		});
 	}
@@ -678,7 +680,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "在新的空工作区中打开活动编辑器");
+	static readonly LABEL = nls.localize2('openFileInEmptyWorkspace', "Open Active Editor in New Empty Workspace");
 
 	constructor(
 	) {
@@ -687,9 +689,9 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: EmptyWorkspaceSupportContext,
+			precondition: ContextKeyExpr.and(EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate()),
 			metadata: {
-				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "在没有打开文件夹的新窗口中打开活动编辑器。")
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active editor in a new window with no folders open.")
 			}
 		});
 	}
@@ -704,7 +706,7 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 		if (fileResource && fileService.hasProvider(fileResource)) {
 			hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 		} else {
-			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "活动编辑器必须包含可打开的资源。"));
+			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 		}
 	}
 }
@@ -716,7 +718,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 	// Name not provided
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
 		return {
-			content: nls.localize('emptyFileNameError', "必须提供文件或文件夹名称。"),
+			content: nls.localize('emptyFileNameError', "A file or folder name must be provided."),
 			severity: Severity.Error
 		};
 	}
@@ -724,7 +726,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 	// Relative paths only
 	if (name[0] === '/' || name[0] === '\\') {
 		return {
-			content: nls.localize('fileNameStartsWithSlashError', "文件或文件夹名称不能以斜杠开头。"),
+			content: nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash."),
 			severity: Severity.Error
 		};
 	}
@@ -737,7 +739,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 		const child = parent?.getChild(name);
 		if (child && child !== item) {
 			return {
-				content: nls.localize('fileNameExistsError', "此位置已存在名为 **{0}** 的文件或文件夹。请选择其他名称。", name),
+				content: nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name),
 				severity: Severity.Error
 			};
 		}
@@ -748,14 +750,14 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 		// Escape * characters
 		const escapedName = name.replace(/\*/g, '\\*'); // CodeQL [SM02383] This only processes filenames which are enforced against having backslashes in them farther up in the stack.
 		return {
-			content: nls.localize('invalidFileNameError', "名称 **{0}** 作为文件或文件夹名称无效。请选择其他名称。", trimLongName(escapedName)),
+			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(escapedName)),
 			severity: Severity.Error
 		};
 	}
 
 	if (names.some(name => /^\s|\s$/.test(name))) {
 		return {
-			content: nls.localize('fileNameWhitespaceWarning', "检测到文件或文件夹名称中存在前导或尾随空格。"),
+			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected in file or folder name."),
 			severity: Severity.Warning
 		};
 	}
@@ -789,7 +791,7 @@ function getWellFormedFileName(filename: string): string {
 export class CompareNewUntitledTextFilesAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareNewUntitledTextFiles';
-	static readonly LABEL = nls.localize2('compareNewUntitledTextFiles', "比较新的无标题文本文件");
+	static readonly LABEL = nls.localize2('compareNewUntitledTextFiles', "Compare New Untitled Text Files");
 
 	constructor() {
 		super({
@@ -797,8 +799,9 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
-				description: nls.localize2('compareNewUntitledTextFilesMeta', "打开包含两个无标题文件的新差异编辑器。")
+				description: nls.localize2('compareNewUntitledTextFilesMeta', "Opens a new diff editor with two untitled files.")
 			}
 		});
 	}
@@ -817,7 +820,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 export class CompareWithClipboardAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
-	static readonly LABEL = nls.localize2('compareWithClipboard', "将活动文件与剪贴板比较");
+	static readonly LABEL = nls.localize2('compareWithClipboard', "Compare Active File with Clipboard");
 
 	private registrationDisposal: IDisposable | undefined;
 	private static SCHEME_COUNTER = 0;
@@ -828,9 +831,10 @@ export class CompareWithClipboardAction extends Action2 {
 			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib },
 			metadata: {
-				description: nls.localize2('compareWithClipboardMeta', "打开新的差异编辑器，将活动文件与剪贴板内容进行比较。")
+				description: nls.localize2('compareWithClipboardMeta', "Opens a new diff editor to compare the active file with the contents of the clipboard.")
 			}
 		});
 	}
@@ -850,7 +854,7 @@ export class CompareWithClipboardAction extends Action2 {
 			}
 
 			const name = resources.basename(resource);
-			const editorLabel = nls.localize('clipboardComparisonLabel', "剪贴板 ↔ {0}", name);
+			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
 			await editorService.openEditor({
 				original: { resource: resource.with({ scheme }) },
@@ -888,7 +892,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 function onErrorWithRetry(notificationService: INotificationService, error: unknown, retry: () => Promise<unknown>): void {
 	notificationService.prompt(Severity.Error, toErrorMessage(error, false),
 		[{
-			label: nls.localize('retry', "重试"),
+			label: nls.localize('retry', "Retry"),
 			run: () => retry()
 		}]
 	);
@@ -906,8 +910,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const explorerViewId = explorerService.getViewId();
+	const wasHidden = !viewsService.isViewVisible(explorerViewId);
+	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {
 		// Give explorer some time to resolve itself #111218
 		await timeout(500);
@@ -916,7 +921,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 		// Can happen in empty workspace case (https://github.com/microsoft/vscode/issues/100604)
 
 		if (isFolder) {
-			throw new Error('请先打开文件夹或工作区。');
+			throw new Error('Open a folder or workspace first.');
 		}
 
 		return commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
@@ -932,7 +937,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	}
 
 	if (folder.isReadonly) {
-		throw new Error('父文件夹为只读。');
+		throw new Error('Parent folder is readonly.');
 	}
 
 	const newStat = new NewExplorerItem(fileService, configService, filesConfigService, folder, isFolder);
@@ -945,8 +950,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 				isFolder = true;
 			}
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
-				undoLabel: nls.localize('createBulkEdit', "创建 {0}", value),
-				progressLabel: nls.localize('creatingBulkEdit', "正在创建 {0}", value),
+				undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
+				progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),
 				confirmBeforeUndo: true
 			});
 			await refreshIfSeparator(value, explorerService);
@@ -1014,8 +1019,8 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 					try {
 						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
 							confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-							undoLabel: nls.localize('renameBulkEdit', "将 {0} 重命名为 {1}", stat.name, value),
-							progressLabel: nls.localize('renamingBulkEdit', "正在将 {0} 重命名为 {1}", stat.name, value),
+							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
+							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
 						});
 						await refreshIfSeparator(value, explorerService);
 					} catch (e) {
@@ -1133,8 +1138,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 	if (confirmPasteNative && toPaste.files.length >= 1) {
 		const message = toPaste.files.length > 1 ?
-			nls.localize('confirmMultiPasteNative', "确定要粘贴以下 {0} 个项目吗？", toPaste.files.length) :
-			nls.localize('confirmPasteNative', "确定要粘贴{0}吗？", basename(toPaste.type === 'paths' ? toPaste.files[0].fsPath : toPaste.files[0].name));
+			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.files.length) :
+			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste.type === 'paths' ? toPaste.files[0].fsPath : toPaste.files[0].name));
 		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => {
 			if (URI.isUri(item)) {
 				return item.fsPath;
@@ -1153,9 +1158,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			message,
 			detail,
 			checkbox: {
-				label: nls.localize('doNotAskAgain', "不再询问")
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
 			},
-			primaryButton: nls.localize({ key: 'pasteButtonLabel', comment: ['&& denotes a mnemonic'] }, "粘贴")
+			primaryButton: nls.localize({ key: 'pasteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Paste")
 		});
 
 		if (!confirmation.confirmed) {
@@ -1184,7 +1189,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			// Check if target is ancestor of pasted folder
 			const sourceTargetPairs = coalesce(await Promise.all(toPaste.files.map(async fileToPaste => {
 				if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-					throw new Error(nls.localize('fileIsAncestor', "要粘贴的文件是目标文件夹的上级目录"));
+					throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 				}
 				const fileToPasteStat = await fileService.stat(fileToPaste);
 
@@ -1218,10 +1223,10 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 					const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { overwrite: incrementalNaming === 'disabled' }));
 					const options = {
 						confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-						progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "正在移动 {0} 个文件", sourceTargetPairs.length)
-							: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "正在移动 {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
-						undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "移动 {0} 个文件", sourceTargetPairs.length)
-							: nls.localize({ key: 'moveFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "移动 {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
+						progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)
+							: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
+						undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Move {0} files", sourceTargetPairs.length)
+							: nls.localize({ key: 'moveFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Move {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target))
 					};
 					await explorerService.applyBulkEdit(resourceFileEdits, options);
 				} else {
@@ -1271,7 +1276,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		notificationService.error(toErrorMessage(new Error(nls.localize('fileDeleted', "要粘贴的文件自复制后已被删除或移动。{0}", getErrorMessage(e))), false));
+		notificationService.error(toErrorMessage(e, false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.
@@ -1284,10 +1289,10 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 		const undoLevel = configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 		const options = {
 			confirmBeforeUndo: undoLevel === UndoConfirmLevel.Default || undoLevel === UndoConfirmLevel.Verbose,
-			progressLabel: targets.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "正在复制 {0} 个文件", targets.length)
-				: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "正在复制 {0}", resources.basenameOrAuthority(targets[0])),
-			undoLabel: targets.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "粘贴 {0} 个文件", targets.length)
-				: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "粘贴 {0}", resources.basenameOrAuthority(targets[0]))
+			progressLabel: targets.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", targets.length)
+				: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(targets[0])),
+			undoLabel: targets.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Paste {0} files", targets.length)
+				: nls.localize({ key: 'copyFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Paste {0}", resources.basenameOrAuthority(targets[0]))
 		};
 		await explorerService.applyBulkEdit(resourceFileEdits, options);
 	}
@@ -1336,7 +1341,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 			title,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorCanToggleReadonlyContext
+			precondition: ContextKeyExpr.and(ActiveEditorCanToggleReadonlyContext, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -1356,7 +1361,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize2('setActiveEditorReadonlyInSession', "在会话中将活动编辑器设为只读");
+	static readonly LABEL = nls.localize2('setActiveEditorReadonlyInSession', "Set Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1370,7 +1375,7 @@ export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonl
 export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorWriteableInSession';
-	static readonly LABEL = nls.localize2('setActiveEditorWriteableInSession', "在会话中将活动编辑器设为可写");
+	static readonly LABEL = nls.localize2('setActiveEditorWriteableInSession', "Set Active Editor Writeable in Session");
 
 	constructor() {
 		super(
@@ -1384,7 +1389,7 @@ export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadon
 export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize2('toggleActiveEditorReadonlyInSession', "在会话中切换活动编辑器只读状态");
+	static readonly LABEL = nls.localize2('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1398,7 +1403,7 @@ export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorRead
 export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize2('resetActiveEditorReadonlyInSession', "在会话中重置活动编辑器只读状态");
+	static readonly LABEL = nls.localize2('resetActiveEditorReadonlyInSession', "Reset Active Editor Read-only in Session");
 
 	constructor() {
 		super(

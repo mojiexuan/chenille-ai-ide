@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from '../../../../test/browser/workbenchTestServices.js';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider } from '../../common/editorGroupsService.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -22,6 +22,8 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
 
 suite('EditorGroupsService', () => {
 
@@ -62,6 +64,13 @@ suite('EditorGroupsService', () => {
 
 	function createTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
 		return disposables.add(new TestFileEditorInput(resource, typeId));
+	}
+
+	function createCannotCloseTestFileEditorInput(resource: URI, typeId: string): TestFileEditorInput {
+		const input = createTestFileEditorInput(resource, typeId);
+		input.capabilities = EditorInputCapabilities.CannotClose;
+
+		return input;
 	}
 
 	test('groups basics', async function () {
@@ -476,6 +485,11 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.partOptions.showTabs, 'single');
 		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
+
+		const enforced = part.enforcePartOptions({ allowDropIntoGroup: false });
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, false);
+		enforced.dispose();
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, true);
 	});
 
 	test('editor basics', async function () {
@@ -688,6 +702,26 @@ suite('EditorGroupsService', () => {
 		assert.ok(input.gotDisposed);
 	});
 
+	test('closeEditor - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+
+		const closed = await group.closeEditor(input);
+		assert.strictEqual(closed, false);
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.activeEditor, input);
+		assert.ok(!input.gotDisposed);
+
+		const forceClosed = await group.closeEditor(input, { force: true });
+		assert.strictEqual(forceClosed, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input.gotDisposed);
+	});
+
 	test('closeEditors - dirty editor handling', async () => {
 		const [part, instantiationService] = await createPart();
 
@@ -743,6 +777,30 @@ suite('EditorGroupsService', () => {
 		await group.closeEditors({ except: input2 });
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input2);
+	});
+
+	test('closeEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input1 = createTestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = createCannotCloseTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([
+			{ editor: input1, options: { pinned: true } },
+			{ editor: input2, options: { pinned: true } }
+		]);
+
+		const closeResult = await group.closeEditors([input1, input2]);
+		assert.strictEqual(closeResult, true);
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [input2]);
+		assert.ok(input1.gotDisposed);
+		assert.ok(!input2.gotDisposed);
+
+		const forceCloseResult = await group.closeEditors([input2], { force: true });
+		assert.strictEqual(forceCloseResult, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input2.gotDisposed);
 	});
 
 	test('closeEditors (except one, sticky editor)', async () => {
@@ -1034,6 +1092,39 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.isEmpty, true);
 	});
 
+	test('closeAllEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input1 = createTestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = createCannotCloseTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([
+			{ editor: input1, options: { pinned: true } },
+			{ editor: input2, options: { pinned: true } }
+		]);
+
+		const closeResult = await group.closeAllEditors();
+		assert.strictEqual(closeResult, true);
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [input2]);
+		assert.ok(input1.gotDisposed);
+		assert.ok(!input2.gotDisposed);
+	});
+
+	test('closeAllEditors - force closes cannot close editors', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+
+		const closeResult = await group.closeAllEditors({ force: true });
+		assert.strictEqual(closeResult, true);
+		assert.strictEqual(group.isEmpty, true);
+		assert.ok(input.gotDisposed);
+	});
+
 	test('moveEditor (same group)', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
@@ -1291,6 +1382,20 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(0), input);
 	});
 
+	test('replaceEditors - cannot close editor handling', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		const input = createCannotCloseTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const replacement = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input);
+		await group.replaceEditors([{ editor: input, replacement }]);
+
+		assert.deepStrictEqual(group.getEditors(EditorsOrder.SEQUENTIAL), [replacement]);
+		assert.ok(input.gotDisposed);
+	});
+
 	test('find editors', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
@@ -1414,6 +1519,54 @@ suite('EditorGroupsService', () => {
 		assert.ok(typeof layout.groups[0].size === 'number');
 		assert.ok(typeof layout.groups[1].size === 'number');
 		assert.ok(typeof layout.groups[2].size === 'number');
+	});
+
+	test('compact editor layout reserves only the borders present at its left edge', async () => {
+		let floating = true;
+		let compact = false;
+		let neighborVisible = true;
+		const layoutService = new class extends TestLayoutService {
+			override isFloatingPanelsEnabled(): boolean { return floating; }
+			override isModernUICompact(): boolean { return compact; }
+			override getPanelPosition(): Position { return Position.LEFT; }
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART || part === Parts.TITLEBAR_PART || part === Parts.STATUSBAR_PART || (part === Parts.PANEL_PART && neighborVisible);
+			}
+		};
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		const [part] = await createPart(instantiationService);
+		part.floatingBorderWidth = 1;
+		const measure = () => {
+			part.layout(500, 300, 0, 0);
+			return {
+				width: part.contentDimension.width,
+				height: part.contentDimension.height,
+				outerLeft: part.element.classList.contains('floating-editor-outer-left'),
+			};
+		};
+		const defaultDensity = measure();
+		compact = true;
+		const compactShared = measure();
+		neighborVisible = false;
+		const compactOuter = measure();
+		neighborVisible = true;
+		part.floatingBorderWidth = 0.8;
+		const fractionalBorder = measure();
+		part.floatingBorderWidth = 1;
+		compact = false;
+		const restoredDefault = measure();
+		floating = false;
+		const classic = measure();
+
+		assert.deepStrictEqual({ defaultDensity, compactShared, compactOuter, fractionalBorder, restoredDefault, classic }, {
+			defaultDensity: { width: 490, height: 294, outerLeft: false },
+			compactShared: { width: 499, height: 298, outerLeft: false },
+			compactOuter: { width: 498, height: 298, outerLeft: true },
+			fractionalBorder: { width: 499.2, height: 298.4, outerLeft: false },
+			restoredDefault: { width: 490, height: 294, outerLeft: false },
+			classic: { width: 500, height: 300, outerLeft: false },
+		});
 	});
 
 	test('centeredLayout', async function () {
@@ -1823,6 +1976,26 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rightGroup.isLocked, true);
 	});
 
+	test('closeAllGroups action - cannot close editor handling', async () => {
+		const [part, instantiationService] = await createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		const rootInput = createTestFileEditorInput(URI.file('foo/root'), TEST_EDITOR_INPUT_ID);
+		const rightInput = createCannotCloseTestFileEditorInput(URI.file('foo/right'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(rootInput);
+		await rightGroup.openEditor(rightInput);
+
+		await instantiationService.invokeFunction(accessor => new CloseAllEditorGroupsAction().run(accessor));
+
+		assert.strictEqual(part.count, 1);
+		assert.strictEqual(part.activeGroup, rightGroup);
+		assert.deepStrictEqual(rightGroup.getEditors(EditorsOrder.SEQUENTIAL), [rightInput]);
+		assert.ok(rootInput.gotDisposed);
+		assert.ok(!rightInput.gotDisposed);
+	});
+
 	test('locked groups - auto locking via setting', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -2035,6 +2208,42 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.activeGroup.isEmpty, true);
 	});
 
+	test('working sets - apply state when the part has never been laid out does not throw and registers restored groups', async function () {
+		const [part] = await createPart();
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		await part.activeGroup.openEditor(input, { pinned: true });
+		await part.sideGroup.openEditor(input2, { pinned: true });
+
+		const state = part.createState();
+
+		for (const group of part.groups) {
+			await group.closeAllEditors();
+		}
+
+		// Simulate an editor part that has never been laid out (e.g. it stayed
+		// hidden since the window opened, like the Agents window editor area
+		// after a reload with the side pane closed). In that state
+		// `_contentDimension` is still undefined and laying out during the
+		// restore would throw, aborting before the `onDidAddGroup` events fire.
+		(part as unknown as { _contentDimension: unknown })._contentDimension = undefined;
+
+		let addedGroups = 0;
+		const listener = part.onDidAddGroup(() => addedGroups++);
+
+		// Must not throw, must restore the groups, and must fire `onDidAddGroup`
+		// for them so listeners (e.g. the editor service) register them.
+		await part.applyState(state);
+		listener.dispose();
+
+		assert.strictEqual(part.count, 2);
+		assert.strictEqual(part.groups[0].contains(input), true);
+		assert.strictEqual(part.groups[1].contains(input2), true);
+		assert.strictEqual(addedGroups, 2, `expected exactly 2 onDidAddGroup events, got ${addedGroups}`);
+	});
+
 	test('context key provider', async function () {
 		const disposables = new DisposableStore();
 
@@ -2195,6 +2404,37 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group1ContextKeyValue, input2.resource.toString());
 
 		disposables.dispose();
+	});
+
+	test('onDidActivateGroup carries activation reason', async function () {
+		const [part] = await createPart();
+
+		const activationEvents: IEditorGroupActivationEvent[] = [];
+		disposables.add(part.onDidActivateGroup(e => activationEvents.push(e)));
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		// Activate a group explicitly - should carry DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate the same group again - should still fire with DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate root group back
+		activationEvents.length = 0;
+		part.activateGroup(rootGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rootGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

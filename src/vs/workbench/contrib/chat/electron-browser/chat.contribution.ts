@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { timeout } from '../../../../base/common/async.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { resolve } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -11,56 +13,56 @@ import { URI } from '../../../../base/common/uri.js';
 import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerSharedProcessRemoteService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import product from '../../../../platform/product/common/product.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ViewContainerLocation } from '../../../common/views.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { IChatWidgetService } from '../browser/chat.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
-import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
+import '../browser/aiCustomization/copilotCanvases.contribution.js';
+import './codexCustomizationSettings.contribution.js';
+import './agentSessions/computerUseHelperApp.contribution.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
+import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
+import { ChatSessionPosition, openChatSession } from '../browser/chatSessions/chatSessions.contribution.js';
+import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
+import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { IChatService } from '../common/chatService/chatService.js';
+import { ChatModeKind } from '../common/constants.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { registerChatExportZipAction } from './actions/chatExportZip.js';
+import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb.js';
+import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
+import { confirmSessionShutdown, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './tools/fetchPageTool.js';
+import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, CopilotHarnessIntroductionContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
+import { AgentsWindowInvitationContribution } from './agentSessions/agentsWindowInvitation.js';
+import { AgentHostEditorActivity, IAgentHostEditorActivityService } from './agentSessions/agentHostEditorActivity.js';
+import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
+import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
-class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.nativeBuiltinTools';
-
-	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
-	) {
-		super();
-
-		const editTool = instantiationService.createInstance(FetchWebPageTool);
-		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
-
-		this._register(confirmationService.registerConfirmationContribution(
-			InternalFetchWebPageToolId,
-			instantiationService.createInstance(
-				ChatUrlFetchingConfirmationContribution,
-				params => (params as IFetchWebPageToolParams).urls
-			)
-		));
-	}
-}
+// Override the browser PluginGitCommandService with the native one that always
+// runs git locally via the shared process. See the decision matrix on the
+// `IPluginGitService` interface for the full per-flavor wiring.
+registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
+registerSingleton(IAgentHostEditorActivityService, AgentHostEditorActivity, InstantiationType.Delayed);
+registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -72,7 +74,8 @@ class ChatCommandLineHandler extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -80,12 +83,25 @@ class ChatCommandLineHandler extends Disposable {
 	}
 
 	private registerListeners() {
-		ipcRenderer.on('vscode:handleChatRequest', (_, ...args: unknown[]) => {
+		const handleChatRequest = (_: unknown, ...args: unknown[]) => {
 			const chatArgs = args[0] as typeof this.environmentService.args.chat;
 			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
-			this.prompt(chatArgs);
-		});
+			this.prompt(chatArgs).catch(err => this.logService.error('vscode:handleChatRequest failed', err));
+		};
+		ipcRenderer.on('vscode:handleChatRequest', handleChatRequest);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:handleChatRequest', handleChatRequest) });
+
+		const handleOpenChatSession = (_: unknown, ...args: unknown[]) => {
+			const sessionUriString = args[0] as string;
+			this.logService.trace('vscode:openChatSession', sessionUriString);
+
+			const sessionResource = URI.parse(sessionUriString);
+			Promise.resolve(this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget))
+				.catch(err => this.logService.error('vscode:openChatSession failed', err));
+		};
+		ipcRenderer.on('vscode:openChatSession', handleOpenChatSession);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openChatSession', handleOpenChatSession) });
 	}
 
 	private async prompt(args: typeof this.environmentService.args.chat): Promise<void> {
@@ -94,7 +110,7 @@ class ChatCommandLineHandler extends Disposable {
 		}
 
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			message: localize('copilotWorkspaceTrust', "AI 功能目前仅在受信任的工作区中受支持。")
+			message: localize('copilotWorkspaceTrust', "AI features are currently only supported in trusted workspaces.")
 		});
 
 		if (!trusted) {
@@ -128,13 +144,8 @@ class ChatSuspendThrottlingHandler extends Disposable {
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
 		@IChatService chatService: IChatService,
-		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
-
-		if (!configurationService.getValue<boolean>(ChatConfiguration.SuspendThrottling)) {
-			return;
-		}
 
 		this._register(autorun(reader => {
 			const running = chatService.requestInProgressObs.read(reader);
@@ -153,11 +164,15 @@ class ChatLifecycleHandler extends Disposable {
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IChatService private readonly chatService: IChatService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -166,13 +181,30 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "聊天请求正在进行中。"));
+			e.veto(this.hasSessionThatWillStop(ShutdownReason.CLOSE), localize('chatRequestInProgress', "A session is in progress."));
 		}));
 	}
 
-	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		const running = this.chatService.requestInProgressObs.read(undefined);
-		if (!running) {
+	private hasSessionThatWillStop(reason: ShutdownReason): boolean {
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return false; // AI features are disabled
+		}
+
+		if (shouldWarnForInFlightSessionShutdown(this.chatService.getPendingRequestSessionTypes(), reason)) {
+			return true;
+		}
+
+		return this.agentSessionsService.model.sessions.some(session => shouldWarnForSessionShutdown(session, reason));
+	}
+
+	private async shouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
+		if (this.environmentService.enableSmokeTestDriver) {
+			return false;
+		}
+
+		const windowCount = reason === ShutdownReason.CLOSE ? await this.nativeHostService.getWindowCount() : 0;
+		const effectiveReason = getEffectiveSessionShutdownReason(reason, windowCount, isMacintosh);
+		if (!this.hasSessionThatWillStop(effectiveReason)) {
 			return false;
 		}
 
@@ -180,40 +212,20 @@ class ChatLifecycleHandler extends Disposable {
 			return false;
 		}
 
-		return this.doShouldVetoShutdown(reason);
-	}
-
-	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
-
 		this.widgetService.revealWidget();
-
-		let message: string;
-		let detail: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				message = localize('closeTheWindow.message', "聊天请求正在进行中。确定要关闭窗口吗？");
-				detail = localize('closeTheWindow.detail', "如果关闭窗口，聊天请求将停止。");
-				break;
-			case ShutdownReason.LOAD:
-				message = localize('changeWorkspace.message', "聊天请求正在进行中。确定要更改工作区吗？");
-				detail = localize('changeWorkspace.detail', "如果更改工作区，聊天请求将停止。");
-				break;
-			case ShutdownReason.RELOAD:
-				message = localize('reloadTheWindow.message', "聊天请求正在进行中。确定要重新加载窗口吗？");
-				detail = localize('reloadTheWindow.detail', "如果重新加载窗口，聊天请求将停止。");
-				break;
-			default:
-				message = isMacintosh ? localize('quit.message', "聊天请求正在进行中。确定要退出吗？") : localize('exit.message', "聊天请求正在进行中。确定要退出吗？");
-				detail = isMacintosh ? localize('quit.detail', "如果退出，聊天请求将停止。") : localize('exit.detail', "如果退出，聊天请求将停止。");
-				break;
-		}
-
-		const result = await this.dialogService.confirm({ message, detail });
-
-		return !result.confirmed;
+		return !await confirmSessionShutdown(this.dialogService, effectiveReason);
 	}
 }
 
+registerAction2(OpenWorkspaceInAgentsWindowAction);
+registerAction2(OpenWorkspaceInAgentsWindowChatTitleAction);
+registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
+registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
+registerAction2(OpenAgentsWindowAction);
+registerAction2(OpenChatSessionInAgentsWindowAction);
+if (!product.quality) {
+	registerAction2(ResetCopilotHarnessIntroductionAction);
+}
 registerAction2(StartVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
@@ -229,9 +241,107 @@ registerAction2(StopReadChatItemAloud);
 registerAction2(StopReadAloud);
 
 registerChatDeveloperActions();
+registerChatExportZipAction();
+registerExportAgentTracesDbAction();
+registerInstallDictationModelAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(OpenWorkspaceInAgentsContribution.ID, OpenWorkspaceInAgentsContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(AgentsWindowInvitationContribution.ID, AgentsWindowInvitationContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(CopilotHarnessIntroductionContribution.ID, CopilotHarnessIntroductionContribution, WorkbenchPhase.Eventually);
+
+// How long to wait for the agent host to surface an AgentInfo before
+// throwing an error. Long enough for normal startup, short enough to avoid
+// hanging automation indefinitely if the agent host is disabled or fails
+// to start.
+const AGENT_HOST_REGISTRATION_TIMEOUT_MS = 30_000;
+
+function getCopilotAgentInfo(rootState: RootState | Error | undefined): AgentInfo | undefined {
+	if (!rootState || rootState instanceof Error) {
+		return undefined;
+	}
+	return rootState.agents.find(a => a.provider === 'copilotcli');
+}
+
+/**
+ * Resolve the actual session-content-provider scheme registered by the local
+ * agent host. The agent host registers chat sessions under
+ * `agent-host-${agent.provider}` (e.g. `agent-host-copilotcli`) only after it
+ * surfaces an `AgentInfo` via `rootState`. This is asynchronous, so the static
+ * `agent-host-copilot` umbrella commands need to wait for that registration
+ * before opening a session — otherwise we'd build a URI with a scheme that has
+ * no content provider and fall back to a fresh local chat session.
+ */
+async function resolveAgentHostSessionType(agentHostService: IAgentHostService): Promise<string> {
+	const agent = getCopilotAgentInfo(agentHostService.rootState.value);
+	if (agent) {
+		return `agent-host-${agent.provider}`;
+	}
+
+	// Wait for the first non-empty root state, capped by a timeout.
+	// The subscription must be disposed on both success and timeout to avoid leaks.
+	const cts = new CancellationTokenSource();
+	const waitForAgent = new Promise<AgentInfo | undefined>(res => {
+		const sub = agentHostService.rootState.onDidChange(state => {
+			const found = getCopilotAgentInfo(state);
+			if (found) {
+				sub.dispose();
+				res(found);
+			}
+		});
+		cts.token.onCancellationRequested(() => {
+			sub.dispose();
+			res(undefined);
+		});
+	});
+	const resolved = await Promise.race([
+		waitForAgent,
+		timeout(AGENT_HOST_REGISTRATION_TIMEOUT_MS).then(() => {
+			cts.cancel();
+			cts.dispose();
+			return undefined;
+		}),
+	]);
+	if (!resolved) {
+		throw new Error('Agent host did not register a copilotcli agent within the timeout period. Ensure the agent host is enabled and running.');
+	}
+	return `agent-host-${resolved.provider}`;
+}
+
+type NewAgentHostSessionSendOptions = Parameters<typeof openChatSession>[2];
+
+// Open a new Agent Host session at the given position. Shared by the session
+// type picker command and the static sidebar/editor commands below.
+// Delegates to `openChatSession` so the session type picker, context keys,
+// and welcome flows all stay in sync with the dynamic per-agent path.
+async function openNewAgentHostSession(accessor: ServicesAccessor, position: ChatSessionPosition, chatSendOptions?: NewAgentHostSessionSendOptions): Promise<URI | undefined> {
+	// Snapshot the services we need synchronously — `accessor` is only valid
+	// before the first `await`. Use the instantiation service to mint a fresh
+	// accessor for the downstream `openChatSession` call.
+	const agentHostService = accessor.get(IAgentHostService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const sessionType = await resolveAgentHostSessionType(agentHostService);
+	return instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, {
+		type: sessionType,
+		displayName: getAgentSessionProviderName(sessionType),
+		position,
+	}, chatSendOptions));
+}
+
+// Static sidebar/editor open commands for the Agent Host umbrella scheme.
+// The dynamic per-agent commands (e.g. `agent-host-copilot`) are only
+// registered after the agent host starts and surfaces an AgentInfo, which
+// is asynchronous. Provide stable command ids that automation (evals) can
+// invoke before the dynamic registration has occurred.
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
+);
+CommandsRegistry.registerCommand(
+	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
+	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
+);

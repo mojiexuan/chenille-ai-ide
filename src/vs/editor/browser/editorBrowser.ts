@@ -27,6 +27,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -265,6 +266,8 @@ export interface IOverlayWidgetPositionCoordinates {
 	 */
 	left: number;
 }
+
+
 
 /**
  * A position for rendering overlay widgets.
@@ -556,6 +559,7 @@ export interface PastePayload {
 	pasteOnNewLine: boolean;
 	multicursorText: string[] | null;
 	mode: string | null;
+	isBlock?: boolean;
 	clipboardEvent?: ClipboardEvent;
 }
 
@@ -725,6 +729,24 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidPaste: Event<IPasteEvent>;
+	/**
+	 * An event emitted before clipboard copy operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCopy: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard cut operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillCut: Event<IClipboardCopyEvent>;
+	/**
+	 * An event emitted before clipboard paste operation starts.
+	 * @internal
+	 * @event
+	 */
+	readonly onWillPaste: Event<IClipboardPasteEvent>;
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -1206,9 +1228,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getWidthOfLine(lineNumber: number): number;
 
 	/**
+	 * Reset cached line widths. Call this when the editor becomes visible after being hidden.
+	 * @internal
+	 */
+	resetLineWidthCaches(): void;
+
+	/**
 	 * Force an editor render now.
 	 */
 	render(forceRedraw?: boolean): void;
+
+	/**
+	 * Render the editor at the next animation frame.
+	 */
+	renderAsync(forceRedraw?: boolean): void;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
@@ -1411,6 +1444,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	updateOptions(newOptions: IDiffEditorOptions): void;
 
 	/**
+	 * Restores automatic width-based layout after a temporary inline layout.
+	 * @internal
+	 */
+	resetWidthBasedLayout(): void;
+
+	/**
 	 * @internal
 	 */
 	setBoundarySashes(sashes: IBoundarySashes): void;
@@ -1493,4 +1532,14 @@ export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	}
 
 	return null;
+}
+
+/**
+ *@internal
+ */
+export function isIOverlayWidgetPositionCoordinates(thing: unknown): thing is IOverlayWidgetPositionCoordinates {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).top === 'number'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).left === 'number';
 }

@@ -128,9 +128,9 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 
 			const name = $('.name');
 			if (this._historyItemsFilter === 'all') {
-				name.textContent = localize('all', "全部");
+				name.textContent = localize('all', "All");
 			} else if (this._historyItemsFilter === 'auto') {
-				name.textContent = localize('auto', "自动");
+				name.textContent = localize('auto', "Auto");
 			} else if (this._historyItemsFilter.length === 1) {
 				name.textContent = this._historyItemsFilter[0].name;
 			} else {
@@ -143,7 +143,7 @@ class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		if (this._historyItemsFilter === 'all') {
-			return localize('allHistoryItemRefs', "所有历史项目引用");
+			return localize('allHistoryItemRefs', "All history item references");
 		} else if (this._historyItemsFilter === 'auto') {
 			const historyProvider = this._repository.provider.historyProvider.get();
 
@@ -164,7 +164,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_REPOSITORY_ACTION_ID,
-			title: localize('repositoryPicker', "存储库选择器"),
+			title: localize('repositoryPicker', "Repository Picker"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			menu: {
@@ -188,7 +188,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: PICK_HISTORY_ITEM_REFS_ACTION_ID,
-			title: localize('referencePicker', "历史项目引用选择器"),
+			title: localize('referencePicker', "History Item Reference Picker"),
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
 			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
@@ -210,7 +210,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.revealCurrentHistoryItem',
-			title: localize('goToCurrentHistoryItem', "转到当前历史记录项目"),
+			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
 			icon: Codicon.target,
 			viewId: HISTORY_VIEW_PANE_ID,
 			precondition: ContextKeyExpr.and(
@@ -234,7 +234,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.refresh',
-			title: localize('refreshGraph', "刷新"),
+			title: localize('refreshGraph', "Refresh"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.refresh,
@@ -255,7 +255,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.setListViewMode',
-			title: localize('setListViewMode', "以列表形式查看"),
+			title: localize('setListViewMode', "View as List"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.List),
 			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 1 },
@@ -272,7 +272,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.setTreeViewMode',
-			title: localize('setTreeViewMode', "以树的形式查看"),
+			title: localize('setTreeViewMode', "View as Tree"),
 			viewId: HISTORY_VIEW_PANE_ID,
 			toggled: ContextKeys.SCMHistoryViewMode.isEqualTo(ViewMode.Tree),
 			menu: { id: MenuId.SCMHistoryTitle, group: '9_viewmode', order: 2 },
@@ -289,19 +289,17 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.viewChanges',
-			title: localize('openChanges', "打开更改"),
+			title: localize('openChanges', "Open Changes"),
 			icon: Codicon.diffMultiple,
 			f1: false,
 			menu: [
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: 'inline',
 					order: 1
 				},
 				{
 					id: MenuId.SCMHistoryItemContext,
-					when: ContextKeyExpr.equals('config.multiDiffEditor.experimental.enabled', true),
 					group: '0_view',
 					order: 1
 				}
@@ -370,7 +368,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.scm.action.graph.openFile',
-			title: localize('openFile', "打开文件"),
+			title: localize('openFile', "Open File"),
 			icon: Codicon.goToFile,
 			f1: false,
 			menu: [
@@ -397,9 +395,9 @@ registerAction2(class extends Action2 {
 
 		let version: string;
 		if (historyItem.id === SCMIncomingHistoryItemId) {
-			version = localize('incomingChanges', "传入更改");
+			version = localize('incomingChanges', "Incoming Changes");
 		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
-			version = localize('outgoingChanges', "即将发生的变更");
+			version = localize('outgoingChanges', "Outgoing Changes");
 		} else {
 			version = historyItem.displayId ?? historyItem.id;
 		}
@@ -1708,7 +1706,7 @@ export class SCMHistoryViewPane extends ViewPane {
 						compact: true,
 						showPointer: true
 					},
-					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ($(refresh))."), { supportThemeIcons: true }),
+					content: new MarkdownString(localize('scmGraphViewOutdated', "Please refresh the graph using the refresh action ({0}).", '$(refresh)'), { supportThemeIcons: true }),
 					position: {
 						hoverPosition: HoverPosition.BELOW
 					}

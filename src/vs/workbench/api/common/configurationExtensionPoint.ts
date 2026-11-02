@@ -8,10 +8,10 @@ import * as objects from '../../../base/common/objects.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry, IExtensionPointUser } from '../../services/extensions/common/extensionsRegistry.js';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_REGEX, IConfigurationDefaults, configurationDefaultsSchemaId, IConfigurationDelta, getDefaultValue, getAllConfigurationProperties, parseScope, EXTENSION_UNIFICATION_EXTENSION_IDS, overrideIdentifiersFromKey } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, mcpSchemaId } from '../../services/configuration/common/configuration.js';
-import { isObject, isUndefined } from '../../../base/common/types.js';
+import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId, MCP_CONFIGURATION_KEY, mcpSchemaId } from '../../services/configuration/common/configuration.js';
+import { hasKey, isObject, isUndefined } from '../../../base/common/types.js';
 import { ExtensionIdentifierMap, IExtensionManifest } from '../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../services/extensionManagement/common/extensionFeatures.js';
@@ -19,6 +19,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import product from '../../../platform/product/common/product.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -28,24 +29,24 @@ const configurationEntrySchema: IJSONSchema = {
 	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
-			description: nls.localize('vscode.extension.contributes.configuration.title', '当前设置类别的标题。此标签将在设置编辑器中作为子标题呈现。如果标题与扩展显示名称相同，则该类别将分组在主扩展标题下。'),
+			description: nls.localize('vscode.extension.contributes.configuration.title', 'A title for the current category of settings. This label will be rendered in the Settings editor as a subheading. If the title is the same as the extension display name, then the category will be grouped under the main extension heading.'),
 			type: 'string'
 		},
 		order: {
-			description: nls.localize('vscode.extension.contributes.configuration.order', '指定时，给出此设置类别相对于其他类别的顺序。'),
+			description: nls.localize('vscode.extension.contributes.configuration.order', 'When specified, gives the order of this category of settings relative to other categories.'),
 			type: 'integer'
 		},
 		properties: {
-			description: nls.localize('vscode.extension.contributes.configuration.properties', '配置属性的描述。'),
+			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
 			type: 'object',
 			propertyNames: {
 				pattern: '\\S+',
-				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', '属性不应为空。'),
+				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', 'Property should not be empty.'),
 			},
 			additionalProperties: {
 				anyOf: [
 					{
-						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', '配置属性的架构。'),
+						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
 						$ref: 'http://json-schema.org/draft-07/schema#'
 					},
 					{
@@ -56,65 +57,82 @@ const configurationEntrySchema: IJSONSchema = {
 								enum: ['application', 'machine', 'window', 'resource', 'language-overridable', 'machine-overridable'],
 								default: 'window',
 								enumDescriptions: [
-									nls.localize('scope.application.description', "只能在用户设置中配置的配置。"),
-									nls.localize('scope.machine.description', "只能在用户设置或远程设置中配置的配置。"),
-									nls.localize('scope.window.description', "可以在用户、远程或工作区设置中配置的配置。"),
-									nls.localize('scope.resource.description', "可以在用户、远程、工作区或文件夹设置中配置的配置。"),
-									nls.localize('scope.language-overridable.description', "可以在语言特定设置中配置的资源配置。"),
-									nls.localize('scope.machine-overridable.description', "也可以在工作区或文件夹设置中配置的计算机配置。")
+									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
+									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings or only in the remote settings."),
+									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
+									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
+									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
+									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								markdownDescription: nls.localize('scope.description', "配置适用的作用域。可用的作用域有 `application`、`machine`、`window`、`resource` 和 `machine-overridable`。")
+								markdownDescription: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.enumDescriptions', '枚举值的描述')
+								description: nls.localize('scope.enumDescriptions', 'Descriptions for enum values')
 							},
 							markdownEnumDescriptions: {
 								type: 'array',
 								items: {
 									type: 'string',
 								},
-								description: nls.localize('scope.markdownEnumDescriptions', 'Markdown 格式的枚举值描述。')
+								description: nls.localize('scope.markdownEnumDescriptions', 'Descriptions for enum values in the markdown format.')
 							},
 							enumItemLabels: {
 								type: 'array',
 								items: {
 									type: 'string'
 								},
-								markdownDescription: nls.localize('scope.enumItemLabels', '要在设置编辑器中显示的枚举值标签。指定后，{0} 值仍会显示在标签之后，但不太突出。', '`enum`')
+								markdownDescription: nls.localize('scope.enumItemLabels', 'Labels for enum values to be displayed in the Settings editor. When specified, the {0} values still show after the labels, but less prominently.', '`enum`')
 							},
 							markdownDescription: {
 								type: 'string',
-								description: nls.localize('scope.markdownDescription', 'Markdown 格式的描述。')
+								description: nls.localize('scope.markdownDescription', 'The description in the markdown format.')
 							},
 							deprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.deprecationMessage', '如果设置，该属性将被标记为已弃用，并显示给定的消息作为说明。')
+								description: nls.localize('scope.deprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation.')
 							},
 							markdownDeprecationMessage: {
 								type: 'string',
-								description: nls.localize('scope.markdownDeprecationMessage', '如果设置，该属性将被标记为已弃用，并以 Markdown 格式显示给定的消息作为说明。')
+								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
+							},
+							deprecationMessageSeverity: {
+								type: 'string',
+								enum: ['warning', 'info'],
+								enumDescriptions: [
+									nls.localize('scope.deprecationMessageSeverity.warning', 'Shows the deprecation message using the standard warning treatment.'),
+									nls.localize('scope.deprecationMessageSeverity.info', 'Shows the deprecation message using an informational treatment.')
+								],
+								default: 'warning',
+								description: nls.localize('scope.deprecationMessageSeverity', 'Controls the severity used to display the deprecation message.')
 							},
 							editPresentation: {
 								type: 'string',
 								enum: ['singlelineText', 'multilineText'],
 								enumDescriptions: [
-									nls.localize('scope.singlelineText.description', '值将显示在输入框中。'),
-									nls.localize('scope.multilineText.description', '值将显示在文本区域中。')
+									nls.localize('scope.singlelineText.description', 'The value will be shown in an inputbox.'),
+									nls.localize('scope.multilineText.description', 'The value will be shown in a textarea.')
 								],
 								default: 'singlelineText',
-								description: nls.localize('scope.editPresentation', '指定时，控制字符串设置的呈现格式。')
+								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
 							},
 							order: {
 								type: 'integer',
-								description: nls.localize('scope.order', '指定时，给出此设置相对于同一类别中其他设置的顺序。具有 order 属性的设置将放在没有设置此属性的设置之前。')
+								description: nls.localize('scope.order', 'When specified, gives the order of this setting relative to other settings within the same category. Settings with an order property will be placed before settings without this property set.')
 							},
 							ignoreSync: {
 								type: 'boolean',
-								description: nls.localize('scope.ignoreSync', '启用后，设置同步默认不会同步此配置的用户值。')
+								description: nls.localize('scope.ignoreSync', 'When enabled, Settings Sync will not sync the user value of this configuration by default.')
+							},
+							keywords: {
+								type: 'array',
+								items: {
+									type: 'string'
+								},
+								description: nls.localize('scope.keywords', 'A list of keywords that help users find this setting in the Settings editor. These are not shown to the user.')
 							},
 							tags: {
 								type: 'array',
@@ -128,16 +146,31 @@ const configurationEntrySchema: IJSONSchema = {
 										'usesOnlineServices',
 									],
 									enumDescriptions: [
-										nls.localize('accessibility', '辅助功能设置'),
-										nls.localize('advanced', '高级设置默认在设置编辑器中隐藏，除非用户选择显示高级设置。'),
-										nls.localize('experimental', '实验性设置可能会更改，并可能在将来的版本中删除。'),
-										nls.localize('preview', '预览设置可用于在功能最终确定之前试用新功能。'),
-										nls.localize('telemetry', '遥测设置'),
-										nls.localize('usesOnlineServices', '使用在线服务的设置')
+										nls.localize('accessibility', 'Accessibility settings'),
+										nls.localize('advanced', 'Advanced settings are hidden by default in the Settings editor unless the user chooses to show advanced settings.'),
+										nls.localize('experimental', 'Experimental settings are subject to change and may be removed in future releases.'),
+										nls.localize('preview', 'Preview settings can be used to try out new features before they are finalized.'),
+										nls.localize('telemetry', 'Telemetry settings'),
+										nls.localize('usesOnlineServices', 'Settings that use online services')
 									],
 								},
 								additionalItems: true,
-								markdownDescription: nls.localize('scope.tags', '放置设置的标签列表。然后可以在设置编辑器中搜索该标签。例如，指定 `experimental` 标签允许通过搜索 `@tag:experimental` 来查找设置。'),
+								markdownDescription: nls.localize('scope.tags', 'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'),
+							},
+							agentsWindow: {
+								type: 'object',
+								markdownDescription: nls.localize('scope.agentsWindow', "Configuration overrides for the Agents window. Allows specifying a different default value and read-only behavior for this setting when running in the Agents window.\n\n**Note**: This is a proposed API. To use it, extensions must include `agentsWindowConfiguration` in their `enabledApiProposals`."),
+								properties: {
+									'default': {
+										description: nls.localize('scope.agentsWindow.default', 'The default value for this setting in the Agents window.'),
+									},
+									readOnly: {
+										type: 'boolean',
+										description: nls.localize('scope.agentsWindow.readOnly', 'When true, this setting cannot be changed by the user in the Agents window.'),
+										default: false,
+									}
+								},
+								additionalProperties: false
 							}
 						}
 					}
@@ -187,13 +220,13 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 			for (const key of Object.keys(overrides)) {
 				const registeredPropertyScheme = registeredProperties[key];
 				if (registeredPropertyScheme?.disallowConfigurationDefault) {
-					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "无法为 '{0}' 注册配置默认值。此设置不允许贡献配置默认值。", key));
+					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. This setting does not allow contributing configuration defaults.", key));
 					delete overrides[key];
 					continue;
 				}
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
 					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
-						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "无法为 '{0}' 注册配置默认值。仅支持 machine-overridable、window、resource 和 language overridable 作用域设置的默认值。", key));
+						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
 						delete overrides[key];
 						continue;
 					}
@@ -212,7 +245,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigu
 	extensionPoint: 'configuration',
 	deps: [defaultConfigurationExtPoint],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.configuration', '贡献配置设置。'),
+		description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 		oneOf: [
 			configurationEntrySchema,
 			{
@@ -246,7 +279,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
-			extension.collector.error(nls.localize('invalid.title', "'configuration.title' 必须是字符串"));
+			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
 		}
 
 		validateProperties(configuration, extension);
@@ -263,7 +296,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const extensionConfigurationPolicy = product.extensionConfigurationPolicy;
 		if (properties) {
 			if (typeof properties !== 'object') {
-				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' 必须是对象"));
+				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
 				configuration.properties = {};
 			}
 			for (const key in properties) {
@@ -276,21 +309,37 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 				}
 				if (seenProperties.has(key) && !EXTENSION_UNIFICATION_EXTENSION_IDS.has(extension.description.identifier.value.toLowerCase())) {
 					delete properties[key];
-					extension.collector.warn(nls.localize('config.property.duplicate', "无法注册 '{0}'。此属性已被注册。", key));
+					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
 					continue;
 				}
 				if (!isObject(propertyConfiguration)) {
 					delete properties[key];
-					extension.collector.error(nls.localize('invalid.property', "configuration.properties 属性 '{0}' 必须是对象", key));
+					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 					continue;
 				}
-				if (extensionConfigurationPolicy?.[key]) {
-					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
+				const policyEntry = extensionConfigurationPolicy?.[key];
+				if (policyEntry) {
+					// A reference entry carries a `policyReference` pointer; a full (owner/"parent")
+					// entry declares the policy inline. References attach this setting to a policy
+					// *owned* by an in-code setting (whose `value` callback JSON cannot carry).
+					if (hasKey(policyEntry, { policyReference: true })) {
+						propertyConfiguration.policyReference = policyEntry.policyReference;
+					} else {
+						propertyConfiguration.policy = policyEntry;
+					}
 				}
 				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					propertyConfiguration.experiment = {
 						mode: 'startup'
 					};
+				}
+				if (propertyConfiguration.agentsWindow && !isProposedApiEnabled(extension.description, 'agentsWindowConfiguration')) {
+					extension.collector.error(nls.localize('config.property.agentsWindow.proposed', "Extension '{0}' CANNOT use 'agentsWindow' property on configuration '{1}' without enabling the 'agentsWindowConfiguration' API proposal.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agentsWindow;
+				}
+				if (propertyConfiguration.agentHost) {
+					extension.collector.error(nls.localize('config.property.agentHost.unsupported', "Extension '{0}' CANNOT use the 'agentHost' property on configuration '{1}'.", extension.description.identifier.value, key));
+					delete propertyConfiguration.agentHost;
 				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope ? parseScope(propertyConfiguration.scope.toString()) : ConfigurationScope.WINDOW;
@@ -298,7 +347,7 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		}
 		const subNodes = configuration.allOf;
 		if (subNodes) {
-			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' 已弃用，不应再使用。请改为将多个配置部分作为数组传递给 'configuration' 贡献点。"));
+			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
 			for (const node of subNodes) {
 				validateProperties(node, extension);
 			}
@@ -344,7 +393,7 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		'folders': {
 			minItems: 0,
 			uniqueItems: true,
-			description: nls.localize('workspaceConfig.folders.description', "要在工作区中加载的文件夹列表。"),
+			description: nls.localize('workspaceConfig.folders.description', "List of folders to be loaded in the workspace."),
 			items: {
 				type: 'object',
 				defaultSnippets: [{ body: { path: '$1' } }],
@@ -352,11 +401,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					properties: {
 						path: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.path.description', "文件路径。例如 `/root/folderA` 或 `./folderA`（相对路径将相对于工作区文件的位置解析）。")
+							description: nls.localize('workspaceConfig.path.description', "A file path. e.g. `/root/folderA` or `./folderA` for a relative path that will be resolved against the location of the workspace file.")
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "文件夹的可选名称。")
+							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
 						}
 					},
 					required: ['path']
@@ -364,11 +413,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 					properties: {
 						uri: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.uri.description', "文件夹的 URI")
+							description: nls.localize('workspaceConfig.uri.description', "URI of the folder")
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "文件夹的可选名称。")
+							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
 						}
 					},
 					required: ['uri']
@@ -378,53 +427,59 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 		'settings': {
 			type: 'object',
 			default: {},
-			description: nls.localize('workspaceConfig.settings.description', "工作区设置"),
-			$ref: workspaceSettingsSchemaId
+			description: nls.localize('workspaceConfig.settings.description', "Workspace settings"),
+			allOf: [
+				{ $ref: workspaceSettingsSchemaId },
+				{
+					properties: {
+						[MCP_CONFIGURATION_KEY]: {
+							type: 'object',
+							default: {
+								inputs: [],
+								servers: {
+									'mcp-server-time': {
+										command: 'uvx',
+										args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+									}
+								}
+							},
+							description: nls.localize('workspaceConfig.mcp.description', "Model Context Protocol server configurations"),
+							$ref: mcpSchemaId
+						}
+					}
+				}
+			]
 		},
 		'launch': {
 			type: 'object',
 			default: { configurations: [], compounds: [] },
-			description: nls.localize('workspaceConfig.launch.description', "工作区启动配置"),
+			description: nls.localize('workspaceConfig.launch.description', "Workspace launch configurations"),
 			$ref: launchSchemaId
 		},
 		'tasks': {
 			type: 'object',
 			default: { version: '2.0.0', tasks: [] },
-			description: nls.localize('workspaceConfig.tasks.description', "工作区任务配置"),
+			description: nls.localize('workspaceConfig.tasks.description', "Workspace task configurations"),
 			$ref: tasksSchemaId
-		},
-		'mcp': {
-			type: 'object',
-			default: {
-				inputs: [],
-				servers: {
-					'mcp-server-time': {
-						command: 'uvx',
-						args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
-					}
-				}
-			},
-			description: nls.localize('workspaceConfig.mcp.description', "模型上下文协议服务器配置"),
-			$ref: mcpSchemaId
 		},
 		'extensions': {
 			type: 'object',
 			default: {},
-			description: nls.localize('workspaceConfig.extensions.description', "工作区扩展"),
+			description: nls.localize('workspaceConfig.extensions.description', "Workspace extensions"),
 			$ref: 'vscode://schemas/extensions'
 		},
 		'remoteAuthority': {
 			type: 'string',
 			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.remoteAuthority', "工作区所在的远程服务器。"),
+			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
 		},
 		'transient': {
 			type: 'boolean',
 			doNotSuggest: true,
-			description: nls.localize('workspaceConfig.transient', "临时工作区将在重新启动或重新加载时消失。"),
+			description: nls.localize('workspaceConfig.transient', "A transient workspace will disappear when restarting or reloading."),
 		}
 	},
-	errorMessage: nls.localize('unknownWorkspaceProperty', "未知的工作区配置属性")
+	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")
 });
 
 
@@ -444,7 +499,7 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 		const properties = getAllConfigurationProperties(configuration);
 
 		const contrib = properties ? Object.keys(properties) : [];
-		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "描述"), nls.localize('default', "默认值")];
+		const headers = [nls.localize('setting name', "ID"), nls.localize('description', "Description"), nls.localize('default', "Default")];
 		const rows: IRowData[][] = contrib.sort((a, b) => a.localeCompare(b))
 			.map(key => {
 				return [
@@ -466,9 +521,63 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
 	id: 'configuration',
-	label: nls.localize('settings', "设置"),
+	label: nls.localize('settings', "Settings"),
 	access: {
 		canToggle: false
 	},
 	renderer: new SyncDescriptor(SettingsTableRenderer),
+});
+
+class ConfigurationDefaultsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.configurationDefaults;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const configurationDefaults = manifest.contributes?.configurationDefaults ?? {};
+
+		const headers = [nls.localize('language', "Languages"), nls.localize('setting', "Setting"), nls.localize('default override value', "Override Value")];
+		const rows: IRowData[][] = [];
+
+		for (const key of Object.keys(configurationDefaults).sort((a, b) => a.localeCompare(b))) {
+			const value = configurationDefaults[key];
+			if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+				const languages = overrideIdentifiersFromKey(key);
+				const languageMarkdown = new MarkdownString().appendMarkdown(`${languages.join(', ')}`);
+				for (const key of Object.keys(value).sort((a, b) => a.localeCompare(b))) {
+					const row: IRowData[] = [];
+					row.push(languageMarkdown);
+					row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+					row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value[key], null, 2)));
+					rows.push(row);
+				}
+			} else {
+				const row: IRowData[] = [];
+				row.push('');
+				row.push(new MarkdownString().appendMarkdown(`\`${key}\``));
+				row.push(new MarkdownString().appendCodeblock('json', JSON.stringify(value, null, 2)));
+				rows.push(row);
+			}
+		}
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'configurationDefaults',
+	label: nls.localize('settings default overrides', "Settings Default Overrides"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ConfigurationDefaultsTableRenderer),
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { n } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -13,9 +13,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
 import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
@@ -24,7 +22,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
+import { getEditorBlendedColor, INLINE_EDITS_BORDER_RADIUS, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
@@ -34,6 +32,17 @@ import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
 import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { Event, Emitter } from '../../../../../../../base/common/event.js';
+
+/**
+ * Customization options for the gutter indicator appearance and behavior.
+ */
+export interface GutterIndicatorCustomization {
+	/** Override the default icon */
+	readonly icon?: ThemeIcon;
+}
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
@@ -41,16 +50,18 @@ export class InlineEditsGutterIndicatorData {
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
 		readonly altAction: InlineSuggestAlternativeAction | undefined,
+		readonly customization?: GutterIndicatorCustomization,
 	) { }
 }
 
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
 		const alternativeAction = suggestion.action?.kind === 'edit' ? suggestion.action.alternativeAction : undefined;
+		const commands = suggestion.source.inlineSuggestions.commands ?? [];
 		return new InlineSuggestionGutterMenuData(
 			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
-			suggestion.source.inlineSuggestions.commands ?? [],
+			commands.length > 0 ? [commands] : [],
 			alternativeAction,
 			suggestion.source.provider.modelInfo,
 			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
@@ -60,10 +71,11 @@ export class InlineSuggestionGutterMenuData {
 	constructor(
 		readonly action: Command | undefined,
 		readonly displayName: string,
-		readonly extensionCommands: InlineCompletionCommand[],
+		readonly extensionCommands: InlineCompletionCommand[][],
 		readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 		readonly modelInfo: IInlineCompletionModelInfo | undefined,
 		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
+		readonly extensionCommandsOnly: boolean = false,
 	) { }
 }
 
@@ -82,7 +94,14 @@ export class SimpleInlineSuggestModel {
 	) { }
 }
 
+const CODICON_SIZE_PX = 16;
+const CODICON_PADDING_PX = 2;
+
 export class InlineEditsGutterIndicator extends Disposable {
+
+	private readonly _onDidCloseWithCommand = this._register(new Emitter<string>());
+	readonly onDidCloseWithCommand: Event<string> = this._onDidCloseWithCommand.event;
+
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _data: IObservable<InlineEditsGutterIndicatorData | undefined>,
@@ -91,10 +110,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 
-		@IHoverService private readonly _hoverService: HoverService,
+		@IHoverService protected readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IUserInteractionService private readonly _userInteractionService: IUserInteractionService
 	) {
 		super();
 
@@ -105,6 +125,8 @@ export class InlineEditsGutterIndicator extends Disposable {
 			? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight)
 			: constObservable(0);
 
+		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
+
 		const indicator = this._indicator.keepUpdated(this._store);
 
 		this._register(this._editorObs.createOverlayWidget({
@@ -114,22 +136,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
-			const state = this._state.get();
-			if (state === undefined) { return; }
-
-			const el = this._iconRef.element;
-			const rect = el.getBoundingClientRect();
-			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
-			const point = new Point(e.event.posx, e.event.posy);
-			this._isHoveredOverIcon.set(rectangularArea.containsPoint(point), undefined);
-		}));
-
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
 			this._isHoveredOverIcon.set(false, undefined);
 		}));
-
-		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
 		// pulse animation when hovering inline edit
 		this._register(runOnChange(this._isHoveredOverInlineEditDebounced, (isHovering) => {
@@ -149,7 +158,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
-	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
+	private readonly _modifierPressed = derived(this, reader =>
+		this._userInteractionService.readModifierKeyStatus(this._editorObs.editor.getDomNode()!, reader).shiftKey
+	);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
 		let v = this._tabAction.read(reader);
 
@@ -317,14 +328,15 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const layout = this._editorObs.layoutInfo.read(reader);
 
 		const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-		const gutterViewPortPadding = 2;
+		const gutterViewPortPaddingLeft = 1;
+		const gutterViewPortPaddingTop = 2;
 
 		// Entire gutter view from top left to bottom right
-		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
-		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPadding;
-		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPadding, gutterViewPortPadding, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
+		const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPaddingLeft;
+		const gutterHeightWithoutPadding = layout.height - 2 * gutterViewPortPaddingTop;
+		const gutterViewPortWithStickyScroll = Rect.fromLeftTopWidthHeight(gutterViewPortPaddingLeft, gutterViewPortPaddingTop, gutterWidthWithoutPadding, gutterHeightWithoutPadding);
 		const gutterViewPortWithoutStickyScrollWithoutPaddingTop = gutterViewPortWithStickyScroll.withTop(this._stickyScrollHeight.read(reader));
-		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPadding);
+		const gutterViewPortWithoutStickyScroll = gutterViewPortWithStickyScroll.withTop(gutterViewPortWithoutStickyScrollWithoutPaddingTop.top + gutterViewPortPaddingTop);
 
 		// The glyph margin area across all relevant lines
 		const verticalEditRange = s.lineOffsetRange.read(reader);
@@ -337,45 +349,52 @@ export class InlineEditsGutterIndicator extends Disposable {
 		const pillIsFullyDocked = gutterViewPortWithoutStickyScrollWithoutPaddingTop.containsRect(pillFullyDockedRect);
 
 		// The icon which will be rendered in the pill
-		const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-		const iconDocked = derived(this, reader => {
-			if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
-				return Codicon.check;
-			}
-			if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
-				return Codicon.keyboardTab;
-			}
-			const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
-			const editStartLineNumber = s.range.read(reader).startLineNumber;
-			return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
-		});
+		const customIcon = this._data.read(reader)?.customization?.icon;
+		const iconNoneDocked = customIcon
+			? constObservable(customIcon)
+			: this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
+		const iconDocked = customIcon
+			? constObservable(customIcon)
+			: derived(this, reader => {
+				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
+					return Codicon.check;
+				}
+				if (this._tabAction.read(reader) === InlineEditTabAction.Accept) {
+					return Codicon.keyboardTab;
+				}
+				const cursorLineNumber = this._editorObs.cursorLineNumber.read(reader) ?? 0;
+				const editStartLineNumber = s.range.read(reader).startLineNumber;
+				return cursorLineNumber <= editStartLineNumber ? Codicon.keyboardTabAbove : Codicon.keyboardTabBelow;
+			});
 
-		const idealIconWidth = 22;
-		const minimalIconWidth = 16; // codicon size
+		const idealIconAreaWidth = 22;
 		const iconWidth = (pillRect: Rect) => {
-			const availableWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
-			return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
+			const availableIconAreaWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPaddingLeft;
+			return Math.max(Math.min(availableIconAreaWidth, idealIconAreaWidth), CODICON_SIZE_PX);
 		};
 
 		if (pillIsFullyDocked) {
 			const pillRect = pillFullyDockedRect;
 
-			let lineNumberWidth;
+			let widthUntilLineNumberEnd;
 			if (layout.lineNumbersWidth === 0) {
-				lineNumberWidth = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconWidth);
+				widthUntilLineNumberEnd = Math.max(0, Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth));
 			} else {
-				lineNumberWidth = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
+				widthUntilLineNumberEnd = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}
 
-			const lineNumberRect = pillRect.withWidth(lineNumberWidth);
-			const iconWidth = Math.max(Math.min(layout.decorationsWidth, idealIconWidth), minimalIconWidth);
-			const iconRect = pillRect.withWidth(iconWidth).translateX(lineNumberWidth);
+			const lineNumberRect = pillRect.withWidth(widthUntilLineNumberEnd);
+			const minimalIconWidthWithPadding = CODICON_SIZE_PX + CODICON_PADDING_PX;
+			const iconWidth = Math.min(pillRect.width - widthUntilLineNumberEnd, idealIconAreaWidth);
+			const iconRect = pillRect.withWidth(Math.max(iconWidth, minimalIconWidthWithPadding)).translateX(widthUntilLineNumberEnd);
+			const iconVisible = iconWidth >= minimalIconWidthWithPadding;
 
 			return {
 				gutterEditArea,
 				icon: iconDocked,
 				iconDirection: 'right' as const,
 				iconRect,
+				iconVisible,
 				pillRect,
 				lineNumberRect,
 			};
@@ -397,6 +416,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				iconDirection: 'right' as const,
 				iconRect,
 				pillRect,
+				iconVisible: true,
 			};
 		}
 
@@ -416,22 +436,23 @@ export class InlineEditsGutterIndicator extends Disposable {
 			iconDirection,
 			iconRect,
 			pillRect,
+			iconVisible: true,
 		};
 	});
 
 
-	private readonly _iconRef = n.ref<HTMLDivElement>();
+	protected readonly _iconRef = n.ref<HTMLDivElement>();
 
 	public readonly isVisible = this._layout.map(l => !!l);
 
-	private readonly _hoverVisible = observableValue(this, false);
+	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
 
 	private readonly _isHoveredOverIcon = observableValue(this, false);
 	private readonly _isHoveredOverIconDebounced: IObservable<boolean> = debouncedObservable(this._isHoveredOverIcon, 100);
 	public readonly isHoveredOverIcon: IObservable<boolean> = this._isHoveredOverIconDebounced;
 
-	private _showHover(): void {
+	protected _showHover(): void {
 		if (this._hoverVisible.get()) {
 			return;
 		}
@@ -445,17 +466,21 @@ export class InlineEditsGutterIndicator extends Disposable {
 			GutterIndicatorMenuContent,
 			this._editorObs,
 			data.gutterMenuData,
-			(focusEditor) => {
+			(focusEditor, commandId) => {
 				if (focusEditor) {
 					this._editorObs.editor.focus();
+				}
+				if (commandId) {
+					this._onDidCloseWithCommand.fire(commandId);
 				}
 				h?.dispose();
 			},
 		).toDisposableLiveElement());
 
-		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
-		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
-		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
+		const isFocused = this._userInteractionService.createFocusTracker(content.element, disposableStore); // TODO@benibenj should this be removed?
+		disposableStore.add(autorun(reader => {
+			this._focusIsInMenu.set(isFocused.read(reader), undefined);
+		}));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
 
 		const h = this._hoverService.showInstantHover({
@@ -485,7 +510,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			style: {
 				position: 'absolute',
 				background: asCssVariable(inlineEditIndicatorBackground),
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				...rectToProps(reader => layout.read(reader).gutterEditArea),
 			}
 		}),
@@ -510,9 +535,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 
 			onmouseenter: () => {
+				this._isHoveredOverIcon.set(true, undefined);
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
 			},
+			onmouseleave: () => this._isHoveredOverIcon.set(false, undefined),
 			style: {
 				cursor: 'pointer',
 				zIndex: '20',
@@ -522,9 +549,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 				['--vscodeIconForeground' as any]: this._gutterIndicatorStyles.map(v => v.foreground),
 				border: this._gutterIndicatorStyles.map(v => `1px solid ${v.border}`),
 				boxSizing: 'border-box',
-				borderRadius: '4px',
+				borderRadius: `${INLINE_EDITS_BORDER_RADIUS}px`,
 				display: 'flex',
-				justifyContent: 'flex-end',
+				justifyContent: layout.map(l => l.iconDirection === 'bottom' ? 'flex-start' : 'flex-end'),
 				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
@@ -545,17 +572,21 @@ export class InlineEditsGutterIndicator extends Disposable {
 			),
 			n.div({
 				style: {
-					rotate: layout.map(l => `${getRotationFromDirection(l.iconDirection)}deg`),
-					transition: 'rotate 0.2s ease-in-out',
+					transform: layout.map(l => `rotate(${getRotationFromDirection(l.iconDirection)}deg)`),
+					transition: 'rotate 0.2s ease-in-out, opacity 0.2s ease-in-out',
 					display: 'flex',
 					alignItems: 'center',
 					justifyContent: 'center',
 					height: '100%',
+					opacity: layout.map(l => l.iconVisible ? '1' : '0'),
 					marginRight: layout.map(l => l.pillRect.width - l.iconRect.width - (l.lineNumberRect?.width ?? 0)),
 					width: layout.map(l => l.iconRect.width),
+					position: 'relative',
+					right: layout.map(l => l.iconDirection === 'top' ? '1px' : '0'),
+					color: this._data.map(d => d?.customization?.icon?.color ? asCssVariable(d.customization.icon.color.id) : undefined),
 				}
 			}, [
-				layout.map((l, reader) => renderIcon(l.icon.read(reader))),
+				layout.map((l, reader) => withStyles(renderIcon(l.icon.read(reader)), { fontSize: toPx(Math.min(l.iconRect.width - CODICON_PADDING_PX, CODICON_SIZE_PX)) })),
 			])
 		]),
 	]));
@@ -567,4 +598,16 @@ function getRotationFromDirection(direction: 'top' | 'bottom' | 'right'): number
 		case 'bottom': return -90;
 		case 'right': return 0;
 	}
+}
+
+function withStyles<T extends HTMLElement>(element: T, styles: { [key: string]: string }): T {
+	for (const key in styles) {
+		// eslint-disable-next-line local/code-no-any-casts
+		element.style[key as any] = styles[key];
+	}
+	return element;
+}
+
+function toPx(n: number): string {
+	return `${n}px`;
 }

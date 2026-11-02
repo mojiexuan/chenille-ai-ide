@@ -22,7 +22,7 @@ export class CommandService extends Disposable implements ICommandService {
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
+	private readonly _onDidExecuteCommand = this._register(new Emitter<ICommandEvent>());
 	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(
@@ -37,15 +37,15 @@ export class CommandService extends Disposable implements ICommandService {
 
 	private _activateStar(): Promise<void> {
 		if (!this._starActivation) {
-			// 等待激活，最多30秒。
+			// wait for * activation, limited to at most 30s.
 			this._starActivation = raceCancellablePromises([
 				this._extensionService.activateByEvent(`*`),
 				timeout(30000)
 			]);
 		}
 
-		// 这是用notCancellablePromise包装的，所以它不会被取消
-		// 因为它是由消费者共享的。
+		// This is wrapped with notCancellablePromise so it doesn't get cancelled
+		// early because it is shared between consumers.
 		return notCancellablePromise(this._starActivation);
 	}
 
@@ -53,41 +53,35 @@ export class CommandService extends Disposable implements ICommandService {
 		this._logService.trace('CommandService#executeCommand', id);
 
 		const activationEvent = `onCommand:${id}`;
-
-		// 检查该命令 id 是否已经被注册到全局命令注册表中
 		const commandIsRegistered = !!CommandsRegistry.getCommand(id);
 
 		if (commandIsRegistered) {
 
-			// 如果激活事件已经解决（即后续呼叫），
-			// 我们将立即执行已注册的命令
+			// if the activation event has already resolved (i.e. subsequent call),
+			// we will execute the registered command immediately
 			if (this._extensionService.activationEventIsDone(activationEvent)) {
 				return this._tryExecuteCommand(id, args);
 			}
 
-			// 如果扩展主机尚未启动，我们将执行已注册的
-			// 立即命令并发送激活事件，但不要等待
+			// if the extension host didn't start yet, we will execute the registered
+			// command immediately and send an activation event, but not wait for it
 			if (!this._extensionHostIsReady) {
-				this._extensionService.activateByEvent(activationEvent); // 故意不等待
+				this._extensionService.activateByEvent(activationEvent); // intentionally not awaited
 				return this._tryExecuteCommand(id, args);
 			}
 
-			// 我们将等待一个简单的激活事件（例如，如果扩展想要覆盖它）
+			// we will wait for a simple activation event (e.g. in case an extension wants to overwrite it)
 			await this._extensionService.activateByEvent(activationEvent);
 			return this._tryExecuteCommand(id, args);
 		}
 
-		// 最后，如果命令未注册，我们将发送一个简单的激活事件
-		// 以及一场*激活活动，与注册和30秒赛跑
+		// finally, if the command is not registered we will send a simple activation event
+		// as well as a * activation event raced against registration and against 30s
 		await Promise.all([
-			// 触发 onCommand:xxx 激活事件，让提供该命令的扩展激活
 			this._extensionService.activateByEvent(activationEvent),
-
-			// 竞速等待：谁先完成就继续
 			raceCancellablePromises<unknown>([
-				// race* 激活事件（激活所有扩展，最多等30秒）
+				// race * activation against command registration
 				this._activateStar(),
-				// 监听命令注册事件，等到该命令被注册
 				Event.toPromise(Event.filter(CommandsRegistry.onDidRegisterCommand, e => e === id))
 			]),
 		]);

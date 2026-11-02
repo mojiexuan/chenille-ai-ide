@@ -76,6 +76,14 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
+	readonly main: boolean;
+	readonly detached: boolean;
+}
+
 export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
@@ -113,11 +121,19 @@ export interface Change {
 	readonly status: Status;
 }
 
+export interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
+export type RepositoryKind = 'repository' | 'submodule' | 'worktree';
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
+	readonly worktrees: Worktree[];
 	readonly rebaseCommit: Commit | undefined;
 
 	readonly mergeChanges: Change[];
@@ -131,6 +147,11 @@ export interface RepositoryState {
 export interface RepositoryUIState {
 	readonly selected: boolean;
 	readonly onDidChange: Event<void>;
+}
+
+export interface RepositoryAccessDetails {
+	readonly rootUri: Uri;
+	readonly lastAccessTime: number;
 }
 
 /**
@@ -156,6 +177,11 @@ export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
+	/**
+	 * true  - sign the commit
+	 * false - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
@@ -213,6 +239,8 @@ export interface Repository {
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly kind: RepositoryKind;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -232,8 +260,10 @@ export interface Repository {
 	add(paths: string[]): Promise<void>;
 	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
@@ -248,6 +278,9 @@ export interface Repository {
 	diffBlobs(object1: string, object2: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -261,6 +294,8 @@ export interface Repository {
 	checkIgnore(paths: string[]): Promise<Set<string>>;
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
+	/** Returns the refs currently advertised by the remote, without fetching. */
+	getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
@@ -278,6 +313,8 @@ export interface Repository {
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean, force?: ForcePushMode): Promise<void>;
+	/** Pushes only the specified remote branch if it still points at expectedSha (all zeros if absent), without pushing tags. */
+	pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void>;
 
 	blame(path: string): Promise<string>;
 	log(options?: LogOptions): Promise<Commit[]>;
@@ -285,15 +322,32 @@ export interface Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void>;
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
+	/** Rebases the current branch; onto and rebaseMerges allow replaying a stack onto a new base. */
+	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void>;
+	rebaseAbort(): Promise<void>;
+	/** Continues an in-progress rebase after its conflicts have been resolved and staged, keeping the original commit message. */
+	rebaseContinue(): Promise<void>;
+	/**
+	 * Updates a refs/heads/ branch only if its current value matches oldSha; an all-zero oldSha creates it.
+	 * Replaces symbolic refs rather than updating their targets.
+	 */
+	updateRef(ref: string, newSha: string, oldSha: string): Promise<void>;
+	/** Resets to ref without overwriting local changes. */
+	resetKeep(ref: string): Promise<void>;
 
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
-	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string>;
+	deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
+
+	generateRandomBranchName(): Promise<string | undefined>;
+
+	isBranchProtected(branch?: Branch): boolean;
 }
 
 export interface RemoteSource {
@@ -379,6 +433,7 @@ export interface API {
 	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
+	readonly recentRepositories: Iterable<RepositoryAccessDetails>;
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
 

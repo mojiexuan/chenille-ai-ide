@@ -8,7 +8,8 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
+	// Skip the suite so its hooks do not launch VS Code while all tests are disabled.
+	describe.skip('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
 
 		// Shared before/after handling
 		installAllHandlers(logger);
@@ -21,6 +22,7 @@ export function setup(logger: Logger) {
 
 		after(async function () {
 			const app = this.app as Application;
+
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
@@ -44,7 +46,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		it('inserts/edits code cell', async function () {
+		it.skip('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -64,7 +66,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForMarkdownContents('', '');
 		});
 
-		it('moves focus as it inserts/deletes a cell', async function () {
+		it.skip('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusFirstCell();
@@ -78,7 +80,7 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.waitForActiveCellEditorContents('# added cell');
 		});
 
-		it('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
+		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/139270
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			// first cell is a code cell that already has output

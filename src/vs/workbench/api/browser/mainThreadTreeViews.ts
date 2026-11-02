@@ -14,12 +14,15 @@ import { Registry } from '../../../platform/registry/common/platform.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, UriList, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
 import * as typeConvert from '../common/extHostTypeConverters.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -33,7 +36,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
@@ -132,10 +136,26 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	public async $disposeTree(treeViewId: string): Promise<void> {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
+			viewer.dragAndDropController = undefined;
 			viewer.dataProvider = undefined;
 		}
 
+		this._dndControllers.delete(treeViewId);
 		this._dataProviders.deleteAndDispose(treeViewId);
+	}
+
+	$logResolveTreeNodeFailure(extensionId: string): void {
+		type TreeViewResolveFailureEvent = {
+			extensionId: string;
+		};
+		type TreeViewResolveFailureClassification = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension identifier.' };
+			owner: 'alexr00';
+			comment: 'Tracks tree view resolve failures due to concurrent refresh races.';
+		};
+		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
+			extensionId
+		});
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -200,6 +220,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		for (const dataprovider of this._dataProviders) {
 			const treeView = this.getTreeView(dataprovider[0]);
 			if (treeView) {
+				treeView.dragAndDropController = undefined;
 				treeView.dataProvider = undefined;
 			}
 		}
@@ -248,13 +269,21 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 		const additionalDataTransfer = new VSDataTransfer();
 		additionalDataTransferDTO.items.forEach(([type, item]) => {
-			additionalDataTransfer.replace(type, createStringDataTransferItem(item.asString));
+			// For text/uri-list, reconstruct from uriListData which has been transformed by the URI transformer
+			const value = type === Mimes.uriList && item.uriListData
+				? UriList.create(item.uriListData.map(part => typeof part === 'string' ? part : URI.revive(part)))
+				: item.asString;
+			additionalDataTransfer.replace(type, createStringDataTransferItem(value));
 		});
 		return additionalDataTransfer;
 	}
 
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
 		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
+	}
+
+	handleDragEnd(operationUuid: string): void {
+		this._proxy.$releaseDragOperation(operationUuid);
 	}
 }
 
@@ -270,12 +299,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	async getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+	async getChildren(treeItem?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 		const batches = await this.getChildrenBatch(treeItem ? [treeItem] : undefined);
 		return batches?.[0];
 	}
 
-	getChildrenBatch(treeItems?: ITreeItem[]): Promise<ITreeItem[][] | undefined> {
+	getChildrenBatch(treeItems?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined> {
 		if (!treeItems) {
 			this.itemsMap.clear();
 		}
@@ -295,12 +324,12 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				});
 	}
 
-	private convertTransferChildren(parents: ITreeItem[], children: (number | ITreeItem)[][] | undefined) {
-		const convertedChildren: (ITreeItem[] | undefined)[] = Array(parents.length);
+	private convertTransferChildren(parents: ITreeItem[], children: (readonly (number | ITreeItem)[])[] | undefined) {
+		const convertedChildren: (readonly ITreeItem[] | undefined)[] = Array(parents.length);
 		if (children) {
 			for (const childGroup of children) {
 				const childGroupIndex = childGroup[0] as number;
-				convertedChildren[childGroupIndex] = childGroup.slice(1) as ITreeItem[];
+				convertedChildren[childGroupIndex] = childGroup.slice(1) as readonly ITreeItem[];
 			}
 		}
 		return convertedChildren;
@@ -344,7 +373,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elementGroups: (ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
+	private async postGetChildren(elementGroups: (readonly ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
 		if (elementGroups === undefined) {
 			return undefined;
 		}

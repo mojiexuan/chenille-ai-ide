@@ -12,9 +12,9 @@ import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { OpenSearchEditorArgs } from '../../searchEditor/browser/searchEditor.contribution.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -27,37 +27,17 @@ import { ExplorerFolderContext, ExplorerRootContext, FilesExplorerFocusCondition
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ExplorerViewPaneContainer } from '../../files/browser/explorerViewlet.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { category, getElementsToOperateOn, getSearchView, openSearchView } from './searchActionsBase.js';
-import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
-import { IHistoryService } from '../../../services/history/common/history.js';
-import { Schemas } from '../../../../base/common/network.js';
+import { category, findInFilesCommand, getElementsToOperateOn, getSearchView, IFindInFilesArgs, openSearchView } from './searchActionsBase.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
 import { RenderableMatch, ISearchTreeFileMatch, ISearchTreeFolderMatchWithResource, ISearchResult, isSearchTreeFileMatch, isSearchTreeMatch } from './searchTreeModel/searchTreeCommon.js';
 
-//#region Interfaces
-export interface IFindInFilesArgs {
-	query?: string;
-	replace?: string;
-	preserveCase?: boolean;
-	triggerSearch?: boolean;
-	filesToInclude?: string;
-	filesToExclude?: string;
-	isRegex?: boolean;
-	isCaseSensitive?: boolean;
-	matchWholeWord?: boolean;
-	useExcludeSettingsAndIgnoreFiles?: boolean;
-	onlyOpenEditors?: boolean;
-	showIncludesExcludes?: boolean;
-}
-//#endregion
-
 registerAction2(class RestrictSearchToFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.RestrictSearchToFolderId,
-			title: nls.localize2('restrictResultsToFolder', "将搜索限制到文件夹"),
+			title: nls.localize2('restrictResultsToFolder', "Restrict Search to Folder"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -85,7 +65,7 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ExpandRecursivelyCommandId,
-			title: nls.localize('search.expandRecursively', "递归展开"),
+			title: nls.localize('search.expandRecursively', "Expand Recursively"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -108,7 +88,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExcludeFolderFromSearchId,
-			title: nls.localize2('excludeFolderFromSearch', "从搜索中排除文件夹"),
+			title: nls.localize2('excludeFolderFromSearch', "Exclude Folder from Search"),
 			category,
 			menu: [
 				{
@@ -129,7 +109,7 @@ registerAction2(class ExcludeFileTypeFromSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ExcludeFileTypeFromSearchId,
-			title: nls.localize2('excludeFileTypeFromSearch', "从搜索中排除文件类型"),
+			title: nls.localize2('excludeFileTypeFromSearch', "Exclude File Type from Search"),
 			category,
 			menu: [
 				{
@@ -150,7 +130,7 @@ registerAction2(class IncludeFileTypeInSearchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.IncludeFileTypeInSearchId,
-			title: nls.localize2('includeFileTypeInSearch', "在搜索中包含文件类型"),
+			title: nls.localize2('includeFileTypeInSearch', "Include File Type from Search"),
 			category,
 			menu: [
 				{
@@ -173,7 +153,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.RevealInSideBarForSearchResults,
-			title: nls.localize2('revealInSideBar', "在资源管理器视图中显示"),
+			title: nls.localize2('revealInSideBar', "Reveal in Explorer View"),
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
@@ -227,14 +207,14 @@ registerAction2(class FindInFilesAction extends Action2 {
 		super({
 			id: Constants.SearchCommandIds.FindInFilesActionId,
 			title: {
-				...nls.localize2('findInFiles', "在文件中查找"),
-				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "在文件中查找"),
+				...nls.localize2('findInFiles', "Find in Files"),
+				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
 			},
 			metadata: {
-				description: nls.localize('findInFiles.description', "打开工作区搜索"),
+				description: nls.localize('findInFiles.description', "Open a workspace search"),
 				args: [
 					{
-						name: nls.localize('findInFiles.args', "搜索选项集"),
+						name: nls.localize('findInFiles.args', "A set of options for the search"),
 						schema: {
 							type: 'object',
 							properties: {
@@ -264,8 +244,10 @@ registerAction2(class FindInFilesAction extends Action2 {
 				id: MenuId.MenubarEditMenu,
 				group: '4_find_global',
 				order: 1,
+				when: IsSessionsWindowContext.negate(),
 			}],
-			f1: true
+			f1: true,
+			precondition: IsSessionsWindowContext.negate()
 		});
 
 	}
@@ -280,7 +262,7 @@ registerAction2(class FindInFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInFolderId,
-			title: nls.localize2('findInFolder', "在文件夹中查找..."),
+			title: nls.localize2('findInFolder', "Find in Folder..."),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -307,7 +289,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FindInWorkspaceId,
-			title: nls.localize2('findInWorkspace', "在工作区中查找..."),
+			title: nls.localize2('findInWorkspace', "Find in Workspace..."),
 			category,
 			menu: [
 				{
@@ -322,7 +304,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 	}
 	async run(accessor: ServicesAccessor) {
 		const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
-		const mode = searchConfig.mode;
+		const mode = searchConfig?.mode;
 
 		if (mode === 'view') {
 			const searchView = await openSearchView(accessor.get(IViewsService), true);
@@ -379,7 +361,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	const contextService = accessor.get(IWorkspaceContextService);
 	const commandService = accessor.get(ICommandService);
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
-	const mode = searchConfig.mode;
+	const mode = searchConfig?.mode;
 
 	let resources: URI[];
 
@@ -431,71 +413,10 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	}
 }
 
-function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
+function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties | undefined): URI[] {
 	return getElementsToOperateOn(viewer, currElement, sortConfig)
 		.map((renderableMatch) => ((isSearchTreeMatch(renderableMatch)) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
-}
-
-export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFindInFilesArgs = {}) {
-
-	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
-	const viewsService = accessor.get(IViewsService);
-	const commandService = accessor.get(ICommandService);
-	const args: IFindInFilesArgs = {};
-	if (Object.keys(_args).length !== 0) {
-		// resolve variables in the same way as in
-		// https://github.com/microsoft/vscode/blob/8b76efe9d317d50cb5b57a7658e09ce6ebffaf36/src/vs/workbench/contrib/searchEditor/browser/searchEditorActions.ts#L152-L158
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const historyService = accessor.get(IHistoryService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
-		const filteredActiveWorkspaceRootUri = activeWorkspaceRootUri?.scheme === Schemas.file || activeWorkspaceRootUri?.scheme === Schemas.vscodeRemote ? activeWorkspaceRootUri : undefined;
-		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri) ?? undefined : undefined;
-
-		for (const entry of Object.entries(_args)) {
-			const name = entry[0];
-			const value = entry[1];
-			if (value !== undefined) {
-				// eslint-disable-next-line local/code-no-any-casts
-				(args as any)[name as any] = (typeof value === 'string') ? await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, value) : value;
-			}
-		}
-	}
-
-	const mode = searchConfig.mode;
-	if (mode === 'view') {
-		openSearchView(viewsService, false).then(openedView => {
-			if (openedView) {
-				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
-				let updatedText = false;
-				if (typeof args.query !== 'string') {
-					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
-				}
-				openedView.setSearchParameters(args);
-				if (typeof args.showIncludesExcludes === 'boolean') {
-					openedView.toggleQueryDetails(false, args.showIncludesExcludes);
-				}
-
-				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
-			}
-		});
-	} else {
-		const convertArgs = (args: IFindInFilesArgs): OpenSearchEditorArgs => ({
-			location: mode === 'newEditor' ? 'new' : 'reuse',
-			query: args.query,
-			filesToInclude: args.filesToInclude,
-			filesToExclude: args.filesToExclude,
-			matchWholeWord: args.matchWholeWord,
-			isCaseSensitive: args.isCaseSensitive,
-			isRegexp: args.isRegex,
-			useExcludeSettingsAndIgnoreFiles: args.useExcludeSettingsAndIgnoreFiles,
-			onlyOpenEditors: args.onlyOpenEditors,
-			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
-		});
-		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
-	}
 }
 
 async function modifySearchFileTypePattern(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | undefined, isExclude: boolean) {

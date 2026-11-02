@@ -30,6 +30,8 @@ import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../..
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { validatePropertyName } from '../../../services/preferences/common/preferencesValidation.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsWidgets.css';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
@@ -455,10 +457,18 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	private showAddButton: boolean = true;
 	private isEditable: boolean = true;
 
+	protected override get isReadOnly(): boolean {
+		return !this.isEditable;
+	}
+
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
 		this.keyValueSuggester = options?.keySuggester;
 		this.isEditable = options?.isReadOnly === undefined ? true : !options.isReadOnly;
 		this.showAddButton = this.isEditable ? (options?.showAddButton ?? true) : false;
+		if (this.isReadOnly) {
+			this.model.setEditKey('none');
+			this.dragDetails = undefined;
+		}
 		super.setValue(listData);
 	}
 
@@ -532,6 +542,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: TListDataItem, idx: number) {
+		if (this.isReadOnly) {
+			return;
+		}
 		if (this.model.items.every(item => !item.editing)) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');
@@ -657,6 +670,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			} else if (e.equals(KeyCode.Escape)) {
 				this.cancelEdit();
 				e.preventDefault();
+				e.stopPropagation();
 			}
 			rowElement?.focus();
 		};
@@ -908,6 +922,7 @@ interface IObjectSetValueOptions {
 	isReadOnly?: boolean;
 	keySuggester?: IObjectKeySuggester;
 	valueSuggester?: IObjectValueSuggester;
+	propertyNames?: IJSONSchema;
 }
 
 interface IObjectRenderEditWidgetOptions {
@@ -924,6 +939,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
 	private valueSuggester: IObjectValueSuggester = () => undefined;
+	private propertyNames: IJSONSchema | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -940,6 +956,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
+		this.propertyNames = options?.propertyNames;
 
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
 			this.model.setEditKey('none');
@@ -1031,6 +1048,11 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		rowElement.classList.add('setting-list-object-row');
+
+		// Mark row as invalid if the key doesn't match propertyNames.pattern
+		if (this.propertyNames && item.key.data && !validatePropertyName(this.propertyNames, item.key.data)) {
+			rowElement.classList.add('invalid-key');
+		}
 
 		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
@@ -1188,6 +1210,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			} else if (e.equals(KeyCode.Escape)) {
 				this.cancelEdit();
 				e.preventDefault();
+				e.stopPropagation();
 			}
 		};
 
@@ -1405,7 +1428,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		const rowElementGroup = { rowElement, keyElement: valueElement, valueElement: checkbox.domNode };
 		this.addTooltipsToRow(rowElementGroup, item);
 
-		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
 				checkbox.checked = !checkbox.checked;
@@ -1437,7 +1460,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		checkbox.domNode.classList.add('setting-value-checkbox');
 		wrapper.appendChild(checkbox.domNode);
 
-		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+		this.listDisposables.add(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
 			checkbox.checked = !checkbox.checked;
 			onValueChange(checkbox.checked);
 

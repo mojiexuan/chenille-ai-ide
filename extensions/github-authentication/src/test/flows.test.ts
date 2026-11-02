@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ExtensionHost, GitHubTarget, IFlowQuery, getFlows } from '../flows';
+import { ExtensionHost, GitHubOAuthSignInProvider, GitHubSignInProvider, GitHubTarget, IFlowQuery, getFlows, isSignInProvider } from '../flows';
 import { Config } from '../config';
 import * as vscode from 'vscode';
 
@@ -28,7 +28,7 @@ suite('getFlows', () => {
 
 	const testCases: Array<{ label: string; query: IFlowQuery; expectedFlows: Flows[] }> = [
 		{
-			label: 'Chenille Desktop. Local filesystem. GitHub.com',
+			label: 'VS Code Desktop. Local filesystem. GitHub.com',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: true,
@@ -41,7 +41,7 @@ suite('getFlows', () => {
 			]
 		},
 		{
-			label: 'Chenille Desktop. Local filesystem. GitHub Hosted Enterprise',
+			label: 'VS Code Desktop. Local filesystem. GitHub Hosted Enterprise',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: true,
@@ -55,7 +55,7 @@ suite('getFlows', () => {
 			]
 		},
 		{
-			label: 'Chenille Desktop. Local filesystem. GitHub Enterprise Server',
+			label: 'VS Code Desktop. Local filesystem. GitHub Enterprise Server',
 			query: {
 				extensionHost: ExtensionHost.Local,
 				isSupportedClient: true,
@@ -208,7 +208,7 @@ suite('getFlows', () => {
 			await config.update('preferDeviceCodeFlow', originalConfig, vscode.ConfigurationTarget.Global);
 		});
 
-		test('returns device code flow first when preferDeviceCodeFlow is true - Chenille Desktop', async () => {
+		test('returns device code flow first when preferDeviceCodeFlow is true - VS Code Desktop', async () => {
 			const config = vscode.workspace.getConfiguration('github-authentication');
 			await config.update('preferDeviceCodeFlow', true, vscode.ConfigurationTarget.Global);
 
@@ -256,6 +256,33 @@ suite('getFlows', () => {
 			// Based on the original logic, WebWorker + DotCom should return UrlHandlerFlow
 			assert.strictEqual(flows.length, 1, `Expected 1 flow for WebWorker configuration, got ${flows.length}: ${flows.map(f => f.label).join(',')}`);
 			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
+		});
+	});
+});
+
+suite('isSignInProvider', () => {
+
+	test('accepts every sign-in provider the product can ask for', () => {
+		// `GitHubOAuthSignInProvider` deliberately excludes Microsoft, so the compiler — not a
+		// runtime check — is what keeps Microsoft out of the URL handler and device code flows.
+		const oauthProviders: GitHubOAuthSignInProvider[] = [GitHubSignInProvider.Google, GitHubSignInProvider.Apple];
+
+		assert.deepStrictEqual({
+			oauthProviders,
+			google: isSignInProvider(GitHubSignInProvider.Google),
+			apple: isSignInProvider(GitHubSignInProvider.Apple),
+			microsoft: isSignInProvider(GitHubSignInProvider.Microsoft),
+			unknown: isSignInProvider('entra'),
+			undefinedProvider: isSignInProvider(undefined),
+			object: isSignInProvider({ provider: 'microsoft' }),
+		}, {
+			oauthProviders: ['google', 'apple'],
+			google: true,
+			apple: true,
+			microsoft: true,
+			unknown: false,
+			undefinedProvider: false,
+			object: false,
 		});
 	});
 });

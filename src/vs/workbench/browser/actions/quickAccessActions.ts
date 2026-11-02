@@ -9,12 +9,16 @@ import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../platform/chat/common/chatSettings.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
 import { Codicon } from '../../../base/common/codicons.js';
+
+const UNIFIED_AGENTS_BAR_SETTING = 'chat.unifiedAgentsBar.enabled';
 
 //#region Quick access management commands and keys
 
@@ -53,7 +57,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: 0,
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.accept({ ctrlCmd: true, alt: false });
+		return quickInputService.accept({ ctrlCmd: true, alt: false, shift: false });
 	}
 });
 
@@ -122,7 +126,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpen',
-			title: localize2('quickOpen', "转到文件..."),
+			title: localize2('quickOpen', "Go to File..."),
 			metadata: {
 				description: `Quick access`,
 				args: [{
@@ -152,7 +156,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenWithModes',
-			title: localize('quickOpenWithModes', "快速打开"),
+			title: localize('quickOpenWithModes', "Quick Open"),
 			icon: Codicon.search,
 			menu: {
 				id: MenuId.CommandCenterCenter,
@@ -161,16 +165,33 @@ registerAction2(class QuickAccessAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		const providerOptions: AnythingQuickAccessProviderRunOptions = {
-			includeHelp: true,
-			from: 'commandCenter',
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const openClassicQuickAccess = (): void => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				includeHelp: true,
+				from: 'commandCenter',
+			};
+			quickInputService.quickAccess.show(undefined, {
+				preserveValue: true,
+				providerOptions
+			});
 		};
-		quickInputService.quickAccess.show(undefined, {
-			preserveValue: true,
-			providerOptions
-		});
+
+		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
+		const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
+		const useUnifiedQuickAccess = !aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
+		if (useUnifiedQuickAccess) {
+			try {
+				await commandService.executeCommand('workbench.action.unifiedQuickAccess');
+			} catch {
+				openClassicQuickAccess();
+			}
+			return;
+		}
+
+		openClassicQuickAccess();
 	}
 });
 
@@ -210,14 +231,14 @@ class BaseQuickAccessNavigateAction extends Action2 {
 class QuickAccessNavigateNextAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigateNext', localize2('quickNavigateNext', '在快速打开中导航到下一个'), true, true);
+		super('workbench.action.quickOpenNavigateNext', localize2('quickNavigateNext', 'Navigate Next in Quick Open'), true, true);
 	}
 }
 
 class QuickAccessNavigatePreviousAction extends BaseQuickAccessNavigateAction {
 
 	constructor() {
-		super('workbench.action.quickOpenNavigatePrevious', localize2('quickNavigatePrevious', '在快速打开中导航到上一个'), false, true);
+		super('workbench.action.quickOpenNavigatePrevious', localize2('quickNavigatePrevious', 'Navigate Previous in Quick Open'), false, true);
 	}
 }
 
@@ -226,7 +247,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectNext',
-			localize2('quickSelectNext', '在快速打开中选择下一个'),
+			localize2('quickSelectNext', 'Select Next in Quick Open'),
 			true,
 			false,
 			{
@@ -244,7 +265,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 	constructor() {
 		super(
 			'workbench.action.quickOpenSelectPrevious',
-			localize2('quickSelectPrevious', '在快速打开中选择上一个'),
+			localize2('quickSelectPrevious', 'Select Previous in Quick Open'),
 			false,
 			false,
 			{

@@ -138,7 +138,7 @@ suite('Marker Service', () => {
 		assert.strictEqual(service.read({ owner: 'far' }).length, 2);
 	});
 
-	test('changeAll must not break integrety, issue #12635', () => {
+	test('changeAll must not break integrity, issue #12635', () => {
 		service = new markerService.MarkerService();
 
 		service.changeAll('far', [{
@@ -210,6 +210,50 @@ suite('Marker Service', () => {
 
 		assert.strictEqual(marker.length, 1);
 		assert.strictEqual(marker[0].code, '0');
+	});
+
+	test('modelVersionId is preserved on IMarker when present in IMarkerData', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///path/file.ts');
+
+		// Test with modelVersionId present
+		const dataWithVersion: IMarkerData = {
+			...randomMarkerData(),
+			modelVersionId: 42
+		};
+		service.changeOne('owner', resource, [dataWithVersion]);
+
+		const markersWithVersion = service.read({ resource });
+		assert.strictEqual(markersWithVersion.length, 1);
+		assert.strictEqual(markersWithVersion[0].modelVersionId, 42);
+
+		// Test without modelVersionId (should be undefined)
+		const dataWithoutVersion: IMarkerData = randomMarkerData();
+		service.changeOne('owner', resource, [dataWithoutVersion]);
+
+		const markersWithoutVersion = service.read({ resource });
+		assert.strictEqual(markersWithoutVersion.length, 1);
+		assert.strictEqual(markersWithoutVersion[0].modelVersionId, undefined);
+	});
+
+	test('tracks diagnostic truncation per resource across owners', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///path/file.ts');
+		const otherResource = URI.parse('file:///path/other.ts');
+		service.changeOne('first', resource, [randomMarkerData()], { isTruncated: true });
+		service.changeOne('second', resource, [randomMarkerData()]);
+		service.changeOne('first', resource, [randomMarkerData()]);
+		service.changeOne('first', otherResource, [randomMarkerData()], { isTruncated: true });
+		const afterChangeAll = [service.isSourceTruncated(resource), service.isSourceTruncated(otherResource)];
+		service.changeAll('first', []);
+
+		assert.deepStrictEqual({
+			afterChangeAll,
+			afterClear: [service.isSourceTruncated(resource), service.isSourceTruncated(otherResource)]
+		}, {
+			afterChangeAll: [false, true],
+			afterClear: [false, false]
+		});
 	});
 
 	test('resource filter hides markers for the filtered resource', () => {

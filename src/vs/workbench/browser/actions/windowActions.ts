@@ -35,6 +35,8 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
 import { getActiveElement, getActiveWindow, isHTMLElement } from '../../../base/browser/dom.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { isEqual } from '../../../base/common/resources.js';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -96,6 +98,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const hostService = accessor.get(IHostService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		const [mainWindows, recentlyOpened, dirtyWorkspacesAndFolders] = await Promise.all([
 			hostService.getWindows({ includeAuxiliaryWindows: false }),
@@ -147,23 +150,26 @@ abstract class BaseOpenRecentAction extends Action2 {
 			const isDirty = isRecentFolder(recent) ? dirtyFolders.has(recent.folderUri) : dirtyWorkspaces.has(recent.workspace.configPath);
 			const windowState = isRecentFolder(recent) ? openedInWindows.get(recent.folderUri) : openedInWindows.get(recent.workspace.configPath);
 
-			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, recent, { isDirty, windowState }));
+			workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, environmentService, recent, { isDirty, windowState }));
 		}
 
 		// Fill any backup workspace that is not yet shown at the end
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
 			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, environmentService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			} else if (isWorkspaceBackupInfo(dirtyWorkspaceOrFolder) && !recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)) {
-				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
+				workspacePicks.push(this.toQuickPick(modelService, languageService, labelService, environmentService, dirtyWorkspaceOrFolder, { isDirty: true, windowState: undefined }));
 			}
 		}
 
-		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, p, { isDirty: false, windowState: undefined }));
+		const filePicks = recentlyOpened.files.map(p => this.toQuickPick(modelService, languageService, labelService, environmentService, p, { isDirty: false, windowState: undefined }));
 
-		// focus second entry if the first recent workspace is the current workspace
+		// Focus the second entry when the first one represents the current workspace.
 		const firstEntry = recentlyOpened.workspaces[0];
-		const autoFocusSecondEntry: boolean = firstEntry && contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
+		const autoFocusSecondEntry: boolean = firstEntry && (
+			contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri)
+			|| (isRecentWorkspace(firstEntry) && isEqual(firstEntry.workspace.configPath, environmentService.agentSessionsWorkspace))
+		);
 
 		let keyMods: IKeyMods | undefined;
 
@@ -192,9 +198,9 @@ abstract class BaseOpenRecentAction extends Action2 {
 				else if (context.button === this.dirtyRecentlyOpenedFolder || context.button === this.dirtyRecentlyOpenedWorkspace) {
 					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
 					const { confirmed } = await dialogService.confirm({
-						title: isDirtyWorkspace ? localize('dirtyWorkspace', "包含未保存文件的工作区") : localize('dirtyFolder', "包含未保存文件的文件夹"),
-						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "您想打开工作区来查看未保存的文件吗？") : localize('dirtyFolderConfirm', "您想打开该文件夹以查看未保存的文件吗？"),
-						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "在保存或还原所有未保存的文件之前，无法删除包含未保存文件的工作区。") : localize('dirtyFolderConfirmDetail', "在保存或还原所有未保存的文件之前，无法删除包含未保存文件的文件夹。")
+						title: isDirtyWorkspace ? localize('dirtyWorkspace', "Workspace with Unsaved Files") : localize('dirtyFolder', "Folder with Unsaved Files"),
+						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
+						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
 					});
 
 					if (confirmed) {
@@ -217,7 +223,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 	}
 
-	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, recent: IRecent, kind: { isDirty: boolean; windowState?: { isActive: boolean } }): IRecentlyOpenedPick {
+	private toQuickPick(modelService: IModelService, languageService: ILanguageService, labelService: ILabelService, environmentService: IWorkbenchEnvironmentService, recent: IRecent, kind: { isDirty: boolean; windowState?: { isActive: boolean } }): IRecentlyOpenedPick {
 		let openable: IWindowOpenable | undefined;
 		let iconClasses: string[];
 		let fullLabel: string | undefined;
@@ -249,7 +255,9 @@ abstract class BaseOpenRecentAction extends Action2 {
 			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
 
-		const { name, parentPath } = splitRecentLabel(fullLabel);
+		const { name, parentPath } = isRecentWorkspace(recent) && isEqual(recent.workspace.configPath, environmentService.agentSessionsWorkspace)
+			? { name: fullLabel, parentPath: undefined }
+			: splitRecentLabel(fullLabel);
 
 		const buttons: IQuickInputButton[] = [];
 		if (kind.isDirty) {
@@ -267,7 +275,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		return {
 			iconClasses,
 			label: name,
-			ariaLabel: kind.isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, 具有未保存更改的工作区", name) : localize('recentDirtyFolderAriaLabel', "{0}, 包含未保存更改的文件夹", name) : name,
+			ariaLabel: kind.isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
 			description: parentPath,
 			buttons,
 			openable,
@@ -285,8 +293,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		super({
 			id: OpenRecentAction.ID,
 			title: {
-				...localize2('openRecent', "打开最近的文件..."),
-				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "更多..."),
+				...localize2('openRecent', "Open Recent..."),
+				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
 			},
 			category: Categories.File,
 			f1: true,
@@ -313,7 +321,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: localize2('quickOpenRecent', '快速打开最近...'),
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -330,7 +338,7 @@ class ToggleFullScreenAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleFullScreen',
 			title: {
-				...localize2('toggleFullScreen', "切换全屏"),
+				...localize2('toggleFullScreen', "Toggle Full Screen"),
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 			},
 			category: Categories.View,
@@ -417,8 +425,8 @@ class NewWindowAction extends Action2 {
 		super({
 			id: 'workbench.action.newWindow',
 			title: {
-				...localize2('newWindow', "新建窗口"),
-				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "新建窗口"),
+				...localize2('newWindow', "New Window"),
+				mnemonicTitle: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window"),
 			},
 			f1: true,
 			keybinding: {
@@ -429,7 +437,7 @@ class NewWindowAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 3
+				order: 3,
 			}
 		});
 	}
@@ -505,7 +513,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: 'z_ConfirmClose',
 	command: {
 		id: 'workbench.action.toggleConfirmBeforeClose',
-		title: localize('miConfirmClose', "关闭前确认"),
+		title: localize('miConfirmClose', "Confirm Before Close"),
 		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
 	},
 	order: 1,
@@ -513,8 +521,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "打开最近的文件(R)"),
+	title: localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
 	submenu: MenuId.MenubarRecentMenu,
 	group: '2_open',
-	order: 4
+	order: 4,
 });

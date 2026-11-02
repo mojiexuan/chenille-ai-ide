@@ -18,6 +18,11 @@ export interface WorkspaceTrustRequestButton {
 	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel';
 }
 
+export interface ResourceTrustRequestOptions {
+	readonly uri: URI;
+	readonly message?: string;
+}
+
 export interface WorkspaceTrustRequestOptions {
 	readonly buttons?: WorkspaceTrustRequestButton[];
 	readonly message?: string;
@@ -55,6 +60,9 @@ export interface IWorkspaceTrustManagementService {
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
 	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
 
+	/** Automatically trusts an exact scheme and authority for the registration's lifetime, without persisting user trust. */
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable;
+
 	getTrustedUris(): URI[];
 	setTrustedUris(uris: URI[]): Promise<void>;
 
@@ -75,9 +83,13 @@ export interface IWorkspaceTrustRequestService {
 	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 	readonly onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
+	readonly onDidInitiateResourcesTrustRequest: Event<ResourceTrustRequestOptions>;
 
 	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
 	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+
+	completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void>;
+	requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined>;
 
 	cancelWorkspaceTrustRequest(): void;
 	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;

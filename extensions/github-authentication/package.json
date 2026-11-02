@@ -19,7 +19,9 @@
   ],
   "enabledApiProposals": [
     "authIssuers",
-    "authProviderSpecific"
+    "authProviderSpecific",
+    "authSessionAccountIcon",
+    "authSessionExpiration"
   ],
   "activationEvents": [],
   "capabilities": {
@@ -27,7 +29,8 @@
     "untrustedWorkspaces": {
       "supported": "limited",
       "restrictedConfigurations": [
-        "github-enterprise.uri"
+        "github-enterprise.uri",
+        "github-enterprise.uris"
       ]
     }
   },
@@ -55,7 +58,17 @@
           "github-enterprise.uri": {
             "type": "string",
             "markdownDescription": "%config.github-enterprise.uri.description%",
+            "markdownDeprecationMessage": "%config.github-enterprise.uri.deprecation%",
             "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
+          },
+          "github-enterprise.uris": {
+            "type": "array",
+            "markdownDescription": "%config.github-enterprise.uris.description%",
+            "items": {
+              "type": "string",
+              "pattern": "^(https?)://(?!github\\.com).*"
+            },
+            "uniqueItems": true
           },
           "github-authentication.useElectronFetch": {
             "type": "boolean",
@@ -78,9 +91,9 @@
   "browser": "./dist/browser/extension.js",
   "scripts": {
     "compile": "gulp compile-extension:github-authentication",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "compile-web": "node esbuild.browser.mts",
     "watch": "gulp watch-extension:github-authentication",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
+    "watch-web": "node esbuild.browser.mts --watch",
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
@@ -90,7 +103,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {

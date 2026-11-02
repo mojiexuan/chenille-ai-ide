@@ -41,9 +41,9 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = observableValue<ReadonlyMap<string, IMainThreadTestController>>('testControllers', new Map<string, IMainThreadTestController>());
 	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined; taskId: string | undefined }>();
-	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
-	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly cancelExtensionTestRunEmitter = this._register(new Emitter<{ runId: string | undefined; taskId: string | undefined }>());
+	private readonly willProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
+	private readonly didProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
 	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
 	private readonly isRefreshingTests: IContextKey<boolean>;
 	private readonly activeEditorHasTests: IContextKey<boolean>;
@@ -337,6 +337,10 @@ export class TestService extends Disposable implements ITestService {
 		return this.testControllers.get().get(id);
 	}
 
+	public getTestControllers(): Iterable<IMainThreadTestController> {
+		return this.testControllers.get().values();
+	}
+
 	/**
 	 * @inheritdoc
 	 */
@@ -447,5 +451,4 @@ export class TestService extends Disposable implements ITestService {
 		return;
 	}
 }
-
 

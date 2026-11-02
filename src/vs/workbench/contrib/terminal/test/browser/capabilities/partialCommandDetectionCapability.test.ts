@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker, Terminal } from '@xterm/xterm';
-import { deepEqual, deepStrictEqual } from 'assert';
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
@@ -27,7 +28,7 @@ suite('PartialCommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }) as Terminal);
 		onDidExecuteTextEmitter = store.add(new Emitter<void>());
 		capability = store.add(new PartialCommandDetectionCapability(xterm, onDidExecuteTextEmitter.event));
 		addEvents = [];
@@ -63,5 +64,21 @@ suite('PartialCommandDetectionCapability', () => {
 		await writeP(xterm, 'pwd');
 		onDidExecuteTextEmitter.fire();
 		deepEqual(addEvents.length, 2);
+	});
+
+	test('should clear all commands including scrollback', async () => {
+		await writeP(xterm, 'ab');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n\r\n');
+		await writeP(xterm, 'cd');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n');
+		deepStrictEqual(capability.commands.map(e => e.line), [0, 2]);
+		await writeP(xterm, 'line\r\n'.repeat(xterm.rows));
+		strictEqual(xterm.buffer.active.baseY > 0, true);
+
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
 	});
 });

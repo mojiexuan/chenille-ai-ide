@@ -17,7 +17,7 @@ function patchGrammar(grammar) {
 			rule.include = 'text.html.derivative';
 		}
 		for (let property in rule) {
-			let value = rule[property];
+			let value = rule[property	];
 			if (typeof value === 'object') {
 				visit(value, { node: rule, property: property, parent: parent });
 			}
@@ -37,8 +37,8 @@ function patchGrammar(grammar) {
 	return grammar;
 }
 
-const razorGrammarRepo = 'dotnet/razor';
-const grammarPath = 'src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json';
+const razorGrammarRepo = 'dotnet/roslyn';
+const grammarPath = 'src/Razor/src/Razor/src/Microsoft.VisualStudio.RazorExtension/EmbeddedGrammars/aspnetcorerazor.tmLanguage.json';
 vscodeGrammarUpdater.update(razorGrammarRepo, grammarPath, './syntaxes/cshtml.tmLanguage.json', grammar => patchGrammar(grammar), 'main');
 
 

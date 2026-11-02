@@ -12,8 +12,17 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, IsSessionsWindowContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
+
+/**
+ * Menu group for actions contributed to {@link MenuId.TitleBar} that should render
+ * **before** the layout controls (instead of trailing them like the default group).
+ * Use this group to surface a leading affordance that should remain visible even
+ * when layout controls are toggled off.
+ */
+export const TitleBarLeadingActionsGroup = '0_leading';
 
 // --- Context Menu Actions --- //
 
@@ -52,19 +61,25 @@ export class ToggleTitleBarConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleTitleBarConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', '命令中心'), localize('toggle.commandCenterDescription', "切换标题栏中命令中心的可见性"), 1, IsCompactTitleBarContext.toNegated());
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), localize('toggle.commandCenterDescription', "Toggle visibility of the Command Center in title bar"), 1, IsCompactTitleBarContext.toNegated());
 	}
 });
 
 registerAction2(class ToggleNavigationControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('workbench.navigationControl.enabled', localize('toggle.navigation', '导航控件'), localize('toggle.navigationDescription', "切换标题栏中导航控件的可见性"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has('config.window.commandCenter')));
+		super('workbench.navigationControl.enabled', localize('toggle.navigation', 'Navigation Controls'), localize('toggle.navigationDescription', "Toggle visibility of the Navigation Controls in title bar"), 2, ContextKeyExpr.and(IsCompactTitleBarContext.toNegated(), ContextKeyExpr.has(`config.${LayoutSettings.COMMAND_CENTER}`)));
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', '布局控件'), localize('toggle.layoutDescription', "切换标题栏中布局控件的可见性"), 4);
+		super(LayoutSettings.LAYOUT_ACTIONS, localize('toggle.layout', 'Layout Controls'), localize('toggle.layoutDescription', "Toggle visibility of the Layout Controls in title bar"), 4);
+	}
+});
+
+registerAction2(class ToggleNotificationsButton extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(NotificationsSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.TOP_RIGHT));
 	}
 });
 
@@ -72,7 +87,7 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}`,
-			title: localize('toggle.hideCustomTitleBar', '隐藏自定义标题栏'),
+			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
 				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), group: '3_toggle' },
@@ -90,7 +105,7 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 	constructor() {
 		super({
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.windowed`,
-			title: localize('toggle.hideCustomTitleBarInFullScreen', '在全屏模式下隐藏自定义标题栏'),
+			title: localize('toggle.hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 				{ id: MenuId.TitleBarTitleContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
@@ -109,24 +124,27 @@ class ToggleCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `toggle.toggleCustomTitleBar`,
-			title: localize('toggle.customTitleBar', '自定义标题栏'),
+			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
 			toggled: TitleBarVisibleContext,
 			menu: [
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					order: 6,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext.negate(),
+						ContextKeyExpr.or(
 							ContextKeyExpr.and(
-								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
-								ContextKeyExpr.equals('config.window.commandCenter', false),
-								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
-							)?.negate()
-						),
-						IsMainWindowFullscreenContext
+								ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+									ContextKeyExpr.equals('config.window.commandCenter', false),
+									ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
+								)?.negate()
+							),
+							IsMainWindowFullscreenContext
+						)
 					),
 					group: '2_workbench_layout'
 				},
@@ -164,7 +182,7 @@ registerAction2(class ShowCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `showCustomTitleBar`,
-			title: localize2('showCustomTitleBar', "显示自定义标题栏"),
+			title: localize2('showCustomTitleBar', "Show Custom Title Bar"),
 			precondition: TitleBarVisibleContext.negate(),
 			f1: true
 		});
@@ -180,7 +198,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBar`,
-			title: localize2('hideCustomTitleBar', "隐藏自定义标题栏"),
+			title: localize2('hideCustomTitleBar', "Hide Custom Title Bar"),
 			precondition: TitleBarVisibleContext,
 			f1: true
 		});
@@ -196,7 +214,7 @@ registerAction2(class HideCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `hideCustomTitleBarInFullScreen`,
-			title: localize2('hideCustomTitleBarInFullScreen', "在全屏模式下隐藏自定义标题栏"),
+			title: localize2('hideCustomTitleBarInFullScreen', "Hide Custom Title Bar In Full Screen"),
 			precondition: ContextKeyExpr.and(TitleBarVisibleContext, IsMainWindowFullscreenContext),
 			f1: true
 		});
@@ -219,7 +237,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 
 		super({
 			id: `toggle.${ToggleEditorActions.settingsID}`,
-			title: localize('toggle.editorActions', '编辑器操作'),
+			title: localize('toggle.editorActions', 'Editor Actions'),
 			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 3, when: titleBarContextCondition, group: '2_config' },
@@ -261,8 +279,8 @@ registerAction2(class ToggleEditorActions extends Action2 {
 
 export const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
 	id: ACCOUNTS_ACTIVITY_ID,
-	label: localize('accounts', "账户"),
-	tooltip: localize('accounts', "账户"),
+	label: localize('accounts', "Accounts"),
+	tooltip: localize('accounts', "Accounts"),
 	class: undefined,
 	enabled: true,
 	run: function (): void { }
@@ -270,8 +288,8 @@ export const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
 
 export const GLOBAL_ACTIVITY_TITLE_ACTION: IAction = {
 	id: GLOBAL_ACTIVITY_ID,
-	label: localize('manage', "管理"),
-	tooltip: localize('manage', "管理"),
+	label: localize('manage', "Manage"),
+	tooltip: localize('manage', "Manage"),
 	class: undefined,
 	enabled: true,
 	run: function (): void { }

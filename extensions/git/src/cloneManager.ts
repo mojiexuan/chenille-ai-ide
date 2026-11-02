@@ -11,6 +11,7 @@ import { l10n, workspace, window, Uri, ProgressLocation, commands } from 'vscode
 import { RepositoryCache, RepositoryCacheInfo } from './repositoryCache';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Model } from './model';
+import { getSafeNotificationMessage } from './notification';
 
 type ApiPostCloneAction = 'none';
 enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace, None }
@@ -20,6 +21,7 @@ export interface CloneOptions {
 	ref?: string;
 	recursive?: boolean;
 	postCloneAction?: ApiPostCloneAction;
+	returnRepositoryPath?: boolean;
 }
 
 export class CloneManager {
@@ -39,7 +41,8 @@ export class CloneManager {
 			/* __GDPR__
 				"clone" : {
 					"owner": "lszomoru",
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
@@ -50,7 +53,7 @@ export class CloneManager {
 
 		const cachedRepository = this.repositoryCache.get(url);
 		if (cachedRepository && (cachedRepository.length > 0)) {
-			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref);
+			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref, options.returnRepositoryPath);
 		}
 		return this.cloneRepository(url, options.parentPath, options);
 	}
@@ -74,7 +77,8 @@ export class CloneManager {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+						"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
@@ -88,7 +92,10 @@ export class CloneManager {
 		try {
 			const opts = {
 				location: ProgressLocation.Notification,
-				title: l10n.t('Cloning git repository "{0}"...', url),
+				title: getSafeNotificationMessage(
+					l10n.t('Cloning git repository "{0}"...', url),
+					l10n.t('Cloning git repository...'),
+				),
 				cancellable: true
 			};
 
@@ -105,7 +112,8 @@ export class CloneManager {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+						"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
@@ -115,7 +123,8 @@ export class CloneManager {
 				/* __GDPR__
 					"clone" : {
 						"owner": "lszomoru",
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" }
+						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The outcome of the git operation" },
+						"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Indicates whether the folder is opened following the clone operation" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
@@ -144,14 +153,14 @@ export class CloneManager {
 		}
 
 		if (action === undefined) {
-			let message = l10n.t('您想打开存储库吗？');
+			let message = l10n.t('Would you like to open the repository?');
 			const open = l10n.t('Open');
-			const openNewWindow = l10n.t('在新窗口中打开');
+			const openNewWindow = l10n.t('Open in New Window');
 			const choices = [open, openNewWindow];
 
-			const addToWorkspace = l10n.t('添加到工作区');
+			const addToWorkspace = l10n.t('Add to Workspace');
 			if (workspace.workspaceFolders) {
-				message = l10n.t('您想打开存储库，还是将其添加到当前工作区？');
+				message = l10n.t('Would you like to open the repository, or add it to the current workspace?');
 				choices.push(addToWorkspace);
 			}
 
@@ -186,12 +195,12 @@ export class CloneManager {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
-				const label = isWorkspace ? l10n.t('工作区: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
+				const label = isWorkspace ? l10n.t('Workspace: {0}', path.basename(knownFolder.workspacePath, '.code-workspace')) : path.basename(knownFolder.workspacePath);
 				return { label, description: knownFolder.workspacePath, item: knownFolder };
 			});
-			const cloneAgain = { label: l10n.t('再次克隆') };
+			const cloneAgain = { label: l10n.t('Clone again') };
 			items.push(cloneAgain);
-			const placeHolder = l10n.t('打开现有存储库克隆');
+			const placeHolder = l10n.t('Open Existing Repository Clone');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
 			if (pick === cloneAgain) {
 				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
@@ -205,10 +214,11 @@ export class CloneManager {
 		}
 	}
 
-	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string): Promise<string | undefined> {
-		// Gather existing folders/workspace files (ignore ones that no longer exist)
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string, returnRepositoryPath?: boolean): Promise<string | undefined> {
+		// Ignore cached entries whose requested path no longer exists.
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
-			const stat = await fs.promises.stat(folder.workspacePath).catch(() => undefined);
+			const cachedPath = returnRepositoryPath ? folder.repositoryPath : folder.workspacePath;
+			const stat = await fs.promises.stat(cachedPath).catch(() => undefined);
 			if (stat) {
 				return folder;
 			}
@@ -227,7 +237,7 @@ export class CloneManager {
 		});
 
 		if (matchingInCurrentWorkspace) {
-			return matchingInCurrentWorkspace.workspacePath;
+			return returnRepositoryPath ? matchingInCurrentWorkspace.repositoryPath : matchingInCurrentWorkspace.workspacePath;
 		}
 
 		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
@@ -236,7 +246,9 @@ export class CloneManager {
 		}
 		if (repoForWorkspace) {
 			await this.doPostCloneAction(repoForWorkspace, postCloneAction);
-			return repoForWorkspace;
+			return returnRepositoryPath
+				? existingCachedRepositories.find(repository => repository.workspacePath === repoForWorkspace)?.repositoryPath ?? repoForWorkspace
+				: repoForWorkspace;
 		}
 		return;
 	}

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes.js';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol.js';
@@ -51,6 +49,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _backgroundColor?: ThemeColor;
 	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _latestCommandRegistration?: DisposableStore;
+	private _latestCommandRegistrationWasPublished = false;
 	private readonly _staleCommandRegistrations = new DisposableStore();
 	private _command?: {
 		readonly fromApi: string | vscode.Command;
@@ -208,9 +207,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		}
 
 		if (this._latestCommandRegistration) {
-			this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			if (this._latestCommandRegistrationWasPublished) {
+				// Hidden entries can still have renderer clicks in flight.
+				this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			} else {
+				this._latestCommandRegistration.dispose();
+			}
 		}
 		this._latestCommandRegistration = new DisposableStore();
+		this._latestCommandRegistrationWasPublished = false;
 		if (typeof command === 'string') {
 			this._command = {
 				fromApi: command,
@@ -297,6 +302,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 
+			this._latestCommandRegistrationWasPublished = true;
+
 			// clean-up state commands _after_ updating the UI
 			this._staleCommandRegistrations.clear();
 		}, 0);
@@ -304,6 +311,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	public dispose(): void {
 		this.hide();
+		this._staleCommandRegistrations.dispose();
+		this._latestCommandRegistration?.dispose();
 		this._onDispose?.();
 		this._disposed = true;
 	}

@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+	 * Defaults to false.
+	 */
+	wordWrapIndicator?: boolean;
+	/**
 	 * Override the `wordWrap` setting.
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -458,7 +463,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count or when pasting column selections into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -496,7 +501,7 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
-	quickSuggestions?: boolean | IQuickSuggestionsOptions;
+	quickSuggestions?: boolean | QuickSuggestionsValue | IQuickSuggestionsOptions;
 	/**
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 10 (ms)
@@ -567,6 +572,16 @@ export interface IEditorOptions {
 	 */
 	formatOnPaste?: boolean;
 	/**
+	 * Controls the width used to render full-width characters.
+	 * Defaults to 'font'.
+	 */
+	fullwidthCharacterWidth?: 'font' | 'twoCells';
+	/**
+	 * Controls whether double-clicking next to a bracket or quote selects the content inside.
+	 * Defaults to true.
+	 */
+	doubleClickSelectsBlock?: boolean;
+	/**
 	 * Controls if the editor should allow to move selections via drag and drop.
 	 * Defaults to false.
 	 */
@@ -632,6 +647,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlightMaxLength?: number;
 	/**
+	 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+	 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
+	 */
+	selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -646,6 +666,11 @@ export interface IEditorOptions {
 	 * Maximum value is 2000
 	 */
 	occurrencesHighlightDelay?: number;
+	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -858,6 +883,8 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
+export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
@@ -895,6 +922,13 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to `false`.
 	*/
 	compactMode?: boolean;
+
+	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	*/
+	hideOriginalLineNumbers?: boolean;
 
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
@@ -957,7 +991,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced';
+	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -1449,13 +1483,13 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "使用平台 API 检测是否连接了屏幕阅读器。"),
-					nls.localize('accessibilitySupport.on', "针对屏幕阅读器的使用进行优化。"),
-					nls.localize('accessibilitySupport.off', "假定未连接屏幕阅读器。"),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached."),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached."),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "控制 UI 是否应在针对屏幕阅读器优化的模式下运行。")
+				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1516,12 +1550,12 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, IEditorComm
 				'editor.comments.insertSpace': {
 					type: 'boolean',
 					default: defaults.insertSpace,
-					description: nls.localize('comments.insertSpace', "控制在添加注释时是否插入空格字符。")
+					description: nls.localize('comments.insertSpace', "Controls whether a space character is inserted when commenting.")
 				},
 				'editor.comments.ignoreEmptyLines': {
 					type: 'boolean',
 					default: defaults.ignoreEmptyLines,
-					description: nls.localize('comments.ignoreEmptyLines', '控制在切换、添加或删除行注释操作时是否忽略空行。')
+					description: nls.localize('comments.ignoreEmptyLines', 'Controls if empty lines should be ignored with toggle, add or remove actions for line comments.')
 				},
 			}
 		);
@@ -1693,7 +1727,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 	constructor() {
 		super(
 			EditorOption.emptySelectionClipboard, 'emptySelectionClipboard', true,
-			{ description: nls.localize('emptySelectionClipboard', "控制在没有选择内容时进行复制是否复制当前行。") }
+			{ description: nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.") }
 		);
 	}
 
@@ -1740,6 +1774,10 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
+	 * Controls whether to close the Find Widget after an explicit find navigation command lands on a match.
+	 */
+	closeOnResult?: boolean;
+	/**
 	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
@@ -1767,6 +1805,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
+			closeOnResult: false,
 			history: 'workspace',
 			replaceHistory: 'workspace',
 		};
@@ -1776,70 +1815,75 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 				'editor.find.cursorMoveOnType': {
 					type: 'boolean',
 					default: defaults.cursorMoveOnType,
-					description: nls.localize('find.cursorMoveOnType', "控制在键入时光标是否应跳转到查找匹配项。")
+					description: nls.localize('find.cursorMoveOnType', "Controls whether the cursor should jump to find matches while typing.")
 				},
 				'editor.find.seedSearchStringFromSelection': {
 					type: 'string',
 					enum: ['never', 'always', 'selection'],
 					default: defaults.seedSearchStringFromSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.seedSearchStringFromSelection.never', '从不使用编辑器选择内容作为搜索字符串。'),
-						nls.localize('editor.find.seedSearchStringFromSelection.always', '始终使用编辑器选择内容作为搜索字符串，包括光标位置的单词。'),
-						nls.localize('editor.find.seedSearchStringFromSelection.selection', '仅使用编辑器选择内容作为搜索字符串。')
+						nls.localize('editor.find.seedSearchStringFromSelection.never', 'Never seed search string from the editor selection.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.always', 'Always seed search string from the editor selection, including word at cursor position.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.selection', 'Only seed search string from the editor selection.')
 					],
-					description: nls.localize('find.seedSearchStringFromSelection', "控制查找小组件中的搜索字符串是否从编辑器选择内容中获取。")
+					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
 					type: 'string',
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', '从不自动启用"在选择内容中查找"(默认)。'),
-						nls.localize('editor.find.autoFindInSelection.always', '始终自动启用"在选择内容中查找"。'),
-						nls.localize('editor.find.autoFindInSelection.multiline', '当选择了多行内容时自动启用"在选择内容中查找"。')
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in Selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in Selection automatically.'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in Selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', '控制自动启用"在选择内容中查找"的条件。')
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on Find in Selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
 					default: defaults.globalFindClipboard,
-					description: nls.localize('find.globalFindClipboard', "控制查找小组件是否应在 macOS 上读取或修改共享查找剪贴板。"),
+					description: nls.localize('find.globalFindClipboard', "Controls whether the Find Widget should read or modify the shared find clipboard on macOS."),
 					included: platform.isMacintosh
 				},
 				'editor.find.addExtraSpaceOnTop': {
 					type: 'boolean',
 					default: defaults.addExtraSpaceOnTop,
-					description: nls.localize('find.addExtraSpaceOnTop', "控制查找小组件是否应在编辑器顶部添加额外的行。当为 true 时，可以在查找小组件可见时滚动到第一行之前。")
+					description: nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
 				},
 				'editor.find.loop': {
 					type: 'boolean',
 					default: defaults.loop,
-					description: nls.localize('find.loop', "控制搜索在找不到更多匹配项时是否自动从头(或末尾)重新开始。")
+					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
+				},
+				'editor.find.closeOnResult': {
+					type: 'boolean',
+					default: defaults.closeOnResult,
+					description: nls.localize('find.closeOnResult', "Controls whether the Find Widget closes after an explicit find navigation command lands on a result.")
 				},
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
 					default: 'workspace',
 					enumDescriptions: [
-						nls.localize('editor.find.history.never', '不存储查找小组件的搜索历史记录。'),
-						nls.localize('editor.find.history.workspace', '在活动工作区中存储搜索历史记录'),
+						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
 					],
-					description: nls.localize('find.history', "控制查找小组件历史记录的存储方式")
+					description: nls.localize('find.history', "Controls how the find widget history should be stored")
 				},
 				'editor.find.replaceHistory': {
 					type: 'string',
 					enum: ['never', 'workspace'],
 					default: 'workspace',
 					enumDescriptions: [
-						nls.localize('editor.find.replaceHistory.never', '不存储替换小组件的历史记录。'),
-						nls.localize('editor.find.replaceHistory.workspace', '在活动工作区中存储替换历史记录'),
+						nls.localize('editor.find.replaceHistory.never', 'Do not store history from the replace widget.'),
+						nls.localize('editor.find.replaceHistory.workspace', 'Store replace history across the active workspace'),
 					],
-					description: nls.localize('find.replaceHistory', "控制替换小组件历史记录的存储方式")
+					description: nls.localize('find.replaceHistory', "Controls how the replace widget history should be stored")
 				},
 				'editor.find.findOnType': {
 					type: 'boolean',
 					default: defaults.findOnType,
-					description: nls.localize('find.findOnType', "控制查找小组件是否应在键入时进行搜索。")
+					description: nls.localize('find.findOnType', "Controls whether the Find Widget should search as you type.")
 				},
 			}
 		);
@@ -1862,6 +1906,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			closeOnResult: boolean(input.closeOnResult, this.defaultValue.closeOnResult),
 			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 			replaceHistory: stringSet<'never' | 'workspace'>(input.replaceHistory, this.defaultValue.replaceHistory, ['never', 'workspace']),
 		};
@@ -1887,14 +1932,14 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 				anyOf: [
 					{
 						type: 'boolean',
-						description: nls.localize('fontLigatures', "启用/禁用字体连字('calt' 和 'liga' 字体特性)。更改为字符串可对 'font-feature-settings' CSS 属性进行精细控制。"),
+						description: nls.localize('fontLigatures', "Enables/Disables font ligatures ('calt' and 'liga' font features). Change this to a string for fine-grained control of the 'font-feature-settings' CSS property."),
 					},
 					{
 						type: 'string',
-						description: nls.localize('fontFeatureSettings', "显式的 'font-feature-settings' CSS 属性。如果只需要启用/禁用连字，可以传递布尔值。")
+						description: nls.localize('fontFeatureSettings', "Explicit 'font-feature-settings' CSS property. A boolean can be passed instead if one only needs to turn on/off ligatures.")
 					}
 				],
-				description: nls.localize('fontLigaturesGeneral', "配置字体连字或字体特性。可以是布尔值以启用/禁用连字，也可以是 CSS 'font-feature-settings' 属性的字符串值。"),
+				description: nls.localize('fontLigaturesGeneral', "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property."),
 				default: false
 			}
 		);
@@ -2066,6 +2111,24 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 
 //#engregion
 
+//#region effectiveFullwidthCharacterWidth
+
+class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'> {
+
+	constructor() {
+		super(EditorOption.effectiveFullwidthCharacterWidth, 'font');
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): 'font' | 'twoCells' {
+		if (options.get(EditorOption.fullwidthCharacterWidth) === 'twoCells' && env.fontInfo.isMonospace) {
+			return 'twoCells';
+		}
+		return 'font';
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -2078,7 +2141,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 				minimum: 6,
 				maximum: 100,
 				default: EDITOR_FONT_DEFAULTS.fontSize,
-				description: nls.localize('fontSize', "控制字体大小(以像素为单位)。")
+				description: nls.localize('fontSize', "Controls the font size in pixels.")
 			}
 		);
 	}
@@ -2115,7 +2178,7 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string,
 						type: 'number',
 						minimum: EditorFontWeight.MINIMUM_VALUE,
 						maximum: EditorFontWeight.MAXIMUM_VALUE,
-						errorMessage: nls.localize('fontWeightErrorMessage', "只允许 \"normal\" 和 \"bold\" 关键字或 1 到 1000 之间的数字。")
+						errorMessage: nls.localize('fontWeightErrorMessage', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
 					},
 					{
 						type: 'string',
@@ -2126,7 +2189,7 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string,
 					}
 				],
 				default: EDITOR_FONT_DEFAULTS.fontWeight,
-				description: nls.localize('fontWeight', "控制字体粗细。接受 \"normal\" 和 \"bold\" 关键字或 1 到 1000 之间的数字。")
+				description: nls.localize('fontWeight', "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.")
 			}
 		);
 	}
@@ -2195,9 +2258,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 			enum: ['peek', 'gotoAndPeek', 'goto'],
 			default: defaults.multiple,
 			enumDescriptions: [
-				nls.localize('editor.gotoLocation.multiple.peek', '显示结果的速览视图(默认)'),
-				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', '转到主要结果并显示速览视图'),
-				nls.localize('editor.gotoLocation.multiple.goto', '转到主要结果并启用无速览导航到其他结果')
+				nls.localize('editor.gotoLocation.multiple.peek', 'Show Peek view of the results (default)'),
+				nls.localize('editor.gotoLocation.multiple.gotoAndPeek', 'Go to the primary result and show a Peek view'),
+				nls.localize('editor.gotoLocation.multiple.goto', 'Go to the primary result and enable Peek-less navigation to others')
 			]
 		};
 		const alternativeCommandOptions = ['', 'editor.action.referenceSearch.trigger', 'editor.action.goToReferences', 'editor.action.peekImplementation', 'editor.action.goToImplementation', 'editor.action.peekTypeDefinition', 'editor.action.goToTypeDefinition', 'editor.action.peekDeclaration', 'editor.action.revealDeclaration', 'editor.action.peekDefinition', 'editor.action.revealDefinitionAside', 'editor.action.revealDefinition'];
@@ -2208,23 +2271,23 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 					deprecationMessage: nls.localize('editor.gotoLocation.multiple.deprecated', "This setting is deprecated, please use separate settings like 'editor.editor.gotoLocation.multipleDefinitions' or 'editor.editor.gotoLocation.multipleImplementations' instead."),
 				},
 				'editor.gotoLocation.multipleDefinitions': {
-					description: nls.localize('editor.editor.gotoLocation.multipleDefinitions', '控制当存在多个目标位置时"转到定义"命令的行为。'),
+					description: nls.localize('editor.editor.gotoLocation.multipleDefinitions', "Controls the behavior the 'Go to Definition'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.multipleTypeDefinitions': {
-					description: nls.localize('editor.editor.gotoLocation.multipleTypeDefinitions', '控制当存在多个目标位置时"转到类型定义"命令的行为。'),
+					description: nls.localize('editor.editor.gotoLocation.multipleTypeDefinitions', "Controls the behavior the 'Go to Type Definition'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.multipleDeclarations': {
-					description: nls.localize('editor.editor.gotoLocation.multipleDeclarations', '控制当存在多个目标位置时"转到声明"命令的行为。'),
+					description: nls.localize('editor.editor.gotoLocation.multipleDeclarations', "Controls the behavior the 'Go to Declaration'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.multipleImplementations': {
-					description: nls.localize('editor.editor.gotoLocation.multipleImplemenattions', '控制当存在多个目标位置时"转到实现"命令的行为。'),
+					description: nls.localize('editor.editor.gotoLocation.multipleImplemenattions', "Controls the behavior the 'Go to Implementations'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.multipleReferences': {
-					description: nls.localize('editor.editor.gotoLocation.multipleReferences', '控制当存在多个目标位置时"转到引用"命令的行为。'),
+					description: nls.localize('editor.editor.gotoLocation.multipleReferences', "Controls the behavior the 'Go to References'-command when multiple target locations exist."),
 					...jsonSubset,
 				},
 				'editor.gotoLocation.alternativeDefinitionCommand': {
@@ -2317,6 +2380,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+	 * Defaults to true.
+	 */
+	showLongLineWarning?: boolean;
 }
 
 /**
@@ -2333,6 +2401,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showLongLineWarning: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2342,34 +2411,40 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					enum: ['on', 'off', 'onKeyboardModifier'],
 					default: defaults.enabled,
 					markdownEnumDescriptions: [
-						nls.localize('hover.enabled.on', "已启用悬停。"),
-						nls.localize('hover.enabled.off', "已禁用悬停。"),
-						nls.localize('hover.enabled.onKeyboardModifier', "按住 `{0}` 或 `Alt`(与 `#editor.multiCursorModifier#` 相反的修饰键)时显示悬停", platform.isMacintosh ? `Command` : `Control`)
+						nls.localize('hover.enabled.on', "Hover is enabled."),
+						nls.localize('hover.enabled.off', "Hover is disabled."),
+						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding `{0}` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Command` : `Control`)
 					],
-					description: nls.localize('hover.enabled', "控制是否显示悬停。")
+					description: nls.localize('hover.enabled', "Controls whether the hover is shown."),
+					keywords: ['hint', 'info', 'tooltip']
 				},
 				'editor.hover.delay': {
 					type: 'number',
 					default: defaults.delay,
 					minimum: 0,
 					maximum: 10000,
-					description: nls.localize('hover.delay', "控制显示悬停之前的延迟时间(以毫秒为单位)。")
+					description: nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 				},
 				'editor.hover.sticky': {
 					type: 'boolean',
 					default: defaults.sticky,
-					description: nls.localize('hover.sticky', "控制当鼠标移动到悬停上方时悬停是否应保持可见。")
+					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
 				'editor.hover.hidingDelay': {
 					type: 'integer',
 					minimum: 0,
 					default: defaults.hidingDelay,
-					markdownDescription: nls.localize('hover.hidingDelay', "控制鼠标移出悬停后隐藏悬停的延迟时间(以毫秒为单位)。需要启用 `#editor.hover.sticky#`。")
+					markdownDescription: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after which the hover is hidden. Requires `#editor.hover.sticky#` to be enabled.")
 				},
 				'editor.hover.above': {
 					type: 'boolean',
 					default: defaults.above,
-					description: nls.localize('hover.above', "如果有空间，优先在行上方显示悬停。")
+					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
+				},
+				'editor.hover.showLongLineWarning': {
+					type: 'boolean',
+					default: defaults.showLongLineWarning,
+					description: nls.localize('hover.showLongLineWarning', "Controls whether long line warning hovers are shown, such as when tokenization is skipped or rendering is paused.")
 				},
 			}
 		);
@@ -2386,6 +2461,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
 	}
 }
@@ -2858,6 +2934,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -2945,7 +3022,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
-			wrappingColumn = Math.max(1, viewportColumn);
+			// (leaving the rightmost column for the word wrap indicator so that it does not overlap
+			// the wrapped text or end up underneath the vertical scrollbar)
+			wrappingColumn = Math.max(1, viewportColumn - (wordWrapIndicator ? 1 : 0));
 			if (wordWrap === 'bounded') {
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
@@ -3125,7 +3204,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "在滚动时在编辑器顶部显示嵌套的当前作用域。")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
@@ -3426,41 +3505,41 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 				'editor.minimap.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('minimap.enabled', "控制是否显示小地图。")
+					description: nls.localize('minimap.enabled', "Controls whether the minimap is shown.")
 				},
 				'editor.minimap.autohide': {
 					type: 'string',
 					enum: ['none', 'mouseover', 'scroll'],
 					enumDescriptions: [
-						nls.localize('minimap.autohide.none', "始终显示小地图。"),
-						nls.localize('minimap.autohide.mouseover', "当鼠标不在小地图上时隐藏小地图，当鼠标在小地图上时显示小地图。"),
-						nls.localize('minimap.autohide.scroll', "仅在编辑器滚动时显示小地图"),
+						nls.localize('minimap.autohide.none', "The minimap is always shown."),
+						nls.localize('minimap.autohide.mouseover', "The minimap is hidden when mouse is not over the minimap and shown when mouse is over the minimap."),
+						nls.localize('minimap.autohide.scroll', "The minimap is only shown when the editor is scrolled"),
 					],
 					default: defaults.autohide,
-					description: nls.localize('minimap.autohide', "控制小地图是否自动隐藏。")
+					description: nls.localize('minimap.autohide', "Controls whether the minimap is hidden automatically.")
 				},
 				'editor.minimap.size': {
 					type: 'string',
 					enum: ['proportional', 'fill', 'fit'],
 					enumDescriptions: [
-						nls.localize('minimap.size.proportional', "小地图的大小与编辑器内容相同(可能会滚动)。"),
-						nls.localize('minimap.size.fill', "小地图将根据需要拉伸或收缩以填充编辑器的高度(不滚动)。"),
-						nls.localize('minimap.size.fit', "小地图将根据需要收缩，使其永远不会大于编辑器(不滚动)。"),
+						nls.localize('minimap.size.proportional', "The minimap has the same size as the editor contents (and might scroll)."),
+						nls.localize('minimap.size.fill', "The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling)."),
+						nls.localize('minimap.size.fit', "The minimap will shrink as necessary to never be larger than the editor (no scrolling)."),
 					],
 					default: defaults.size,
-					description: nls.localize('minimap.size', "控制小地图的大小。")
+					description: nls.localize('minimap.size', "Controls the size of the minimap.")
 				},
 				'editor.minimap.side': {
 					type: 'string',
 					enum: ['left', 'right'],
 					default: defaults.side,
-					description: nls.localize('minimap.side', "控制在哪一侧渲染小地图。")
+					description: nls.localize('minimap.side', "Controls the side where to render the minimap.")
 				},
 				'editor.minimap.showSlider': {
 					type: 'string',
 					enum: ['always', 'mouseover'],
 					default: defaults.showSlider,
-					description: nls.localize('minimap.showSlider', "控制何时显示小地图滑块。")
+					description: nls.localize('minimap.showSlider', "Controls when the minimap slider is shown.")
 				},
 				'editor.minimap.scale': {
 					type: 'number',
@@ -3468,17 +3547,17 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					minimum: 1,
 					maximum: 3,
 					enum: [1, 2, 3],
-					description: nls.localize('minimap.scale', "小地图中绘制内容的比例: 1、2 或 3。")
+					description: nls.localize('minimap.scale', "Scale of content drawn in the minimap: 1, 2 or 3.")
 				},
 				'editor.minimap.renderCharacters': {
 					type: 'boolean',
 					default: defaults.renderCharacters,
-					description: nls.localize('minimap.renderCharacters', "在行上渲染实际字符而不是色块。")
+					description: nls.localize('minimap.renderCharacters', "Render the actual characters on a line as opposed to color blocks.")
 				},
 				'editor.minimap.maxColumn': {
 					type: 'number',
 					default: defaults.maxColumn,
-					description: nls.localize('minimap.maxColumn', "限制小地图的宽度，最多渲染一定数量的列。")
+					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 				},
 				'editor.minimap.showRegionSectionHeaders': {
 					type: 'boolean',
@@ -3588,14 +3667,14 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, IEditorPaddin
 					default: 0,
 					minimum: 0,
 					maximum: 1000,
-					description: nls.localize('padding.top', "控制编辑器顶部边缘与第一行之间的空间量。")
+					description: nls.localize('padding.top', "Controls the amount of space between the top edge of the editor and the first line.")
 				},
 				'editor.padding.bottom': {
 					type: 'number',
 					default: 0,
 					minimum: 0,
 					maximum: 1000,
-					description: nls.localize('padding.bottom', "控制编辑器底部边缘与最后一行之间的空间量。")
+					description: nls.localize('padding.bottom', "Controls the amount of space between the bottom edge of the editor and the last line.")
 				}
 			}
 		);
@@ -3651,12 +3730,12 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 				'editor.parameterHints.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('parameterHints.enabled', "启用一个弹出窗口，在您键入时显示参数文档和类型信息。")
+					description: nls.localize('parameterHints.enabled', "Enables a pop-up that shows parameter documentation and type information as you type.")
 				},
 				'editor.parameterHints.cycle': {
 					type: 'boolean',
 					default: defaults.cycle,
-					description: nls.localize('parameterHints.cycle', "控制参数提示菜单在到达列表末尾时是循环还是关闭。")
+					description: nls.localize('parameterHints.cycle', "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.")
 				},
 			}
 		);
@@ -3712,7 +3791,7 @@ class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, strin
 
 //#region quickSuggestions
 
-export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+export type QuickSuggestionsValue = 'on' | 'inline' | 'off' | 'offWhenInlineCompletions';
 
 /**
  * Configuration options for quick suggestions
@@ -3729,13 +3808,13 @@ export interface InternalQuickSuggestionsOptions {
 	readonly strings: QuickSuggestionsValue;
 }
 
-class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
+class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, boolean | QuickSuggestionsValue | IQuickSuggestionsOptions, InternalQuickSuggestionsOptions> {
 
 	public override readonly defaultValue: InternalQuickSuggestionsOptions;
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		};
@@ -3743,32 +3822,45 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			{ type: 'boolean' },
 			{
 				type: 'string',
-				enum: ['on', 'inline', 'off'],
-				enumDescriptions: [nls.localize('on', "快速建议显示在建议小组件内"), nls.localize('inline', "快速建议显示为幽灵文本"), nls.localize('off', "已禁用快速建议")]
+				enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
+				enumDescriptions: [nls.localize('on', "Quick suggestions show inside the suggest widget"), nls.localize('inline', "Quick suggestions show as ghost text"), nls.localize('off', "Quick suggestions are disabled"), nls.localize('offWhenInlineCompletions', "Quick suggestions are disabled when inline completions are showing")]
 			}
 		];
 		super(EditorOption.quickSuggestions, 'quickSuggestions', defaults, {
-			type: 'object',
-			additionalProperties: false,
-			properties: {
-				strings: {
-					anyOf: types,
-					default: defaults.strings,
-					description: nls.localize('quickSuggestions.strings', "在字符串内启用快速建议。")
+			anyOf: [
+				{ type: 'boolean' },
+				{
+					type: 'string',
+					enum: ['on', 'inline', 'off', 'offWhenInlineCompletions'],
+					enumDescriptions: [nls.localize('quickSuggestions.topLevel.on', "Quick suggestions are enabled for all token types"), nls.localize('quickSuggestions.topLevel.inline', "Quick suggestions show as ghost text for all token types"), nls.localize('quickSuggestions.topLevel.off', "Quick suggestions are disabled for all token types"), nls.localize('quickSuggestions.topLevel.offWhenInlineCompletions', "Quick suggestions are disabled for all token types when inline completions are showing")]
 				},
-				comments: {
-					anyOf: types,
-					default: defaults.comments,
-					description: nls.localize('quickSuggestions.comments', "在注释内启用快速建议。")
-				},
-				other: {
-					anyOf: types,
-					default: defaults.other,
-					description: nls.localize('quickSuggestions.other', "在字符串和注释之外启用快速建议。")
-				},
-			},
+				{
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						strings: {
+							anyOf: types,
+							default: defaults.strings,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							anyOf: types,
+							default: defaults.comments,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							anyOf: types,
+							default: defaults.other,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
+					},
+				}
+			],
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "控制在键入时是否应自动显示建议。这可以针对在注释、字符串和其他代码中的键入进行控制。快速建议可以配置为显示为幽灵文本或使用建议小组件。另请注意 {0} 设置，它控制建议是否由特殊字符触发。", '`#editor.suggestOnTriggerCharacters#`')
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`'),
+			experiment: {
+				mode: 'auto'
+			}
 		});
 		this.defaultValue = defaults;
 	}
@@ -3779,13 +3871,19 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 			const value = input ? 'on' : 'off';
 			return { comments: value, strings: value, other: value };
 		}
+		if (typeof input === 'string') {
+			// string shorthand -> apply same value to all token types
+			const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off', 'offWhenInlineCompletions'];
+			const validated = stringSet<QuickSuggestionsValue>(input as QuickSuggestionsValue, this.defaultValue.other, allowedValues);
+			return { comments: validated, strings: validated, other: validated };
+		}
 		if (!input || typeof input !== 'object') {
-			// invalid object
+			// invalid input
 			return this.defaultValue;
 		}
 
 		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
-		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
+		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off', 'offWhenInlineCompletions'];
 		let validatedOther: QuickSuggestionsValue;
 		let validatedComments: QuickSuggestionsValue;
 		let validatedStrings: QuickSuggestionsValue;
@@ -3841,13 +3939,13 @@ class EditorRenderLineNumbersOption extends BaseEditorOption<EditorOption.lineNu
 				type: 'string',
 				enum: ['off', 'on', 'relative', 'interval'],
 				enumDescriptions: [
-					nls.localize('lineNumbers.off', "不渲染行号。"),
-					nls.localize('lineNumbers.on', "行号以绝对数字形式渲染。"),
-					nls.localize('lineNumbers.relative', "行号以与光标位置的行距形式渲染。"),
-					nls.localize('lineNumbers.interval', "每 10 行渲染一次行号。")
+					nls.localize('lineNumbers.off', "Line numbers are not rendered."),
+					nls.localize('lineNumbers.on', "Line numbers are rendered as absolute number."),
+					nls.localize('lineNumbers.relative', "Line numbers are rendered as distance in lines to cursor position."),
+					nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 				],
 				default: 'on',
-				description: nls.localize('lineNumbers', "控制行号的显示。")
+				description: nls.localize('lineNumbers', "Controls the display of line numbers.")
 			}
 		);
 	}
@@ -4136,38 +4234,38 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 					type: 'string',
 					enum: ['auto', 'visible', 'hidden'],
 					enumDescriptions: [
-						nls.localize('scrollbar.vertical.auto', "垂直滚动条仅在必要时可见。"),
-						nls.localize('scrollbar.vertical.visible', "垂直滚动条始终可见。"),
-						nls.localize('scrollbar.vertical.fit', "垂直滚动条始终隐藏。"),
+						nls.localize('scrollbar.vertical.auto', "The vertical scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.vertical.visible', "The vertical scrollbar will always be visible."),
+						nls.localize('scrollbar.vertical.fit', "The vertical scrollbar will always be hidden."),
 					],
 					default: 'auto',
-					description: nls.localize('scrollbar.vertical', "控制垂直滚动条的可见性。")
+					description: nls.localize('scrollbar.vertical', "Controls the visibility of the vertical scrollbar.")
 				},
 				'editor.scrollbar.horizontal': {
 					type: 'string',
 					enum: ['auto', 'visible', 'hidden'],
 					enumDescriptions: [
-						nls.localize('scrollbar.horizontal.auto', "水平滚动条仅在必要时可见。"),
-						nls.localize('scrollbar.horizontal.visible', "水平滚动条始终可见。"),
-						nls.localize('scrollbar.horizontal.fit', "水平滚动条始终隐藏。"),
+						nls.localize('scrollbar.horizontal.auto', "The horizontal scrollbar will be visible only when necessary."),
+						nls.localize('scrollbar.horizontal.visible', "The horizontal scrollbar will always be visible."),
+						nls.localize('scrollbar.horizontal.fit', "The horizontal scrollbar will always be hidden."),
 					],
 					default: 'auto',
-					description: nls.localize('scrollbar.horizontal', "控制水平滚动条的可见性。")
+					description: nls.localize('scrollbar.horizontal', "Controls the visibility of the horizontal scrollbar.")
 				},
 				'editor.scrollbar.verticalScrollbarSize': {
 					type: 'number',
 					default: defaults.verticalScrollbarSize,
-					description: nls.localize('scrollbar.verticalScrollbarSize', "垂直滚动条的宽度。")
+					description: nls.localize('scrollbar.verticalScrollbarSize', "The width of the vertical scrollbar.")
 				},
 				'editor.scrollbar.horizontalScrollbarSize': {
 					type: 'number',
 					default: defaults.horizontalScrollbarSize,
-					description: nls.localize('scrollbar.horizontalScrollbarSize', "水平滚动条的高度。")
+					description: nls.localize('scrollbar.horizontalScrollbarSize', "The height of the horizontal scrollbar.")
 				},
 				'editor.scrollbar.scrollByPage': {
 					type: 'boolean',
 					default: defaults.scrollByPage,
-					description: nls.localize('scrollbar.scrollByPage', "控制点击是按页滚动还是跳转到点击位置。")
+					description: nls.localize('scrollbar.scrollByPage', "Controls whether clicks scroll by page or jump to click position.")
 				},
 				'editor.scrollbar.ignoreHorizontalScrollbarInContentHeight': {
 					type: 'boolean',
@@ -4445,6 +4543,12 @@ export interface IInlineSuggestOptions {
 		showLongDistanceHint?: boolean;
 
 		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
+		/**
 		* @internal
 		*/
 		enabled?: boolean;
@@ -4503,6 +4607,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4518,28 +4623,28 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('inlineSuggest.enabled', "控制是否在编辑器中自动显示内联建议。")
+					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
 				},
 				'editor.inlineSuggest.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
 					enum: ['always', 'onHover', 'never'],
 					enumDescriptions: [
-						nls.localize('inlineSuggest.showToolbar.always', "每当显示内联建议时都显示内联建议工具栏。"),
-						nls.localize('inlineSuggest.showToolbar.onHover', "当悬停在内联建议上时显示内联建议工具栏。"),
-						nls.localize('inlineSuggest.showToolbar.never', "从不显示内联建议工具栏。"),
+						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
-					description: nls.localize('inlineSuggest.showToolbar', "控制何时显示内联建议工具栏。"),
+					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
 				'editor.inlineSuggest.syntaxHighlightingEnabled': {
 					type: 'boolean',
 					default: defaults.syntaxHighlightingEnabled,
-					description: nls.localize('inlineSuggest.syntaxHighlightingEnabled', "控制是否在编辑器中显示内联建议的语法高亮。"),
+					description: nls.localize('inlineSuggest.syntaxHighlightingEnabled', "Controls whether to show syntax highlighting for inline suggestions in the editor."),
 				},
 				'editor.inlineSuggest.suppressSuggestions': {
 					type: 'boolean',
 					default: defaults.suppressSuggestions,
-					description: nls.localize('inlineSuggest.suppressSuggestions', "控制内联建议与建议小组件的交互方式。如果启用，当内联建议可用时，建议小组件不会自动显示。")
+					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
 				},
 				'editor.inlineSuggest.suppressInSnippetMode': {
 					type: 'boolean',
@@ -4608,6 +4713,17 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
 					tags: ['nextEditSuggestions', 'experimental']
 				},
+				'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+					type: 'number',
+					default: defaults.edits.longDistanceHintContextLineCount,
+					minimum: 0,
+					maximum: 10,
+					description: nls.localize('inlineSuggest.edits.longDistanceHintContextLineCount', "Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line."),
+					tags: ['nextEditSuggestions', 'experimental'],
+					experiment: {
+						mode: 'auto'
+					}
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4660,6 +4776,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
 			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(input.longDistanceHintContextLineCount, this.defaultValue.edits.longDistanceHintContextLineCount, 0, 10),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}
@@ -4920,6 +5037,12 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
+	 * Grow the suggest widget's preferred width to fit the inline detail text so it
+	 * is not truncated. Defaults to false.
+	 * @internal
+	 */
+	fitWidthToDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -5057,6 +5180,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
+			fitWidthToDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -5151,10 +5275,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: defaults.showInlineDetails,
 					description: nls.localize('suggest.showInlineDetails', "Controls whether suggest details show inline with the label or only in the details widget.")
-				},
-				'editor.suggest.maxVisibleSuggestions': {
-					type: 'number',
-					deprecationMessage: nls.localize('suggest.maxVisibleSuggestions.dep', "This setting is deprecated. The suggest widget can now be resized."),
 				},
 				'editor.suggest.filteredTypes': {
 					type: 'object',
@@ -5331,6 +5451,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: boolean(input.preview, this.defaultValue.preview),
 			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			fitWidthToDetails: boolean(input.fitWidthToDetails, this.defaultValue.fitWidthToDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -5815,6 +5936,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -5848,6 +5970,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectionHighlightMaxLength,
 	selectionHighlightMultiline,
+	selectedTextMatchMode,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -5884,6 +6007,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	wordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -5896,7 +6020,11 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts
+	effectiveAllowVariableFonts,
+	doubleClickSelectsBlock,
+	fullwidthCharacterWidth,
+	// Must come after `fullwidthCharacterWidth`, which it is computed from.
+	effectiveFullwidthCharacterWidth
 }
 
 export const EditorOptions = {
@@ -6128,7 +6256,7 @@ export const EditorOptions = {
 	)),
 	cursorSmoothCaretAnimation: register(new EditorStringEnumOption(
 		EditorOption.cursorSmoothCaretAnimation, 'cursorSmoothCaretAnimation',
-		'on' as 'off' | 'explicit' | 'on',
+		'off' as 'off' | 'explicit' | 'on',
 		['off', 'explicit', 'on'] as const,
 		{
 			enumDescriptions: [
@@ -6188,6 +6316,10 @@ export const EditorOptions = {
 	)),
 	domReadOnly: register(new EditorBooleanOption(
 		EditorOption.domReadOnly, 'domReadOnly', false,
+	)),
+	doubleClickSelectsBlock: register(new EditorBooleanOption(
+		EditorOption.doubleClickSelectsBlock, 'doubleClickSelectsBlock', true,
+		{ description: nls.localize('doubleClickSelectsBlock', "Controls whether double-clicking next to a bracket or quote selects the content inside.") }
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
@@ -6297,6 +6429,18 @@ export const EditorOptions = {
 		EditorOption.formatOnType, 'formatOnType', false,
 		{ description: nls.localize('formatOnType', "Controls whether the editor should automatically format the line after typing.") }
 	)),
+	fullwidthCharacterWidth: register(new EditorStringEnumOption(
+		EditorOption.fullwidthCharacterWidth, 'fullwidthCharacterWidth',
+		'font' as 'font' | 'twoCells',
+		['font', 'twoCells'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+			],
+			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
+		}
+	)),
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
 		{ description: nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.") }
@@ -6394,10 +6538,10 @@ export const EditorOptions = {
 		['spread', 'full'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text. When pasting column selections into a single cursor, each copied line is pasted on a successive destination line and padded with spaces to form a rectangle."),
 				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
 			],
-			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count, or when pasting column selections into a single cursor.")
 		}
 	)),
 	multiCursorLimit: register(new EditorIntOption(
@@ -6425,6 +6569,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(
@@ -6567,11 +6717,24 @@ export const EditorOptions = {
 	selectionHighlightMaxLength: register(new EditorIntOption(
 		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
 		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
+		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similar matches are not highlighted. Set to zero for unlimited.") }
 	)),
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
 		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
+	)),
+	selectedTextMatchMode: register(new EditorStringEnumOption(
+		EditorOption.selectedTextMatchMode, 'selectedTextMatchMode',
+		'findOptions' as 'findOptions' | 'caseSensitive' | 'caseInsensitive',
+		['findOptions', 'caseSensitive', 'caseInsensitive'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('selectedTextMatchMode.findOptions', "Use the Find widget's match case and whole word settings."),
+				nls.localize('selectedTextMatchMode.caseSensitive', "Match occurrences case-sensitively and independently of the Find widget."),
+				nls.localize('selectedTextMatchMode.caseInsensitive', "Match occurrences case-insensitively and independently of the Find widget."),
+			],
+			markdownDescription: nls.localize('selectedTextMatchMode', "Controls how occurrences of selected text are matched when selecting the next, previous, or all occurrences and when highlighting selection matches. `caseSensitive` and `caseInsensitive` match substrings independently of the Find widget. An empty selection always starts a whole-word, case-sensitive search.")
+		}
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
@@ -6614,7 +6777,7 @@ export const EditorOptions = {
 	)),
 	smartSelect: register(new SmartSelect()),
 	smoothScrolling: register(new EditorBooleanOption(
-		EditorOption.smoothScrolling, 'smoothScrolling', true,
+		EditorOption.smoothScrolling, 'smoothScrolling', false,
 		{ description: nls.localize('smoothScrolling', "Controls whether the editor will scroll using an animation.") }
 	)),
 	stopRenderingLineAfter: register(new EditorIntOption(
@@ -6742,6 +6905,15 @@ export const EditorOptions = {
 			}, "Controls how lines should wrap.")
 		}
 	)),
+	wordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.wordWrapIndicator, 'wordWrapIndicator', false,
+		{
+			markdownDescription: nls.localize({
+				key: 'wordWrapIndicator',
+				comment: []
+			}, "Controls whether an indicator is rendered at the wrapping column of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
+		}
+	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters',
 		// allow-any-unicode-next-line
@@ -6804,7 +6976,8 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
 };
 
 type EditorOptionsType = typeof EditorOptions;

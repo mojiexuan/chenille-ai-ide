@@ -1,6 +1,6 @@
 {
   "name": "vscode-colorize-perf-tests",
-  "description": "Colorize performance tests for Chenille",
+  "description": "Colorize performance tests for VS Code",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
@@ -22,7 +22,7 @@
     "jsonc-parser": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "repository": {
     "type": "git",

@@ -10,10 +10,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const IUserAttentionService = createDecorator<IUserAttentionService>('userAttentionService');
 
 /**
- * Service that tracks whether the user is actively paying attention to Chenille.
+ * Service that tracks whether the user is actively paying attention to VS Code.
  *
  * This is determined by:
- * * Chenille window has focus
+ * * VS Code window has focus
  * * User has performed some activity (keyboard/mouse) within the last minute
  */
 export interface IUserAttentionService {
@@ -23,21 +23,21 @@ export interface IUserAttentionService {
 
 	/**
 	 * Observable that is true when user activity was recently detected (within the last 500ms).
-	 * This includes keyboard typing and mouse movements/clicks while Chenille is focused.
+	 * This includes keyboard typing and mouse movements/clicks while VS Code is focused.
 	 * The 500ms window prevents event spam from continuous mouse movement.
 	 */
 	readonly isUserActive: IObservable<boolean>;
 
 	/**
-	 * Observable that indicates whether the user is actively paying attention to Chenille.
+	 * Observable that indicates whether the user is actively paying attention to VS Code.
 	 * This is true when:
-	 * * Chenille has focus, AND
+	 * * VS Code has focus, AND
 	 * * There was user activity within the last minute
 	 */
 	readonly hasUserAttention: IObservable<boolean>;
 
 	/**
-	 * The total time in milliseconds that the user has been paying attention to Chenille.
+	 * The total time in milliseconds that the user has been paying attention to VS Code.
 	 */
 	readonly totalFocusTimeMs: number;
 

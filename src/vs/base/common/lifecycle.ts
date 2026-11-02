@@ -76,7 +76,8 @@ export class GCBasedDisposableTracker implements IDisposableTracker {
 
 export interface DisposableInfo {
 	value: IDisposable;
-	source: string | null;
+	/** Capture the allocation site eagerly, but format its stack only when reporting a leak. */
+	source: Error | null;
 	parent: IDisposable | null;
 	isSingleton: boolean;
 	idx: number;
@@ -96,11 +97,10 @@ export class DisposableTracker implements IDisposableTracker {
 		return val;
 	}
 
-	trackDisposable(d: IDisposable): void {
+	trackDisposable(d: IDisposable, source?: Error): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
-			data.source =
-				new Error().stack!;
+			data.source = source ?? new Error();
 		}
 	}
 
@@ -174,7 +174,7 @@ export class DisposableTracker implements IDisposableTracker {
 				}
 			}
 
-			const lines = leaking.source!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
+			const lines = leaking.source!.stack!.split('\n').map(p => p.trim().replace('at ', '')).filter(l => l !== '');
 			removePrefix(lines, ['Error', /^trackDisposable \(.*\)$/, /^DisposableTracker.trackDisposable \(.*\)$/]);
 			return lines.reverse();
 		}
@@ -720,7 +720,7 @@ export class AsyncReferenceCollection<T> {
 
 	constructor(private referenceCollection: ReferenceCollection<Promise<T>>) { }
 
-	async acquire(key: string, ...args: any[]): Promise<IReference<T>> {
+	async acquire(key: string, ...args: unknown[]): Promise<IReference<T>> {
 		const ref = this.referenceCollection.acquire(key, ...args);
 
 		try {
@@ -845,6 +845,92 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	}
 
 	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this._store[Symbol.iterator]();
+	}
+}
+
+/**
+ * A set that manages the lifecycle of the values that it stores.
+ */
+export class DisposableSet<V extends IDisposable = IDisposable> implements IDisposable {
+
+	private readonly _store: Set<V>;
+	private _isDisposed = false;
+
+	constructor(store: Set<V> = new Set<V>()) {
+		this._store = store;
+		trackDisposable(this);
+	}
+
+	/**
+	 * Disposes of all stored values and mark this object as disposed.
+	 *
+	 * Trying to use this object after it has been disposed of is an error.
+	 */
+	dispose(): void {
+		markAsDisposed(this);
+		this._isDisposed = true;
+		this.clearAndDisposeAll();
+	}
+
+	/**
+	 * Disposes of all stored values and clear the set, but DO NOT mark this object as disposed.
+	 */
+	clearAndDisposeAll(): void {
+		if (!this._store.size) {
+			return;
+		}
+
+		try {
+			dispose(this._store.values());
+		} finally {
+			this._store.clear();
+		}
+	}
+
+	has(value: V): boolean {
+		return this._store.has(value);
+	}
+
+	get size(): number {
+		return this._store.size;
+	}
+
+	add(value: V): void {
+		if (this._isDisposed) {
+			console.warn(new Error('Trying to add a disposable to a DisposableSet that has already been disposed of. The added object will be leaked!').stack);
+		}
+
+		this._store.add(value);
+		setParentOfDisposable(value, this);
+	}
+
+	/**
+	 * Delete the value from this set and also dispose of it.
+	 */
+	deleteAndDispose(value: V): void {
+		if (this._store.delete(value)) {
+			value.dispose();
+		}
+	}
+
+	/**
+	 * Delete the value from this set but return it. The caller is
+	 * responsible for disposing of the value.
+	 */
+	deleteAndLeak(value: V): V | undefined {
+		if (this._store.delete(value)) {
+			setParentOfDisposable(value, null);
+			return value;
+		}
+		return undefined;
+	}
+
+	values(): IterableIterator<V> {
+		return this._store.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<V> {
 		return this._store[Symbol.iterator]();
 	}
 }

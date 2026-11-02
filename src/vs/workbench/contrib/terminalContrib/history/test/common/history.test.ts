@@ -382,7 +382,6 @@ suite('Terminal history', () => {
 				remoteConnection = { remoteAuthority: 'some-remote' };
 				fileScheme = Schemas.vscodeRemote;
 				filePath = '/home/user/.zsh_history';
-				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };
 			});
 			teardown(() => {
 				if (originalEnvValues['HOME'] === undefined) {
@@ -484,10 +483,11 @@ suite('Terminal history', () => {
 
 		if (!isWindows) {
 			suite('local', () => {
-				let originalEnvValues: { HOME: string | undefined };
+				let originalEnvValues: { HOME: string | undefined; XDG_DATA_HOME: string | undefined };
 				setup(() => {
-					originalEnvValues = { HOME: env['HOME'] };
+					originalEnvValues = { HOME: env['HOME'], XDG_DATA_HOME: env['XDG_DATA_HOME'] };
 					env['HOME'] = '/home/user';
+					delete env['XDG_DATA_HOME'];
 					remoteConnection = { remoteAuthority: 'some-remote' };
 					fileScheme = Schemas.vscodeRemote;
 					filePath = '/home/user/.local/share/fish/fish_history';
@@ -497,6 +497,11 @@ suite('Terminal history', () => {
 						delete env['HOME'];
 					} else {
 						env['HOME'] = originalEnvValues['HOME'];
+					}
+					if (originalEnvValues['XDG_DATA_HOME'] === undefined) {
+						delete env['XDG_DATA_HOME'];
+					} else {
+						env['XDG_DATA_HOME'] = originalEnvValues['XDG_DATA_HOME'];
 					}
 				});
 				test('current OS', async () => {
@@ -528,10 +533,11 @@ suite('Terminal history', () => {
 			});
 		}
 		suite('remote', () => {
-			let originalEnvValues: { HOME: string | undefined };
+			let originalEnvValues: { HOME: string | undefined; XDG_DATA_HOME: string | undefined };
 			setup(() => {
-				originalEnvValues = { HOME: env['HOME'] };
+				originalEnvValues = { HOME: env['HOME'], XDG_DATA_HOME: env['XDG_DATA_HOME'] };
 				env['HOME'] = '/home/user';
+				delete env['XDG_DATA_HOME'];
 				remoteConnection = { remoteAuthority: 'some-remote' };
 				fileScheme = Schemas.vscodeRemote;
 				filePath = '/home/user/.local/share/fish/fish_history';
@@ -541,6 +547,11 @@ suite('Terminal history', () => {
 					delete env['HOME'];
 				} else {
 					env['HOME'] = originalEnvValues['HOME'];
+				}
+				if (originalEnvValues['XDG_DATA_HOME'] === undefined) {
+					delete env['XDG_DATA_HOME'];
+				} else {
+					env['XDG_DATA_HOME'] = originalEnvValues['XDG_DATA_HOME'];
 				}
 			});
 			test('Windows', async () => {

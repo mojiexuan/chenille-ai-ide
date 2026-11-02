@@ -17,7 +17,8 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 class ManageLanguageModelAuthenticationAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.manageLanguageModelAuthentication';
@@ -25,7 +26,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 	constructor() {
 		super({
 			id: ManageLanguageModelAuthenticationAction.ID,
-			title: localize2('manageLanguageModelAuthentication', '管理语言模型访问权限...'),
+			title: localize2('manageLanguageModelAuthentication', 'Manage Language Model Access...'),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
@@ -116,8 +117,8 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 		if (extensionAuth.size === 0) {
 			dialogService.prompt({
 				type: 'info',
-				message: localize('noLanguageModels', '未找到需要身份验证的语言模型。'),
-				detail: localize('noLanguageModelsDetail', '当前没有需要身份验证的语言模型。')
+				message: localize('noLanguageModels', 'No language models requiring authentication found.'),
+				detail: localize('noLanguageModelsDetail', 'There are currently no language models that require authentication.')
 			});
 			return;
 		}
@@ -137,7 +138,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 				label: localize('extensionOwner', '{0}', extension.displayName || extension.name),
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(Codicon.info),
-					tooltip: localize('openExtension', '打开扩展'),
+					tooltip: localize('openExtension', 'Open Extension'),
 				}]
 			});
 
@@ -148,7 +149,7 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 					if (allowedExt.trusted && !addedTrustedSeparator) {
 						items.push({
 							type: 'separator',
-							label: localize('trustedExtension', '受 Microsoft 信任'),
+							label: localize('trustedExtension', 'Trusted by Microsoft'),
 						});
 						addedTrustedSeparator = true;
 					}
@@ -161,14 +162,14 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 						disabled: allowedExt.trusted, // Don't allow toggling trusted extensions
 						buttons: [{
 							iconClass: ThemeIcon.asClassName(Codicon.info),
-							tooltip: localize('openExtension', '打开扩展'),
+							tooltip: localize('openExtension', 'Open Extension'),
 						}]
 					});
 				}
 			} else {
 				items.push({
-					label: localize('noAllowedExtensions', '没有扩展具有访问权限'),
-					description: localize('noAccessDescription', '当前没有扩展被允许使用来自 {0} 的模型', ownerId),
+					label: localize('noAllowedExtensions', 'No extensions have access'),
+					description: localize('noAccessDescription', 'No extensions are currently allowed to use models from {0}', ownerId),
 					pickable: false
 				});
 			}
@@ -196,8 +197,8 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 						void extensionsWorkbenchService.open(extId);
 					}
 				},
-				title: localize('languageModelAuthTitle', '管理语言模型访问权限'),
-				placeHolder: localize('languageModelAuthPlaceholder', '选择哪些扩展可以访问语言模型'),
+				title: localize('languageModelAuthTitle', 'Manage Language Model Access'),
+				placeHolder: localize('languageModelAuthPlaceholder', 'Choose which extensions can access language models'),
 			}
 		);
 		if (!result) {
@@ -227,6 +228,47 @@ class ManageLanguageModelAuthenticationAction extends Action2 {
 	}
 }
 
+class ConfigureLanguageModelsGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'lm.addLanguageModelsProviderGroup',
+			title: localize('lm.configureGroup', 'Add Language Models Group'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+
+		if (!languageModelsProviderGroup) {
+			throw new Error('Language model group is required');
+		}
+
+		const { name, vendor, ...configuration } = languageModelsProviderGroup;
+		await languageModelsService.addLanguageModelsProviderGroup(name, vendor, configuration);
+	}
+}
+
+class MigrateLanguageModelsGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'lm.migrateLanguageModelsProviderGroup',
+			title: localize('lm.migrateGroup', 'Migrate Language Models Group'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+
+		if (!languageModelsProviderGroup) {
+			throw new Error('Language model group is required');
+		}
+
+		await languageModelsService.migrateLanguageModelsProviderGroup(languageModelsProviderGroup);
+	}
+}
+
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
+	registerAction2(ConfigureLanguageModelsGroupAction);
+	registerAction2(MigrateLanguageModelsGroupAction);
 }

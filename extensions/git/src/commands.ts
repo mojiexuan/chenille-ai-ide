@@ -5,21 +5,22 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, TabInputNotebookDiff, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, GitError, Stash, Worktree } from './git';
+import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
+import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { coalesce, DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
+import { getSafeNotificationMessage } from './notification';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -28,15 +29,15 @@ abstract class CheckoutCommandItem implements QuickPickItem {
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
-	get label(): string { return l10n.t('{0} 创建新分支...', '$(plus)'); }
+	get label(): string { return l10n.t('{0} Create new branch...', '$(plus)'); }
 }
 
 class CreateBranchFromItem extends CheckoutCommandItem {
-	get label(): string { return l10n.t('{0} 从...创建新分支', '$(plus)'); }
+	get label(): string { return l10n.t('{0} Create new branch from...', '$(plus)'); }
 }
 
 class CheckoutDetachedItem extends CheckoutCommandItem {
-	get label(): string { return l10n.t('{0} 分离式签出...', '$(debug-disconnect)'); }
+	get label(): string { return l10n.t('{0} Checkout detached...', '$(debug-disconnect)'); }
 }
 
 class RefItemSeparator implements QuickPickItem {
@@ -45,30 +46,17 @@ class RefItemSeparator implements QuickPickItem {
 	get label(): string {
 		switch (this.refType) {
 			case RefType.Head:
-				return l10n.t('分支');
+				return l10n.t('branches');
 			case RefType.RemoteHead:
-				return l10n.t('远程分支');
+				return l10n.t('remote branches');
 			case RefType.Tag:
-				return l10n.t('标签');
+				return l10n.t('tags');
 			default:
 				return '';
 		}
 	}
 
 	constructor(private readonly refType: RefType) { }
-}
-
-class WorktreeItem implements QuickPickItem {
-
-	get label(): string {
-		return `$(list-tree) ${this.worktree.name}`;
-	}
-
-	get description(): string {
-		return this.worktree.path;
-	}
-
-	constructor(readonly worktree: Worktree) { }
 }
 
 class RefItem implements QuickPickItem {
@@ -95,9 +83,9 @@ class RefItem implements QuickPickItem {
 			case RefType.Head:
 				return this.shortCommit;
 			case RefType.RemoteHead:
-				return l10n.t('远程分支位于 {0}', this.shortCommit);
+				return l10n.t('Remote branch at {0}', this.shortCommit);
 			case RefType.Tag:
-				return l10n.t('标签位于 {0}', this.shortCommit);
+				return l10n.t('Tag at {0}', this.shortCommit);
 			default:
 				return '';
 		}
@@ -119,6 +107,8 @@ class RefItem implements QuickPickItem {
 				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
+			default:
+				throw new Error('Unknown ref type');
 		}
 	}
 	get refName(): string | undefined { return this.ref.name; }
@@ -230,7 +220,7 @@ class TagDeleteItem extends RefItem {
 class RemoteTagDeleteItem extends RefItem {
 
 	override get description(): string {
-		return l10n.t('远程标签位于 {0}', this.shortCommit);
+		return l10n.t('Remote tag at {0}', this.shortCommit);
 	}
 
 	async run(repository: Repository, remote: string): Promise<void> {
@@ -240,7 +230,40 @@ class RemoteTagDeleteItem extends RefItem {
 	}
 }
 
+class WorktreeItem implements QuickPickItem {
+
+	get label(): string {
+		return `$(list-tree) ${this.worktree.name}`;
+	}
+
+	get description(): string | undefined {
+		return this.worktree.path;
+	}
+
+	constructor(readonly worktree: Worktree) { }
+}
+
 class WorktreeDeleteItem extends WorktreeItem {
+	override get description(): string | undefined {
+		if (!this.worktree.commitDetails) {
+			return undefined;
+		}
+
+		return coalesce([
+			this.worktree.detached ? l10n.t('detached') : this.worktree.ref.substring(11),
+			this.worktree.commitDetails.hash.substring(0, this.shortCommitLength),
+			this.worktree.commitDetails.message.split('\n')[0]
+		]).join(' \u2022 ');
+	}
+
+	get detail(): string {
+		return this.worktree.path;
+	}
+
+	constructor(worktree: Worktree, private readonly shortCommitLength: number) {
+		super(worktree);
+	}
+
 	async run(mainRepository: Repository): Promise<void> {
 		if (!this.worktree.path) {
 			return;
@@ -290,7 +313,7 @@ class AddRemoteItem implements QuickPickItem {
 
 	constructor(private cc: CommandCenter) { }
 
-	get label(): string { return '$(plus) ' + l10n.t('添加新远程...'); }
+	get label(): string { return '$(plus) ' + l10n.t('Add a new remote...'); }
 	get description(): string { return ''; }
 
 	get alwaysShow(): boolean { return true; }
@@ -313,7 +336,7 @@ class RemoteItem implements QuickPickItem {
 }
 
 class FetchAllRemotesItem implements QuickPickItem {
-	get label(): string { return l10n.t('{0} 获取所有远程', '$(cloud-download)'); }
+	get label(): string { return l10n.t('{0} Fetch all remotes', '$(cloud-download)'); }
 
 	constructor(private readonly repository: Repository) { }
 
@@ -352,13 +375,12 @@ interface ScmCommand {
 
 const Commands: ScmCommand[] = [];
 
-function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (value: unknown, context: ClassMethodDecoratorContext) => {
-		if (typeof value !== 'function' || context.kind !== 'method') {
+function command(commandId: string, options: ScmCommandOptions = {}): MethodDecorator {
+	return (_target: any, key: string | symbol, descriptor: PropertyDescriptor): void => {
+		if (typeof descriptor.value !== 'function') {
 			throw new Error('not supported');
 		}
-		const key = context.name.toString();
-		Commands.push({ commandId, key, method: value, options });
+		Commands.push({ commandId, key: String(key), method: descriptor.value, options });
 	};
 }
 
@@ -735,12 +757,12 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 	}
 
 	// Show dialog
-	const commit = l10n.t('仍然提交');
-	const view = l10n.t('查看问题');
+	const commit = l10n.t('Commit Anyway');
+	const view = l10n.t('View Problems');
 
 	const message = diagnostics.size === 1
-		? l10n.t('以下文件存在未解决的诊断问题: \'{0}\'。\n\n你想如何继续?', path.basename(diagnostics.keys().next().value!.fsPath))
-		: l10n.t('有 {0} 个文件存在未解决的诊断问题。\n\n你想如何继续?', diagnostics.size);
+		? l10n.t('The following file has unresolved diagnostics: \'{0}\'.\n\nHow would you like to proceed?', path.basename(diagnostics.keys().next().value!.fsPath))
+		: l10n.t('There are {0} files that have unresolved diagnostics.\n\nHow would you like to proceed?', diagnostics.size);
 
 	const choice = await window.showWarningMessage(message, { modal: true }, commit, view);
 
@@ -848,11 +870,11 @@ export class CommandCenter {
 			console.error(error);
 		}
 
-		const current: InputData = { uri: mergeUris.ours, title: l10n.t('当前') };
-		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('传入') };
+		const current: InputData = { uri: mergeUris.ours, title: l10n.t('Current') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('Incoming') };
 
 		if (isStashConflict) {
-			incoming.title = l10n.t('贮藏的更改');
+			incoming.title = l10n.t('Stashed Changes');
 		}
 
 		try {
@@ -959,7 +981,7 @@ export class CommandCenter {
 		if (items.length === 0) {
 			const pick = this.model.repositories.length === 1
 				? { repository: this.model.repositories[0] }
-				: await window.showQuickPick(this.model.repositories.map((i) => ({ repository: i, label: i.root })), { canPickMany: false, placeHolder: l10n.t('选择要发布的存储库') });
+				: await window.showQuickPick(this.model.repositories.map((i) => ({ repository: i, label: i.root })), { canPickMany: false, placeHolder: l10n.t('Choose which repository to publish') });
 			if (!pick) { return; }
 
 			await this.publish(pick.repository);
@@ -972,7 +994,7 @@ export class CommandCenter {
 
 		let selection = items[0];
 		if (items.length > 1) {
-			const pick = await window.showQuickPick(items, { canPickMany: false, placeHolder: l10n.t('选择要克隆的存储库') });
+			const pick = await window.showQuickPick(items, { canPickMany: false, placeHolder: l10n.t('Choose which repository to clone') });
 			if (pick === undefined) { return; }
 			selection = pick;
 		}
@@ -1009,13 +1031,83 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneManager.clone(url, { parentPath, ...options });
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none'; returnRepositoryPath?: boolean }): Promise<string | undefined> {
+		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
+	}
+
+	@command('_git.cloneRepository')
+	async cloneRepository(url: string, localPath: string, ref?: string): Promise<void> {
+		const opts = {
+			location: ProgressLocation.Notification,
+			title: l10n.t('Cloning git repository "{0}"...', url),
+			cancellable: true
+		};
+
+		const parentPath = path.dirname(localPath);
+		const targetName = path.basename(localPath);
+
+		await window.withProgress(
+			opts,
+			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress, ref }, token)
+		);
+	}
+
+	@command('_git.checkout')
+	async checkoutRepository(repositoryPath: string, treeish: string, detached?: boolean): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.checkout(treeish, [], detached ? { detached: true } : {});
+	}
+
+	@command('_git.pull')
+	async pullRepository(repositoryPath: string): Promise<boolean> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		return repo.pull();
+	}
+
+	@command('_git.fetchRepository')
+	async fetchRepository(repositoryPath: string): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.fetch();
+	}
+
+	@command('_git.revParse')
+	async revParse(repositoryPath: string, ref: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', ref]);
+		return result.stdout.trim();
+	}
+
+	@command('_git.revListCount')
+	async revListCount(repositoryPath: string, fromRef: string, toRef: string): Promise<number> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-list', '--count', `${fromRef}..${toRef}`]);
+		return Number(result.stdout.trim()) || 0;
+	}
+
+	@command('_git.revParseAbbrevRef')
+	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+		return result.stdout.trim();
+	}
+
+	@command('_git.mergeBranch')
+	async mergeBranch(repositoryPath: string, branch: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['merge', branch, '--no-edit']);
+		return result.stdout.trim();
 	}
 
 	@command('git.init')
@@ -1028,8 +1120,8 @@ export class CommandCenter {
 				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
 			} else {
-				const placeHolder = l10n.t('选择要初始化 Git 存储库的工作区文件夹');
-				const pick = { label: l10n.t('选择文件夹...') };
+				const placeHolder = l10n.t('Pick workspace folder to initialize git repo in');
+				const pick = { label: l10n.t('Choose Folder...') };
 				const items: { label: string; folder?: WorkspaceFolder }[] = [
 					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
 					pick
@@ -1056,7 +1148,7 @@ export class CommandCenter {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri,
-				openLabel: l10n.t('初始化存储库')
+				openLabel: l10n.t('Initialize Repository')
 			});
 
 			if (!result || result.length === 0) {
@@ -1066,8 +1158,12 @@ export class CommandCenter {
 			const uri = result[0];
 
 			if (homeUri.toString().startsWith(uri.toString())) {
-				const yes = l10n.t('初始化存储库');
-				const answer = await window.showWarningMessage(l10n.t('这将在 "{0}" 中创建一个 Git 存储库。确定要继续吗?', uri.fsPath), yes);
+				const yes = l10n.t('Initialize Repository');
+				const message = getSafeNotificationMessage(
+					l10n.t('This will create a Git repository in "{0}". Are you sure you want to continue?', uri.fsPath),
+					l10n.t('This will create a Git repository in the selected folder. Are you sure you want to continue?'),
+				);
+				const answer = await window.showWarningMessage(message, yes);
 
 				if (answer !== yes) {
 					return;
@@ -1087,9 +1183,9 @@ export class CommandCenter {
 
 		await this.git.init(repositoryPath, { defaultBranch: sanitizeBranchName(defaultBranchName, branchWhitespaceChar) });
 
-		let message = l10n.t('是否要打开已初始化的存储库?');
-		const open = l10n.t('打开');
-		const openNewWindow = l10n.t('在新窗口中打开');
+		let message = l10n.t('Would you like to open the initialized repository?');
+		const open = l10n.t('Open');
+		const openNewWindow = l10n.t('Open in New Window');
 		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
@@ -1097,9 +1193,9 @@ export class CommandCenter {
 			return;
 		}
 
-		const addToWorkspace = l10n.t('添加到工作区');
+		const addToWorkspace = l10n.t('Add to Workspace');
 		if (workspace.workspaceFolders) {
-			message = l10n.t('是否要打开已初始化的存储库，还是将其添加到当前工作区?');
+			message = l10n.t('Would you like to open the initialized repository, or add it to the current workspace?');
 			choices.push(addToWorkspace);
 		}
 
@@ -1125,7 +1221,7 @@ export class CommandCenter {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: Uri.file(os.homedir()),
-				openLabel: l10n.t('打开存储库')
+				openLabel: l10n.t('Open Repository')
 			});
 
 			if (!result || result.length === 0) {
@@ -1135,7 +1231,7 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })
@@ -1146,10 +1242,10 @@ export class CommandCenter {
 
 		const closedRepositories: string[] = [];
 
-		const title = l10n.t('重新打开已关闭的存储库');
-		const placeHolder = l10n.t('选择要重新打开的存储库');
+		const title = l10n.t('Reopen Closed Repositories');
+		const placeHolder = l10n.t('Pick a repository to reopen');
 
-		const allRepositoriesLabel = l10n.t('所有存储库');
+		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
 		const repositoriesQuickPickItems: QuickPickItem[] = this.model.closedRepositories
 			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
@@ -1171,7 +1267,7 @@ export class CommandCenter {
 		}
 
 		for (const repository of closedRepositories) {
-			await this.model.openRepository(repository, true);
+			await this.model.openRepository(repository, true, true);
 		}
 	}
 
@@ -1306,7 +1402,10 @@ export class CommandCenter {
 		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
-			window.showWarningMessage(l10n.t('"{0}" 的 HEAD 版本不可用。', path.basename(resource.resourceUri.fsPath)));
+			window.showWarningMessage(getSafeNotificationMessage(
+				l10n.t('HEAD version of "{0}" is not available.', basename),
+				l10n.t('HEAD version of this file is not available.'),
+			));
 			return;
 		}
 
@@ -1385,6 +1484,41 @@ export class CommandCenter {
 		await commands.executeCommand('vscode.open', Uri.file(path.join(repository.root, to)), { viewColumn: ViewColumn.Active });
 	}
 
+	@command('git.delete')
+	async delete(uri: Uri | undefined): Promise<void> {
+		const activeDocument = window.activeTextEditor?.document;
+		uri = uri ?? activeDocument?.uri;
+		if (!uri) {
+			return;
+		}
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+
+		const allChangedResources = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.indexGroup.resourceStates,
+			...repository.mergeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates
+		];
+
+		// Check if file has uncommitted changes
+		const uriString = uri.toString();
+		if (allChangedResources.some(o => pathEquals(o.resourceUri.toString(), uriString))) {
+			window.showInformationMessage(l10n.t('Git: Delete can only be performed on committed files without uncommitted changes.'));
+			return;
+		}
+
+		await repository.rm([uri]);
+
+		// Close the active editor if it's not dirty
+		if (activeDocument && !activeDocument.isDirty && pathEquals(activeDocument.uri.toString(), uriString)) {
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+		}
+	}
+
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		this.logger.debug(`[CommandCenter][stage] git.stage ${resourceStates.length} `);
@@ -1408,10 +1542,10 @@ export class CommandCenter {
 
 		if (unresolved.length > 0) {
 			const message = unresolved.length > 1
-				? l10n.t('确定要暂存 {0} 个存在合并冲突的文件吗?', unresolved.length)
-				: l10n.t('确定要暂存存在合并冲突的 {0} 吗?', path.basename(unresolved[0].resourceUri.fsPath));
+				? l10n.t('Are you sure you want to stage {0} files with merge conflicts?', unresolved.length)
+				: l10n.t('Are you sure you want to stage {0} with merge conflicts?', path.basename(unresolved[0].resourceUri.fsPath));
 
-			const yes = l10n.t('是');
+			const yes = l10n.t('Yes');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick !== yes) {
@@ -1467,9 +1601,9 @@ export class CommandCenter {
 		}
 
 		if (resource.type === Status.DELETED_BY_THEM) {
-			const keepIt = l10n.t('保留我们的版本');
-			const deleteIt = l10n.t('删除文件');
-			const result = await window.showInformationMessage(l10n.t('文件 "{0}" 被他们删除但被我们修改。\n\n你想怎么做?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+			const keepIt = l10n.t('Keep Our Version');
+			const deleteIt = l10n.t('Delete File');
+			const result = await window.showInformationMessage(l10n.t('File "{0}" was deleted by them and modified by us.\n\nWhat would you like to do?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
 
 			if (result === keepIt) {
 				await repository.add([uri]);
@@ -1479,9 +1613,9 @@ export class CommandCenter {
 				throw new Error('Cancelled');
 			}
 		} else if (resource.type === Status.DELETED_BY_US) {
-			const keepIt = l10n.t('保留他们的版本');
-			const deleteIt = l10n.t('删除文件');
-			const result = await window.showInformationMessage(l10n.t('文件 "{0}" 被我们删除但被他们修改。\n\n你想怎么做?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+			const keepIt = l10n.t('Keep Their Version');
+			const deleteIt = l10n.t('Delete File');
+			const result = await window.showInformationMessage(l10n.t('File "{0}" was deleted by us and modified by them.\n\nWhat would you like to do?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
 
 			if (result === keepIt) {
 				await repository.add([uri]);
@@ -1530,10 +1664,10 @@ export class CommandCenter {
 
 		if (unresolved.length > 0) {
 			const message = unresolved.length > 1
-				? l10n.t('确定要暂存 {0} 个存在合并冲突的文件吗?', merge.length)
-				: l10n.t('确定要暂存存在合并冲突的 {0} 吗?', path.basename(merge[0].resourceUri.fsPath));
+				? l10n.t('Are you sure you want to stage {0} files with merge conflicts?', merge.length)
+				: l10n.t('Are you sure you want to stage {0} with merge conflicts?', path.basename(merge[0].resourceUri.fsPath));
 
-			const yes = l10n.t('是');
+			const yes = l10n.t('Yes');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick !== yes) {
@@ -1633,7 +1767,7 @@ export class CommandCenter {
 		});
 
 		if (!hunkAtCursor) {
-			window.showInformationMessage(l10n.t('在光标位置未找到代码块。'));
+			window.showInformationMessage(l10n.t('No hunk found at cursor position.'));
 			return;
 		}
 
@@ -1667,7 +1801,7 @@ export class CommandCenter {
 		this.logger.trace(`[CommandCenter][stageSelectedChanges] selectedChanges: ${JSON.stringify(selectedChanges)}`);
 
 		if (!selectedChanges.length) {
-			window.showInformationMessage(l10n.t('所选范围不包含任何更改。'));
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1863,7 +1997,7 @@ export class CommandCenter {
 		});
 
 		if (selectedChanges.length === workingTreeLineChanges.length) {
-			window.showInformationMessage(l10n.t('所选范围不包含任何更改。'));
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -1967,7 +2101,7 @@ export class CommandCenter {
 			.filter(c => !!c) as LineChange[];
 
 		if (!selectedDiffs.length) {
-			window.showInformationMessage(l10n.t('所选范围不包含任何更改。'));
+			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
 
@@ -2140,14 +2274,14 @@ export class CommandCenter {
 			const [untrackedMessage, untrackedMessageDetail] = this.getDiscardUntrackedChangesDialogDetails(untrackedResources);
 
 			const trackedMessage = trackedResources.length === 1
-				? l10n.t('\n\n确定要放弃 \'{0}\' 中的更改吗?', path.basename(trackedResources[0].resourceUri.fsPath))
-				: l10n.t('\n\n确定要放弃 {0} 个文件中的所有更改吗?', trackedResources.length);
+				? l10n.t('\n\nAre you sure you want to discard changes in \'{0}\'?', path.basename(trackedResources[0].resourceUri.fsPath))
+				: l10n.t('\n\nAre you sure you want to discard ALL changes in {0} files?', trackedResources.length);
 
 			const yesTracked = trackedResources.length === 1
-				? l10n.t('放弃 1 个已跟踪文件')
-				: l10n.t('放弃所有 {0} 个已跟踪文件', trackedResources.length);
+				? l10n.t('Discard 1 Tracked File')
+				: l10n.t('Discard All {0} Tracked Files', trackedResources.length);
 
-			const yesAll = l10n.t('放弃所有 {0} 个文件', resources.length);
+			const yesAll = l10n.t('Discard All {0} Files', resources.length);
 			const pick = await window.showWarningMessage(`${untrackedMessage} ${untrackedMessageDetail}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
 
 			if (pick === yesTracked) {
@@ -2166,19 +2300,19 @@ export class CommandCenter {
 
 		const message = allResourcesDeleted
 			? resources.length === 1
-				? l10n.t('确定要还原 \'{0}\' 吗?', path.basename(resources[0].resourceUri.fsPath))
-				: l10n.t('确定要还原所有 {0} 个文件吗?', resources.length)
+				? l10n.t('Are you sure you want to restore \'{0}\'?', path.basename(resources[0].resourceUri.fsPath))
+				: l10n.t('Are you sure you want to restore ALL {0} files?', resources.length)
 			: resources.length === 1
-				? l10n.t('确定要放弃 \'{0}\' 中的更改吗?', path.basename(resources[0].resourceUri.fsPath))
-				: l10n.t('确定要放弃 {0} 个文件中的所有更改吗?\n\n此操作不可逆!\n如果继续，你当前的工作集将永久丢失。', resources.length);
+				? l10n.t('Are you sure you want to discard changes in \'{0}\'?', path.basename(resources[0].resourceUri.fsPath))
+				: l10n.t('Are you sure you want to discard ALL changes in {0} files?\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.', resources.length);
 
 		const yes = allResourcesDeleted
 			? resources.length === 1
-				? l10n.t('还原文件')
-				: l10n.t('还原所有 {0} 个文件', resources.length)
+				? l10n.t('Restore File')
+				: l10n.t('Restore All {0} Files', resources.length)
 			: resources.length === 1
-				? l10n.t('放弃文件')
-				: l10n.t('放弃所有 {0} 个文件', resources.length);
+				? l10n.t('Discard File')
+				: l10n.t('Discard All {0} Files', resources.length);
 
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -2208,31 +2342,31 @@ export class CommandCenter {
 
 		const messageWarning = !discardUntrackedChangesToTrash
 			? resources.length === 1
-				? '\n\n' + l10n.t('此操作不可逆!\n如果继续，此文件将永久丢失。')
-				: '\n\n' + l10n.t('此操作不可逆!\n如果继续，这些文件将永久丢失。')
+				? '\n\n' + l10n.t('This is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.')
+				: '\n\n' + l10n.t('This is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.')
 			: '';
 
 		const message = resources.length === 1
-			? l10n.t('确定要删除以下未跟踪的文件: \'{0}\' 吗?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
-			: l10n.t('确定要删除 {0} 个未跟踪的文件吗?{1}', resources.length, messageWarning);
+			? l10n.t('Are you sure you want to DELETE the following untracked file: \'{0}\'?{1}', path.basename(resources[0].resourceUri.fsPath), messageWarning)
+			: l10n.t('Are you sure you want to DELETE the {0} untracked files?{1}', resources.length, messageWarning);
 
 		const messageDetail = discardUntrackedChangesToTrash
 			? isWindows
 				? resources.length === 1
-					? l10n.t('你可以从回收站还原此文件。')
-					: l10n.t('你可以从回收站还原这些文件。')
+					? l10n.t('You can restore this file from the Recycle Bin.')
+					: l10n.t('You can restore these files from the Recycle Bin.')
 				: resources.length === 1
-					? l10n.t('你可以从废纸篓还原此文件。')
-					: l10n.t('你可以从废纸篓还原这些文件。')
+					? l10n.t('You can restore this file from the Trash.')
+					: l10n.t('You can restore these files from the Trash.')
 			: '';
 
 		const primaryAction = discardUntrackedChangesToTrash
 			? isWindows
-				? l10n.t('移至回收站')
-				: l10n.t('移至废纸篓')
+				? l10n.t('Move to Recycle Bin')
+				: l10n.t('Move to Trash')
 			: resources.length === 1
-				? l10n.t('删除文件')
-				: l10n.t('删除所有 {0} 个文件', resources.length);
+				? l10n.t('Delete File')
+				: l10n.t('Delete All {0} Files', resources.length);
 
 		return [message, messageDetail, primaryAction];
 	}
@@ -2251,7 +2385,6 @@ export class CommandCenter {
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
@@ -2267,10 +2400,10 @@ export class CommandCenter {
 
 				if (documents.length > 0) {
 					const message = documents.length === 1
-						? l10n.t('以下文件有未保存的更改，如果继续将不会包含在提交中: {0}。\n\n是否要在提交前保存?', path.basename(documents[0].uri.fsPath))
-						: l10n.t('有 {0} 个未保存的文件。\n\n是否要在提交前保存?', documents.length);
-					const saveAndCommit = l10n.t('全部保存并提交更改');
-					const commit = l10n.t('提交更改');
+						? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
+						: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
+					const saveAndCommit = l10n.t('Save All & Commit Changes');
+					const commit = l10n.t('Commit Changes');
 					const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 					if (pick === saveAndCommit) {
@@ -2299,10 +2432,10 @@ export class CommandCenter {
 				}
 
 				// prompt the user if we want to commit all or not
-				const message = l10n.t('没有已暂存的更改可提交。\n\n是否要暂存所有更改并直接提交?');
-				const yes = l10n.t('是');
-				const always = l10n.t('始终');
-				const never = l10n.t('从不');
+				const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+				const yes = l10n.t('Yes');
+				const always = l10n.t('Always');
+				const never = l10n.t('Never');
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 				if (pick === always) {
@@ -2325,8 +2458,9 @@ export class CommandCenter {
 			}
 		}
 
-		// enable signing of commits if configured
-		opts.signCommit = enableCommitSigning;
+		// Enable signing of commits if the setting is enabled. If the setting is not enabled,
+		// we set the option to undefined so that we let git use the repository/global config.
+		opts.signCommit = config.get<boolean>('enableCommitSigning') === true ? true : undefined;
 
 		if (config.get<boolean>('alwaysSignOff')) {
 			opts.signoff = true;
@@ -2359,8 +2493,8 @@ export class CommandCenter {
 			// rebase not in progress
 			&& repository.rebaseCommit === undefined
 		) {
-			const commitAnyway = l10n.t('创建空提交');
-			const answer = await window.showInformationMessage(l10n.t('没有可提交的更改。'), commitAnyway);
+			const commitAnyway = l10n.t('Create Empty Commit');
+			const answer = await window.showInformationMessage(l10n.t('There are no changes to commit.'), commitAnyway);
 
 			if (answer !== commitAnyway) {
 				return;
@@ -2371,14 +2505,14 @@ export class CommandCenter {
 
 		if (opts.noVerify) {
 			if (!config.get<boolean>('allowNoVerifyCommit')) {
-				await window.showErrorMessage(l10n.t('不允许跳过验证的提交，请使用 "git.allowNoVerifyCommit" 设置启用此功能。'));
+				await window.showErrorMessage(l10n.t('Commits without verification are not allowed, please enable them with the "git.allowNoVerifyCommit" setting.'));
 				return;
 			}
 
 			if (config.get<boolean>('confirmNoVerifyCommit')) {
-				const message = l10n.t('你即将跳过验证提交更改，这会跳过预提交钩子，可能不是你想要的。\n\n确定要继续吗?');
-				const yes = l10n.t('确定');
-				const neverAgain = l10n.t('确定，不再询问');
+				const message = l10n.t('You are about to commit your changes without verification, this skips pre-commit hooks and can be undesirable.\n\nAre you sure to continue?');
+				const yes = l10n.t('OK');
+				const neverAgain = l10n.t('OK, Don\'t Ask Again');
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 				if (pick === neverAgain) {
@@ -2412,13 +2546,13 @@ export class CommandCenter {
 		// Branch protection commit hook
 		const branchProtectionPrompt = config.get<'alwaysCommit' | 'alwaysCommitToNewBranch' | 'alwaysPrompt'>('branchProtectionPrompt')!;
 		if (repository.isBranchProtected() && (branchProtectionPrompt === 'alwaysPrompt' || branchProtectionPrompt === 'alwaysCommitToNewBranch')) {
-			const commitToNewBranch = l10n.t('提交到新分支');
+			const commitToNewBranch = l10n.t('Commit to a New Branch');
 
 			let pick: string | undefined = commitToNewBranch;
 
 			if (branchProtectionPrompt === 'alwaysPrompt') {
-				const message = l10n.t('你正在尝试提交到受保护的分支，可能没有权限将提交推送到远程。\n\n你想如何继续?');
-				const commit = l10n.t('仍然提交');
+				const message = l10n.t('You are trying to commit to a protected branch. How would you like to proceed?');
+				const commit = l10n.t('Commit Anyway');
 
 				pick = await window.showWarningMessage(message, { modal: true }, commitToNewBranch, commit);
 			}
@@ -2458,15 +2592,15 @@ export class CommandCenter {
 				let placeHolder: string;
 
 				if (branchName) {
-					placeHolder = l10n.t('消息 (提交到 "{0}")', branchName);
+					placeHolder = l10n.t('Message (commit on "{0}")', branchName);
 				} else {
-					placeHolder = l10n.t('提交消息');
+					placeHolder = l10n.t('Commit message');
 				}
 
 				_message = await window.showInputBox({
 					value,
 					placeHolder,
-					prompt: l10n.t('请提供提交消息'),
+					prompt: l10n.t('Please provide a commit message'),
 					ignoreFocusOut: true
 				});
 			}
@@ -2575,9 +2709,9 @@ export class CommandCenter {
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
 
 		if (shouldPrompt) {
-			const message = l10n.t('确定要创建空提交吗?');
-			const yes = l10n.t('是');
-			const neverAgain = l10n.t('是，不再显示');
+			const message = l10n.t('Are you sure you want to create an empty commit?');
+			const yes = l10n.t('Yes');
+			const neverAgain = l10n.t('Yes, Don\'t Show Again');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 			if (pick === neverAgain) {
@@ -2655,15 +2789,15 @@ export class CommandCenter {
 		const HEAD = repository.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
-			window.showWarningMessage(l10n.t('无法撤消，因为 HEAD 未指向任何提交。'));
+			window.showWarningMessage(l10n.t('Can\'t undo because HEAD doesn\'t point to any commit.'));
 			return;
 		}
 
 		const commit = await repository.getCommit('HEAD');
 
 		if (commit.parents.length > 1) {
-			const yes = l10n.t('撤消合并提交');
-			const result = await window.showWarningMessage(l10n.t('上一次提交是合并提交。确定要撤消吗?'), { modal: true }, yes);
+			const yes = l10n.t('Undo merge commit');
+			const result = await window.showWarningMessage(l10n.t('The last commit was a merge commit. Are you sure you want to undo it?'), { modal: true }, yes);
 
 			if (result !== yes) {
 				return;
@@ -2745,8 +2879,8 @@ export class CommandCenter {
 		quickPick.sortByLabel = false;
 		quickPick.matchOnDetail = false;
 		quickPick.placeholder = opts?.detached
-			? l10n.t('选择要以分离模式签出的分支')
-			: l10n.t('选择要签出的分支或标签');
+			? l10n.t('Select a branch to checkout in detached mode')
+			: l10n.t('Select a branch or tag to checkout');
 
 		quickPick.show();
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
@@ -2821,7 +2955,7 @@ export class CommandCenter {
 					if (workspace.workspaceFolders && workspace.workspaceFolders.some(folder => pathEquals(folder.uri.fsPath, commonPath))) {
 						const mainRepository = this.model.getRepository(commonPath);
 						if (mainRepository && item.refName && item.refName.replace(`${item.refRemote}/`, '') === mainRepository.HEAD?.name) {
-							const message = l10n.t('分支 "{0}" 已在当前窗口中签出。', item.refName);
+							const message = l10n.t('Branch "{0}" is already checked out in the current window.', item.refName);
 							await window.showErrorMessage(message, { modal: true });
 							return false;
 						}
@@ -2832,10 +2966,10 @@ export class CommandCenter {
 					return false;
 				}
 
-				const stash = l10n.t('贮藏并签出');
-				const migrate = l10n.t('迁移更改');
-				const force = l10n.t('强制签出');
-				const choice = await window.showWarningMessage(l10n.t('签出将覆盖你的本地更改。'), { modal: true }, stash, migrate, force);
+				const stash = l10n.t('Stash & Checkout');
+				const migrate = l10n.t('Migrate Changes');
+				const force = l10n.t('Force Checkout');
+				const choice = await window.showWarningMessage(l10n.t('Your local changes would be overwritten by checkout.'), { modal: true }, stash, migrate, force);
 
 				if (choice === force) {
 					await this.cleanAll(repository);
@@ -2865,48 +2999,6 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
-		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
-
-		const dictionaries: string[][] = [];
-		for (const dictionary of branchRandomNameDictionary) {
-			if (dictionary.toLowerCase() === 'adjectives') {
-				dictionaries.push(adjectives);
-			}
-			if (dictionary.toLowerCase() === 'animals') {
-				dictionaries.push(animals);
-			}
-			if (dictionary.toLowerCase() === 'colors') {
-				dictionaries.push(colors);
-			}
-			if (dictionary.toLowerCase() === 'numbers') {
-				dictionaries.push(NumberDictionary.generate({ length: 3 }));
-			}
-		}
-
-		if (dictionaries.length === 0) {
-			return '';
-		}
-
-		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
-			const randomName = uniqueNamesGenerator({
-				dictionaries,
-				length: dictionaries.length,
-				separator
-			});
-
-			// Check for local ref conflict
-			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
-			if (refs.length === 0) {
-				return randomName;
-			}
-		}
-
-		return '';
-	}
-
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
@@ -2920,8 +3012,7 @@ export class CommandCenter {
 		}
 
 		const getBranchName = async (): Promise<string> => {
-			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-			return `${branchPrefix}${branchName}`;
+			return await repository.generateRandomBranchName() ?? branchPrefix;
 		};
 
 		const getValueSelection = (value: string): [number, number] | undefined => {
@@ -2935,7 +3026,7 @@ export class CommandCenter {
 			// Check if branch name already exists
 			const existingBranch = refs.find(ref => ref.name === sanitizedName);
 			if (existingBranch) {
-				return l10n.t('分支 "{0}" 已存在', sanitizedName);
+				return l10n.t('Branch "{0}" already exists', sanitizedName);
 			}
 
 			if (validateName.test(sanitizedName)) {
@@ -2945,24 +3036,24 @@ export class CommandCenter {
 				return name === sanitizedName
 					? undefined
 					: {
-						message: l10n.t('新分支将命名为 "{0}"', sanitizedName),
+						message: l10n.t('The new branch will be "{0}"', sanitizedName),
 						severity: InputBoxValidationSeverity.Info
 					};
 			}
 
-			return l10n.t('分支名称需要匹配正则表达式: {0}', branchValidationRegex);
+			return l10n.t('Branch name needs to match regex: {0}', branchValidationRegex);
 		};
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
 
-		inputBox.placeholder = l10n.t('分支名称');
-		inputBox.prompt = l10n.t('请提供新的分支名称');
+		inputBox.placeholder = l10n.t('Branch name');
+		inputBox.prompt = l10n.t('Please provide a new branch name');
 
 		inputBox.buttons = branchRandomNameEnabled ? [
 			{
 				iconPath: new ThemeIcon('refresh'),
-				tooltip: l10n.t('重新生成分支名称'),
+				tooltip: l10n.t('Regenerate Branch Name'),
 				location: QuickInputButtonLocation.Inline
 			}
 		] : [];
@@ -3011,7 +3102,7 @@ export class CommandCenter {
 				return [new HEADItem(repository, commitShortHashLength), ...refProcessors.processRefs(refs)];
 			};
 
-			const placeHolder = l10n.t('选择要从中创建分支的引用');
+			const placeHolder = l10n.t('Select a ref to create the branch from');
 			const choice = await window.showQuickPick(getRefPicks(), { placeHolder });
 
 			if (!choice) {
@@ -3071,7 +3162,7 @@ export class CommandCenter {
 		// Local branch
 		if (historyItemRef.id.startsWith('refs/heads/')) {
 			if (historyItemRef.id === repository.historyProvider.currentHistoryItemRef?.id) {
-				window.showInformationMessage(l10n.t('无法删除活动分支。'));
+				window.showInformationMessage(l10n.t('The active branch cannot be deleted.'));
 				return;
 			}
 
@@ -3081,7 +3172,7 @@ export class CommandCenter {
 
 		// Remote branch
 		if (historyItemRef.id === repository.historyProvider.currentHistoryItemRemoteRef?.id) {
-			window.showInformationMessage(l10n.t('无法删除活动分支的远程分支。'));
+			window.showInformationMessage(l10n.t('The remote branch of the active branch cannot be deleted.'));
 			return;
 		}
 
@@ -3153,7 +3244,7 @@ export class CommandCenter {
 			return itemsProcessor.processRefs(refs);
 		};
 
-		const placeHolder = l10n.t('选择要与之比较的引用');
+		const placeHolder = l10n.t('Select a reference to compare with');
 		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
 
 		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
@@ -3178,10 +3269,10 @@ export class CommandCenter {
 		}
 
 		try {
-			const changes = await repository.diffBetween2(ref1.id, ref2.id);
+			const changes = await repository.diffBetweenWithStats(ref1.id, ref2.id);
 
 			if (changes.length === 0) {
-				window.showInformationMessage(l10n.t('"{0}" 和 "{1}" 之间没有更改。', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
+				window.showInformationMessage(l10n.t('There are no changes between "{0}" and "{1}".', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id));
 				return;
 			}
 
@@ -3194,7 +3285,7 @@ export class CommandCenter {
 				resources
 			});
 		} catch (err) {
-			window.showErrorMessage(l10n.t('无法打开 "{0}" 和 "{1}" 之间的更改: {2}', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id, err.message));
+			window.showErrorMessage(l10n.t('Failed to open changes between "{0}" and "{1}": {2}', ref1.displayId ?? ref1.id, ref2.displayId ?? ref2.id, err.message));
 		}
 	}
 
@@ -3232,8 +3323,8 @@ export class CommandCenter {
 			};
 
 			const placeHolder = !options.remote
-				? l10n.t('选择要删除的分支')
-				: l10n.t('选择要删除的远程分支');
+				? l10n.t('Select a branch to delete')
+				: l10n.t('Select a remote branch to delete');
 
 			const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
@@ -3251,8 +3342,8 @@ export class CommandCenter {
 				throw err;
 			}
 
-			const message = l10n.t('分支 "{0}" 尚未完全合并。仍要删除吗?', name);
-			const yes = l10n.t('删除分支');
+			const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', name);
+			const yes = l10n.t('Delete Branch');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick === yes) {
@@ -3275,10 +3366,10 @@ export class CommandCenter {
 		} catch (err) {
 			switch (err.gitErrorCode) {
 				case GitErrorCodes.InvalidBranchName:
-					window.showErrorMessage(l10n.t('无效的分支名称'));
+					window.showErrorMessage(l10n.t('Invalid branch name'));
 					return;
 				case GitErrorCodes.BranchAlreadyExists:
-					window.showErrorMessage(l10n.t('名为 "{0}" 的分支已存在', branchName));
+					window.showErrorMessage(l10n.t('A branch named "{0}" already exists', branchName));
 					return;
 				default:
 					throw err;
@@ -3305,7 +3396,7 @@ export class CommandCenter {
 			return itemsProcessor.processRefs(refs);
 		};
 
-		const placeHolder = l10n.t('选择要合并的分支或标签');
+		const placeHolder = l10n.t('Select a branch or tag to merge from');
 		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
@@ -3348,7 +3439,7 @@ export class CommandCenter {
 			return quickPickItems;
 		};
 
-		const placeHolder = l10n.t('选择要变基到的分支');
+		const placeHolder = l10n.t('Select a branch to rebase onto');
 		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof RebaseItem) {
@@ -3370,11 +3461,11 @@ export class CommandCenter {
 		const tagPicks = async (): Promise<TagDeleteItem[] | QuickPickItem[]> => {
 			const remoteTags = await repository.getRefs({ pattern: 'refs/tags', includeCommitDetails: showRefDetails });
 			return remoteTags.length === 0
-				? [{ label: l10n.t('$(info) 此存储库没有标签。') }]
+				? [{ label: l10n.t('$(info) This repository has no tags.') }]
 				: remoteTags.map(ref => new TagDeleteItem(ref, commitShortHashLength));
 		};
 
-		const placeHolder = l10n.t('选择要删除的标签');
+		const placeHolder = l10n.t('Select a tag to delete');
 		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
 		if (choice instanceof TagDeleteItem) {
@@ -3392,11 +3483,11 @@ export class CommandCenter {
 		} else {
 			const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
 				return worktrees.length === 0
-					? [{ label: l10n.t('$(info) 此存储库没有工作树。') }]
+					? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
 					: worktrees.map(worktree => new WorktreeItem(worktree));
 			};
 
-			const placeHolder = l10n.t('选择要从中迁移更改的工作树');
+			const placeHolder = l10n.t('Select a worktree to migrate changes from');
 			const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
 
 			if (!choice || !(choice instanceof WorktreeItem)) {
@@ -3420,8 +3511,8 @@ export class CommandCenter {
 		type InputData = { uri: Uri; title: string };
 		const mergeUris = toMergeUris(uri);
 
-		const current: InputData = { uri: mergeUris.ours, title: l10n.t('工作区') };
-		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('工作树') };
+		const current: InputData = { uri: mergeUris.ours, title: l10n.t('Workspace') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('Worktree') };
 
 		await commands.executeCommand('_open.mergeEditor', {
 			base: mergeUris.base,
@@ -3437,6 +3528,10 @@ export class CommandCenter {
 			return;
 		}
 
+		await this._createWorktree(repository);
+	}
+
+	async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
 
@@ -3486,7 +3581,7 @@ export class CommandCenter {
 			return [createBranch, { label: '', kind: QuickPickItemKind.Separator }, ...branchItems];
 		};
 
-		const placeHolder = l10n.t('选择要从中创建新工作树的分支或标签');
+		const placeHolder = l10n.t('Select a branch or tag to create the new worktree from');
 		const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
 		if (!choice) {
@@ -3508,8 +3603,8 @@ export class CommandCenter {
 			}
 
 			if (choice.refName === repository.HEAD?.name) {
-				const message = l10n.t('分支 "{0}" 已在当前存储库中签出。', choice.refName);
-				const createBranch = l10n.t('创建新分支');
+				const message = l10n.t('Branch "{0}" is already checked out in the current repository.', choice.refName);
+				const createBranch = l10n.t('Create New Branch');
 				const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
 
 				if (pick === createBranch) {
@@ -3526,7 +3621,7 @@ export class CommandCenter {
 				// Check whether the selected branch is checked out in an existing worktree
 				const worktree = repository.worktrees.find(worktree => worktree.ref === choice.refId);
 				if (worktree) {
-					const message = l10n.t('分支 "{0}" 已在位于 "{1}" 的工作树中签出。', choice.refName, worktree.path);
+					const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', choice.refName, worktree.path);
 					await this.handleWorktreeConflict(worktree.path, message);
 					return;
 				}
@@ -3545,7 +3640,7 @@ export class CommandCenter {
 				canSelectFiles: false,
 				canSelectFolders: true,
 				canSelectMany: false,
-				openLabel: l10n.t('选择作为工作树目标'),
+				openLabel: l10n.t('Select as Worktree Destination'),
 			});
 
 			if (!uris || uris.length === 0) {
@@ -3567,7 +3662,7 @@ export class CommandCenter {
 		const getValidationMessage = (value: string): InputBoxValidationMessage | undefined => {
 			const worktree = repository.worktrees.find(worktree => pathEquals(path.normalize(worktree.path), path.normalize(value)));
 			return worktree ? {
-				message: l10n.t('工作树已存在于 "{0}"。', value),
+				message: l10n.t('A worktree already exists at "{0}".', value),
 				severity: InputBoxValidationSeverity.Warning
 			} : undefined;
 		};
@@ -3576,14 +3671,16 @@ export class CommandCenter {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
 			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+			: repository.kind === 'worktree'
+				? path.join(path.dirname(repository.root), worktreeName)
+				: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
 		disposables.push(inputBox);
 
-		inputBox.placeholder = l10n.t('工作树路径');
-		inputBox.prompt = l10n.t('请提供工作树路径');
+		inputBox.placeholder = l10n.t('Worktree path');
+		inputBox.prompt = l10n.t('Please provide a worktree path');
 		inputBox.value = defaultWorktreePath;
 		inputBox.valueSelection = getValueSelection(inputBox.value);
 		inputBox.validationMessage = getValidationMessage(inputBox.value);
@@ -3591,7 +3688,7 @@ export class CommandCenter {
 		inputBox.buttons = [
 			{
 				iconPath: new ThemeIcon('folder'),
-				tooltip: l10n.t('选择工作树目标'),
+				tooltip: l10n.t('Select Worktree Destination'),
 				location: QuickInputButtonLocation.Inline
 			}
 		];
@@ -3623,7 +3720,7 @@ export class CommandCenter {
 		}
 
 		const [, branch, path] = match;
-		const message = l10n.t('分支 "{0}" 已在位于 "{1}" 的工作树中签出。', branch, path);
+		const message = l10n.t('Branch "{0}" is already checked out in the worktree at "{1}".', branch, path);
 		await this.handleWorktreeConflict(path, message);
 	}
 
@@ -3635,12 +3732,12 @@ export class CommandCenter {
 		}
 
 		const [, path] = match;
-		const message = l10n.t('工作树已存在于 "{0}"。', path);
+		const message = l10n.t('A worktree already exists at "{0}".', path);
 		await this.handleWorktreeConflict(path, message);
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 
 		const worktreeRepository = this.model.getRepository(path);
 
@@ -3648,8 +3745,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const openWorktree = l10n.t('在当前窗口中打开工作树');
-		const openWorktreeInNewWindow = l10n.t('在新窗口中打开工作树');
+		const openWorktree = l10n.t('Open Worktree in Current Window');
+		const openWorktreeInNewWindow = l10n.t('Open Worktree in New Window');
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
 
 		if (choice === openWorktree) {
@@ -3662,14 +3759,17 @@ export class CommandCenter {
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
-			const worktrees = await repository.getWorktrees();
+			const worktrees = await repository.getWorktreeDetails();
 			return worktrees.length === 0
-				? [{ label: l10n.t('$(info) 此存储库没有工作树。') }]
-				: worktrees.map(worktree => new WorktreeDeleteItem(worktree));
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeDeleteItem(worktree, commitShortHashLength));
 		};
 
-		const placeHolder = l10n.t('选择要删除的工作树');
+		const placeHolder = l10n.t('Select a worktree to delete');
 		const choice = await this.pickRef<WorktreeDeleteItem | QuickPickItem>(worktreePicks(), placeHolder);
 
 		if (choice instanceof WorktreeDeleteItem) {
@@ -3685,7 +3785,7 @@ export class CommandCenter {
 
 		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
 		if (!mainRepository) {
-			await window.showErrorMessage(l10n.t('无法删除当前所在的工作树。请先切换到主存储库。'), { modal: true });
+			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
 			return;
 		}
 
@@ -3732,13 +3832,13 @@ export class CommandCenter {
 			.map(r => new RemoteItem(repository, r));
 
 		if (remotePicks.length === 0) {
-			window.showErrorMessage(l10n.t("你的存储库没有配置可推送的远程。"));
+			window.showErrorMessage(l10n.t("Your repository has no remotes configured to push to."));
 			return;
 		}
 
 		let remoteName = remotePicks[0].remoteName;
 		if (remotePicks.length > 1) {
-			const remotePickPlaceholder = l10n.t('选择要从中删除标签的远程');
+			const remotePickPlaceholder = l10n.t('Select a remote to delete a tag from');
 			const remotePick = await window.showQuickPick(remotePicks, { placeHolder: remotePickPlaceholder });
 
 			if (!remotePick) {
@@ -3764,11 +3864,11 @@ export class CommandCenter {
 			}
 
 			return remoteTags.length === 0
-				? [{ label: l10n.t('$(info) 远程 "{0}" 没有标签。', remoteName) }]
+				? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }]
 				: remoteTags.map(ref => new RemoteTagDeleteItem(ref, commitShortHashLength));
 		};
 
-		const tagPickPlaceholder = l10n.t('选择要删除的远程标签');
+		const tagPickPlaceholder = l10n.t('Select a remote tag to delete');
 		const remoteTagPick = await window.showQuickPick<RemoteTagDeleteItem | QuickPickItem>(remoteTagPicks(), { placeHolder: tagPickPlaceholder });
 
 		if (remoteTagPick instanceof RemoteTagDeleteItem) {
@@ -3779,7 +3879,7 @@ export class CommandCenter {
 	@command('git.fetch', { repository: true })
 	async fetch(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
-			window.showWarningMessage(l10n.t('此存储库没有配置可获取的远程。'));
+			window.showWarningMessage(l10n.t('This repository has no remotes configured to fetch from.'));
 			return;
 		}
 
@@ -3801,7 +3901,7 @@ export class CommandCenter {
 		}
 
 		const quickpick = window.createQuickPick();
-		quickpick.placeholder = l10n.t('选择要获取的远程');
+		quickpick.placeholder = l10n.t('Select a remote to fetch');
 		quickpick.canSelectMany = false;
 		quickpick.items = [...remoteItems, { label: '', kind: QuickPickItemKind.Separator }, new FetchAllRemotesItem(repository)];
 
@@ -3822,7 +3922,7 @@ export class CommandCenter {
 	@command('git.fetchPrune', { repository: true })
 	async fetchPrune(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
-			window.showWarningMessage(l10n.t('此存储库没有配置可获取的远程。'));
+			window.showWarningMessage(l10n.t('This repository has no remotes configured to fetch from.'));
 			return;
 		}
 
@@ -3833,7 +3933,7 @@ export class CommandCenter {
 	@command('git.fetchAll', { repository: true })
 	async fetchAll(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
-			window.showWarningMessage(l10n.t('此存储库没有配置可获取的远程。'));
+			window.showWarningMessage(l10n.t('This repository has no remotes configured to fetch from.'));
 			return;
 		}
 
@@ -3859,14 +3959,14 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showWarningMessage(l10n.t('你的存储库没有配置可拉取的远程。'));
+			window.showWarningMessage(l10n.t('Your repository has no remotes configured to pull from.'));
 			return;
 		}
 
 		let remoteName = remotes[0].name;
 		if (remotes.length > 1) {
 			const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
-			const placeHolder = l10n.t('选择要从中拉取分支的远程');
+			const placeHolder = l10n.t('Pick a remote to pull the branch from');
 			const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
 			if (!remotePick) {
@@ -3881,7 +3981,7 @@ export class CommandCenter {
 			return remoteRefs.map(r => new RefItem(r, commitShortHashLength));
 		};
 
-		const branchPlaceHolder = l10n.t('选择要拉取的分支');
+		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
 		const branchPick = await this.pickRef(getBranchPicks(), branchPlaceHolder);
 
 		if (!branchPick || !branchPick.refName) {
@@ -3897,7 +3997,7 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showWarningMessage(l10n.t('你的存储库没有配置可拉取的远程。'));
+			window.showWarningMessage(l10n.t('Your repository has no remotes configured to pull from.'));
 			return;
 		}
 
@@ -3909,7 +4009,7 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showWarningMessage(l10n.t('你的存储库没有配置可拉取的远程。'));
+			window.showWarningMessage(l10n.t('Your repository has no remotes configured to pull from.'));
 			return;
 		}
 
@@ -3935,8 +4035,8 @@ export class CommandCenter {
 				return;
 			}
 
-			const addRemote = l10n.t('添加远程');
-			const result = await window.showWarningMessage(l10n.t('你的存储库没有配置可推送的远程。'), addRemote);
+			const addRemote = l10n.t('Add Remote');
+			const result = await window.showWarningMessage(l10n.t('Your repository has no remotes configured to push to.'), addRemote);
 
 			if (result === addRemote) {
 				await this.addRemote(repository);
@@ -3950,7 +4050,7 @@ export class CommandCenter {
 
 		if (pushOptions.forcePush) {
 			if (!config.get<boolean>('allowForcePush')) {
-				await window.showErrorMessage(l10n.t('不允许强制推送，请使用 "git.allowForcePush" 设置启用此功能。'));
+				await window.showErrorMessage(l10n.t('Force push is not allowed, please enable it with the "git.allowForcePush" setting.'));
 				return;
 			}
 
@@ -3959,9 +4059,9 @@ export class CommandCenter {
 			forcePushMode = useForcePushWithLease ? useForcePushIfIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
-				const message = l10n.t('你即将强制推送更改，这可能具有破坏性，并可能意外覆盖他人所做的更改。\n\n确定要继续吗?');
-				const yes = l10n.t('确定');
-				const neverAgain = l10n.t('确定，不再询问');
+				const message = l10n.t('You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?');
+				const yes = l10n.t('OK');
+				const neverAgain = l10n.t('OK, Don\'t Ask Again');
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 				if (pick === neverAgain) {
@@ -3983,7 +4083,7 @@ export class CommandCenter {
 
 		if (!repository.HEAD || !repository.HEAD.name) {
 			if (!pushOptions.silent) {
-				window.showWarningMessage(l10n.t('请签出一个分支以推送到远程。'));
+				window.showWarningMessage(l10n.t('Please check out a branch to push to a remote.'));
 			}
 			return;
 		}
@@ -4002,9 +4102,9 @@ export class CommandCenter {
 
 				if (this.globalState.get<boolean>('confirmBranchPublish', true)) {
 					const branchName = repository.HEAD.name;
-					const message = l10n.t('分支 "{0}" 没有远程分支。是否要发布此分支?', branchName);
-					const yes = l10n.t('确定');
-					const neverAgain = l10n.t('确定，不再询问');
+					const message = l10n.t('The branch "{0}" has no remote branch. Would you like to publish this branch?', branchName);
+					const yes = l10n.t('OK');
+					const neverAgain = l10n.t('OK, Don\'t Ask Again');
 					const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 					if (pick === yes || pick === neverAgain) {
@@ -4022,7 +4122,7 @@ export class CommandCenter {
 			if (!pushOptions.pushTo?.remote) {
 				const addRemote = new AddRemoteItem(this);
 				const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-				const placeHolder = l10n.t('选择要将分支 "{0}" 发布到的远程:', branchName);
+				const placeHolder = l10n.t('Pick a remote to publish the branch "{0}" to:', branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
 
 				if (!choice) {
@@ -4076,8 +4176,8 @@ export class CommandCenter {
 	@command('git.cherryPick', { repository: true })
 	async cherryPick(repository: Repository): Promise<void> {
 		const hash = await window.showInputBox({
-			placeHolder: l10n.t('提交哈希'),
-			prompt: l10n.t('请提供提交哈希'),
+			placeHolder: l10n.t('Commit Hash'),
+			prompt: l10n.t('Please provide the commit hash'),
 			ignoreFocusOut: true
 		});
 
@@ -4120,8 +4220,8 @@ export class CommandCenter {
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
 		const url = await pickRemoteSource({
-			providerLabel: provider => l10n.t('从 {0} 添加远程', provider.name),
-			urlLabel: l10n.t('从 URL 添加远程')
+			providerLabel: provider => l10n.t('Add remote from {0}', provider.name),
+			urlLabel: l10n.t('Add remote from URL')
 		});
 
 		if (!url) {
@@ -4129,14 +4229,14 @@ export class CommandCenter {
 		}
 
 		const resultName = await window.showInputBox({
-			placeHolder: l10n.t('远程名称'),
-			prompt: l10n.t('请提供远程名称'),
+			placeHolder: l10n.t('Remote name'),
+			prompt: l10n.t('Please provide a remote name'),
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				if (!sanitizeRemoteName(name)) {
-					return l10n.t('远程名称格式无效');
+					return l10n.t('Remote name format invalid');
 				} else if (repository.remotes.find(r => r.name === name)) {
-					return l10n.t('远程 "{0}" 已存在。', name);
+					return l10n.t('Remote "{0}" already exists.', name);
 				}
 
 				return null;
@@ -4159,12 +4259,12 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			window.showErrorMessage(l10n.t('你的存储库没有远程。'));
+			window.showErrorMessage(l10n.t('Your repository has no remotes.'));
 			return;
 		}
 
 		const picks: RemoteItem[] = repository.remotes.map(r => new RemoteItem(repository, r));
-		const placeHolder = l10n.t('选择要移除的远程');
+		const placeHolder = l10n.t('Pick a remote to remove');
 
 		const remote = await window.showQuickPick(picks, { placeHolder });
 
@@ -4193,9 +4293,9 @@ export class CommandCenter {
 		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const message = l10n.t('此操作将从 "{0}/{1}" 拉取和推送提交。', HEAD.upstream.remote, HEAD.upstream.name);
-			const yes = l10n.t('确定');
-			const neverAgain = l10n.t('确定，不再显示');
+			const message = l10n.t('This action will pull and push commits from and to "{0}/{1}".', HEAD.upstream.remote, HEAD.upstream.name);
+			const yes = l10n.t('OK');
+			const neverAgain = l10n.t('OK, Don\'t Show Again');
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
 
 			if (pick === neverAgain) {
@@ -4262,7 +4362,7 @@ export class CommandCenter {
 			const publishers = this.model.getRemoteSourcePublishers();
 
 			if (publishers.length === 0) {
-				window.showWarningMessage(l10n.t('你的存储库没有配置可发布的远程。'));
+				window.showWarningMessage(l10n.t('Your repository has no remotes configured to publish to.'));
 				return;
 			}
 
@@ -4272,8 +4372,8 @@ export class CommandCenter {
 				publisher = publishers[0];
 			} else {
 				const picks = publishers
-					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + l10n.t('发布到 {0}', provider.name), alwaysShow: true, provider }));
-				const placeHolder = l10n.t('选择要将分支 "{0}" 发布到的提供程序:', branchName);
+					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + l10n.t('Publish to {0}', provider.name), alwaysShow: true, provider }));
+				const placeHolder = l10n.t('Pick a provider to publish the branch "{0}" to:', branchName);
 				const choice = await window.showQuickPick(picks, { placeHolder });
 
 				if (!choice) {
@@ -4298,7 +4398,7 @@ export class CommandCenter {
 
 		const addRemote = new AddRemoteItem(this);
 		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-		const placeHolder = l10n.t('选择要将分支 "{0}" 发布到的远程:', branchName);
+		const placeHolder = l10n.t('Pick a remote to publish the branch "{0}" to:', branchName);
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
@@ -4380,12 +4480,12 @@ export class CommandCenter {
 
 		if (staged) {
 			if (noStagedChanges) {
-				window.showInformationMessage(l10n.t('没有已暂存的更改可贮藏。'));
+				window.showInformationMessage(l10n.t('There are no staged changes to stash.'));
 				return false;
 			}
 		} else {
 			if (noUnstagedChanges && noStagedChanges) {
-				window.showInformationMessage(l10n.t('没有可贮藏的更改。'));
+				window.showInformationMessage(l10n.t('There are no changes to stash.'));
 				return false;
 			}
 		}
@@ -4404,10 +4504,10 @@ export class CommandCenter {
 
 			if (documents.length > 0) {
 				const message = documents.length === 1
-					? l10n.t('以下文件有未保存的更改，如果继续将不会包含在贮藏中: {0}。\n\n是否要在贮藏前保存?', path.basename(documents[0].uri.fsPath))
-					: l10n.t('有 {0} 个未保存的文件。\n\n是否要在贮藏前保存?', documents.length);
-				const saveAndStash = l10n.t('全部保存并贮藏');
-				const stash = l10n.t('仍然贮藏');
+					? l10n.t('The following file has unsaved changes which won\'t be included in the stash if you proceed: {0}.\n\nWould you like to save it before stashing?', path.basename(documents[0].uri.fsPath))
+					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before stashing?', documents.length);
+				const saveAndStash = l10n.t('Save All & Stash');
+				const stash = l10n.t('Stash Anyway');
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndStash, stash);
 
 				if (pick === saveAndStash) {
@@ -4426,8 +4526,8 @@ export class CommandCenter {
 
 		message = await window.showInputBox({
 			value: message,
-			prompt: l10n.t('可选择提供贮藏消息'),
-			placeHolder: l10n.t('贮藏消息')
+			prompt: l10n.t('Optionally provide a stash message'),
+			placeHolder: l10n.t('Stash message')
 		});
 
 		if (typeof message === 'undefined') {
@@ -4439,7 +4539,7 @@ export class CommandCenter {
 			return true;
 		} catch (err) {
 			if (/You do not have the initial commit yet/.test(err.stderr || '')) {
-				window.showInformationMessage(l10n.t('存储库还没有任何提交。请在创建贮藏之前进行初始提交。'));
+				window.showInformationMessage(l10n.t('The repository does not have any commits. Please make an initial commit before creating a stash.'));
 				return false;
 			}
 
@@ -4467,7 +4567,7 @@ export class CommandCenter {
 
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('选择要弹出的贮藏');
+		const placeHolder = l10n.t('Pick a stash to pop');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4482,7 +4582,7 @@ export class CommandCenter {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('存储库中没有贮藏。'));
+			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
 			return;
 		}
 
@@ -4502,7 +4602,7 @@ export class CommandCenter {
 
 	@command('git.stashApply', { repository: true })
 	async stashApply(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('选择要应用的贮藏');
+		const placeHolder = l10n.t('Pick a stash to apply');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4517,7 +4617,7 @@ export class CommandCenter {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('存储库中没有贮藏。'));
+			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
 			return;
 		}
 
@@ -4537,7 +4637,7 @@ export class CommandCenter {
 
 	@command('git.stashDrop', { repository: true })
 	async stashDrop(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('选择要丢弃的贮藏');
+		const placeHolder = l10n.t('Pick a stash to drop');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4552,15 +4652,15 @@ export class CommandCenter {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('存储库中没有贮藏。'));
+			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
 			return;
 		}
 
 		// request confirmation for the operation
-		const yes = l10n.t('是');
+		const yes = l10n.t('Yes');
 		const question = stashes.length === 1 ?
-			l10n.t('确定要丢弃所有贮藏吗? 有 1 个贮藏将被清除，可能无法恢复。') :
-			l10n.t('确定要丢弃所有贮藏吗? 有 {0} 个贮藏将被清除，可能无法恢复。', stashes.length);
+			l10n.t('Are you sure you want to drop ALL stashes? There is 1 stash that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.') :
+			l10n.t('Are you sure you want to drop ALL stashes? There are {0} stashes that will be subject to pruning, and MAY BE IMPOSSIBLE TO RECOVER.', stashes.length);
 
 		const result = await window.showWarningMessage(question, { modal: true }, yes);
 		if (result !== yes) {
@@ -4583,9 +4683,9 @@ export class CommandCenter {
 	}
 
 	async _stashDrop(repository: Repository, index: number, description: string): Promise<boolean> {
-		const yes = l10n.t('是');
+		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
-			l10n.t('确定要丢弃贮藏: {0}?', description),
+			l10n.t('Are you sure you want to drop the stash: {0}?', description),
 			{ modal: true },
 			yes
 		);
@@ -4599,7 +4699,7 @@ export class CommandCenter {
 
 	@command('git.stashView', { repository: true })
 	async stashView(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('选择要查看的贮藏');
+		const placeHolder = l10n.t('Pick a stash to view');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
@@ -4614,7 +4714,7 @@ export class CommandCenter {
 			const stashes = await repository.getStashes();
 			return stashes.length > 0 ?
 				stashes.map(stash => new StashItem(stash)) :
-				[{ label: l10n.t('$(info) 此存储库没有贮藏。') }];
+				[{ label: l10n.t('$(info) This repository has no stashes.') }];
 		};
 
 		const result = await window.showQuickPick<StashItem | QuickPickItem>(getStashQuickPickItems(), { placeHolder });
@@ -4720,7 +4820,7 @@ export class CommandCenter {
 
 		return {
 			command: 'vscode.diff',
-			title: l10n.t('打开比较'),
+			title: l10n.t('Open Comparison'),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
 	}
@@ -4747,27 +4847,29 @@ export class CommandCenter {
 	}
 
 	private async _resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
-		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+		if (!GitTimelineItem.is(item)) {
 			return undefined;
 		}
 
-		const repository = await this.model.getRepository(uri.fsPath);
+		// Items of the workspace timeline have no uri, so use the repository of the item
+		const repository = this.model.getRepository(item.rootUri);
 		if (!repository) {
 			return undefined;
 		}
 
 		const commit = await repository.getCommit(item.ref);
 		const commitParentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
-		const changes = await repository.diffBetween2(commitParentId, commit.hash);
+		const changes = await repository.diffBetweenWithStats(commitParentId, commit.hash);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, commitParentId, commit.hash));
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
-		const reveal = { modifiedUri: toGitUri(uri, commit.hash) };
+		// Only the items of a file timeline know which file of the commit to reveal
+		const reveal = uri && item.contextValue?.startsWith('git:file') ? { modifiedUri: toGitUri(uri, commit.hash) } : undefined;
 
 		return {
 			command: '_workbench.openMultiDiffEditor',
-			title: l10n.t('打开提交'),
+			title: l10n.t('Open Commit'),
 			arguments: [{ multiDiffSourceUri, title, resources, reveal }, options]
 		};
 	}
@@ -4841,7 +4943,7 @@ export class CommandCenter {
 		if (repository.rebaseCommit) {
 			await repository.rebaseAbort();
 		} else {
-			await window.showInformationMessage(l10n.t('没有正在进行的变基。'));
+			await window.showInformationMessage(l10n.t('No rebase in progress.'));
 		}
 	}
 
@@ -5032,7 +5134,7 @@ export class CommandCenter {
 
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${historyItemParentId}..${historyItemId}` });
 
-		const changes = await repository.diffBetween2(historyItemParentId, historyItemId);
+		const changes = await repository.diffBetweenWithStats(historyItemParentId, historyItemId);
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 		const reveal = revealUri ? { modifiedUri: toGitUri(revealUri, historyItemId) } : undefined;
 
@@ -5081,6 +5183,15 @@ export class CommandCenter {
 		}
 
 		await this._createTag(repository);
+	}
+
+	@command('git.repositories.createWorktree', { repository: true })
+	async artifactGroupCreateWorktree(repository: Repository): Promise<void> {
+		if (!repository) {
+			return;
+		}
+
+		await this._createWorktree(repository);
 	}
 
 	@command('git.repositories.checkout', { repository: true })
@@ -5149,7 +5260,7 @@ export class CommandCenter {
 			return itemsProcessor.processRefs(refs);
 		};
 
-		const placeHolder = l10n.t('选择要与之比较的引用');
+		const placeHolder = l10n.t('Select a reference to compare with');
 		const sourceRef = await this.pickRef(getRefPicks(), placeHolder);
 
 		if (!(sourceRef instanceof BranchItem) || !sourceRef.ref.commit) {
@@ -5293,6 +5404,126 @@ export class CommandCenter {
 		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
 	}
 
+	@command('git.repositories.openWorktree', { repository: true })
+	async artifactOpenWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+	}
+
+	@command('git.repositories.openWorktreeInNewWindow', { repository: true })
+	async artifactOpenWorktreeInNewWindow(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const uri = Uri.file(artifact.id);
+		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+	}
+
+	@command('git.repositories.deleteWorktree', { repository: true })
+	async artifactDeleteWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		await repository.deleteWorktree(artifact.id);
+	}
+
+	@command('git.repositories.worktreeCopyBranchName', { repository: true })
+	async artifactWorktreeCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree || worktree.detached) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.ref.substring(11));
+	}
+
+	@command('git.repositories.worktreeCopyCommitHash', { repository: true })
+	async artifactWorktreeCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree?.commitDetails) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.commitDetails.hash);
+	}
+
+	@command('git.repositories.worktreeCopyPath', { repository: true })
+	async artifactWorktreeCopyPath(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.id);
+	}
+
+	@command('git.repositories.copyCommitHash', { repository: true })
+	async artifactCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const commit = await repository.getCommit(artifact.id);
+		env.clipboard.writeText(commit.hash);
+	}
+
+	@command('git.repositories.copyBranchName', { repository: true })
+	async artifactCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyTagName', { repository: true })
+	async artifactCopyTagName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyStashName', { repository: true })
+	async artifactCopyStashName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.stashCopyBranchName', { repository: true })
+	async artifactStashCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact?.description) {
+			return;
+		}
+
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(s => artifact.id === `stash@{${s.index}}`);
+		if (!stash?.branchName) {
+			return;
+		}
+
+		env.clipboard.writeText(stash.branchName);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -5423,15 +5654,14 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
 
-						message = hint
-							? l10n.t('Git: {0}', hint)
+						message = hintLines.length > 0
+							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
 
 						break;
@@ -5480,7 +5710,13 @@ export class CommandCenter {
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
+		uri = uri ?? window.activeNotebookEditor?.notebook.uri ?? window.activeTextEditor?.document.uri;
+
+		// A notebook diff editor is neither the active text nor notebook editor, so
+		// fall back to its modified resource.
+		if (!uri && window.tabGroups.activeTabGroup.activeTab?.input instanceof TabInputNotebookDiff) {
+			uri = window.tabGroups.activeTabGroup.activeTab.input.modified;
+		}
 
 		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);
 

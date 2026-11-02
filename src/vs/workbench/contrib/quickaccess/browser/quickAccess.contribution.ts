@@ -56,7 +56,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '1_open',
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "命令面板(C)...")
+		title: localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette...")
 	},
 	order: 1
 });
@@ -65,7 +65,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '1_welcome',
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "显示所有命令")
+		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "Show All Commands")
 	},
 	order: 2
 });
@@ -74,7 +74,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '1_open',
 	command: {
 		id: OpenViewPickerAction.ID,
-		title: localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "打开视图(O)...")
+		title: localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
 	},
 	order: 2
 });
@@ -83,7 +83,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '5_infile_nav',
 	command: {
 		id: 'workbench.action.gotoLine',
-		title: localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "转到行/列(L)...")
+		title: localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line/Column...")
 	},
 	order: 1
 });
@@ -92,7 +92,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '1_command',
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize('commandPalette', "命令面板...")
+		title: localize('commandPalette', "Command Palette...")
 	},
 	order: 1
 });
@@ -102,7 +102,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: EditorContextKeys.editorSimpleInput.toNegated(),
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize('commandPalette', "命令面板..."),
+		title: localize('commandPalette', "Command Palette..."),
 	},
 	order: 1
 });

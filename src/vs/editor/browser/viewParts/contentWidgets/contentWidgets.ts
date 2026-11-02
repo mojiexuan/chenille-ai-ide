@@ -48,6 +48,14 @@ export class ViewContentWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
+		for (const widget of Object.values(this._widgets)) {
+			const domNode = widget.domNode.domNode;
+			if (domNode.parentElement === this.domNode.domNode || domNode.parentElement === this.overflowingContentWidgetsDomNode.domNode) {
+				domNode.remove();
+				domNode.removeAttribute('monaco-visible-content-widget');
+			}
+		}
 		this._widgets = {};
 	}
 
@@ -142,7 +150,7 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 
-	public onBeforeRender(viewportData: ViewportData): void {
+	public override onBeforeRender(viewportData: ViewportData): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onBeforeRender(viewportData);

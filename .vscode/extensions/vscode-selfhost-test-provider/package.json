@@ -1,7 +1,7 @@
 {
   "name": "vscode-selfhost-test-provider",
-  "displayName": "Chenille Selfhost Test Provider",
-  "description": "Test provider for the Chenille project",
+  "displayName": "VS Code Selfhost Test Provider",
+  "description": "Test provider for the VS Code project",
   "enabledApiProposals": [
     "testObserver",
     "testRelatedCode"
@@ -53,7 +53,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:src/vs/loader.js"
+    "workspaceContains:src/vscode-dts/vscode.d.ts"
   ],
   "workspaceTrust": {
     "request": "onDemand",
@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.25",

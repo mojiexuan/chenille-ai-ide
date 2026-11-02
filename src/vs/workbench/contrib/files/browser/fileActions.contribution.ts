@@ -20,7 +20,7 @@ import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOS
 import { AutoSaveAfterShortDelayContext } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { WorkbenchListDoubleSelection } from '../../../../platform/list/browser/listService.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { DirtyWorkingCopiesContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
+import { DirtyWorkingCopiesContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsSessionsWindowContext, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ActiveEditorDirtyContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -146,20 +146,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const copyPathCommand = {
 	id: COPY_PATH_COMMAND_ID,
-	title: nls.localize('copyPath', "复制路径")
+	title: nls.localize('copyPath', "Copy Path")
 };
 
 const copyRelativePathCommand = {
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	title: nls.localize('copyRelativePath', "复制相对路径")
+	title: nls.localize('copyRelativePath', "Copy Relative Path")
 };
 
 export const revealInSideBarCommand = {
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
-	title: nls.localize('revealInSideBar', "在资源管理器中显示")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 // Editor Title Context Menu
+appendEditorTitleContextMenuItem(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL.value, ActiveEditorDirtyContext, '1_close_save', true, 10);
+appendEditorTitleContextMenuItem(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL.value, ActiveEditorDirtyContext, '1_close_save', false, 20);
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
@@ -177,8 +179,8 @@ export function appendEditorTitleContextMenuItem(id: string, title: string, when
 }
 
 // Editor Title Menu for Conflict Resolution
-appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "使用你的更改并覆盖文件内容"), Codicon.check, -10, acceptLocalChangesCommand);
-appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "放弃你的更改并还原为文件内容"), Codicon.discard, -9, revertLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), Codicon.check, -10, acceptLocalChangesCommand);
+appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to file contents"), Codicon.discard, -9, revertLocalChangesCommand);
 
 function appendSaveConflictEditorTitleAction(id: string, title: string, icon: ThemeIcon, order: number, command: ICommandHandler): void {
 
@@ -210,14 +212,14 @@ export function appendToCommandPalette({ id, title, category, metadata }: IComma
 
 appendToCommandPalette({
 	id: COPY_PATH_COMMAND_ID,
-	title: nls.localize2('copyPathOfActive', "复制活动文件的路径"),
+	title: nls.localize2('copyPathOfActive', "Copy Path of Active File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 appendToCommandPalette({
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	title: nls.localize2('copyRelativePathOfActive', "复制活动文件的相对路径"),
+	title: nls.localize2('copyRelativePathOfActive', "Copy Relative Path of Active File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
@@ -233,28 +235,28 @@ appendToCommandPalette({
 
 appendToCommandPalette({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	title: nls.localize2('saveAllInGroup', "保存组中全部"),
+	title: nls.localize2('saveAllInGroup', "Save All in Group"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: SAVE_FILES_COMMAND_ID,
-	title: nls.localize2('saveFiles', "保存所有文件"),
+	title: nls.localize2('saveFiles', "Save All Files"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: REVERT_FILE_COMMAND_ID,
-	title: nls.localize2('revertFile', "还原文件"),
+	title: nls.localize2('revert', "Revert File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
-	title: nls.localize2('compareActiveWithSaved', "将活动文件与已保存的内容比较"),
+	title: nls.localize2('compareActiveWithSaved', "Compare Active File with Saved"),
 	category: Categories.File,
 	metadata: {
-		description: nls.localize2('compareActiveWithSavedMeta', "打开新的差异编辑器，将活动文件与磁盘上的版本进行比较。")
+		description: nls.localize2('compareActiveWithSavedMeta', "Opens a new diff editor to compare the active file with the version on disk.")
 	}
 });
 
@@ -262,26 +264,26 @@ appendToCommandPalette({
 	id: SAVE_FILE_AS_COMMAND_ID,
 	title: SAVE_FILE_AS_LABEL,
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 appendToCommandPalette({
 	id: NEW_FILE_COMMAND_ID,
 	title: NEW_FILE_LABEL,
 	category: Categories.File
-}, WorkspaceFolderCountContext.notEqualsTo('0'));
+}, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate()));
 
 appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
 	title: NEW_FOLDER_LABEL,
 	category: Categories.File,
-	metadata: { description: nls.localize2('newFolderDescription', "创建新文件夹或目录") }
-}, WorkspaceFolderCountContext.notEqualsTo('0'));
+	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
+}, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate()));
 
 appendToCommandPalette({
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	title: NEW_UNTITLED_FILE_LABEL,
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 
 // Menu registration - open editors
 
@@ -289,7 +291,7 @@ const isFileOrUntitledResourceContextKey = ContextKeyExpr.or(ResourceContextKey.
 
 const openToSideCommand = {
 	id: OPEN_TO_SIDE_COMMAND_ID,
-	title: nls.localize('openToSide', "在侧边打开")
+	title: nls.localize('openToSide', "Open to the Side")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
@@ -303,7 +305,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 10,
 	command: {
 		id: REOPEN_WITH_COMMAND_ID,
-		title: nls.localize('reopenWith', "使用其他编辑器重新打开...")
+		title: nls.localize('reopenWith', "Reopen Editor With...")
 	},
 	when: ContextKeyExpr.and(
 		// Editors with Available Choices to Open With
@@ -355,7 +357,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 20,
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize('revert', "还原文件"),
+		title: nls.localize('revert', "Revert File"),
 		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(
@@ -375,7 +377,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 30,
 	command: {
 		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-		title: nls.localize('saveAll', "全部保存"),
+		title: nls.localize('saveAll', "Save All"),
 		precondition: DirtyWorkingCopiesContext
 	},
 	// Editor Group
@@ -387,7 +389,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 10,
 	command: {
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
-		title: nls.localize('compareWithSaved', "与已保存的内容比较"),
+		title: nls.localize('compareWithSaved', "Compare with Saved"),
 		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveAfterShortDelayContext.toNegated(), WorkbenchListDoubleSelection.toNegated())
@@ -395,7 +397,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 const compareResourceCommand = {
 	id: COMPARE_RESOURCE_COMMAND_ID,
-	title: nls.localize('compareWithSelected', "与已选项比较")
+	title: nls.localize('compareWithSelected', "Compare with Selected")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
@@ -406,7 +408,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 const selectForCompareCommand = {
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
-	title: nls.localize('compareSource', "选择以进行比较")
+	title: nls.localize('compareSource', "Select for Compare")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
@@ -417,7 +419,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 const compareSelectedCommand = {
 	id: COMPARE_SELECTED_COMMAND_ID,
-	title: nls.localize('compareSelected', "比较已选项")
+	title: nls.localize('compareSelected', "Compare Selected")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
@@ -438,7 +440,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 10,
 	command: {
 		id: CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "关闭")
+		title: nls.localize('close', "Close")
 	},
 	when: OpenEditorsGroupContext.toNegated()
 });
@@ -448,7 +450,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 20,
 	command: {
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeOthers', "关闭其他")
+		title: nls.localize('closeOthers', "Close Others")
 	},
 	when: OpenEditorsGroupContext.toNegated()
 });
@@ -458,7 +460,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 30,
 	command: {
 		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
-		title: nls.localize('closeSaved', "关闭已保存")
+		title: nls.localize('closeSaved', "Close Saved")
 	}
 });
 
@@ -467,7 +469,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 40,
 	command: {
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeAll', "全部关闭")
+		title: nls.localize('closeAll', "Close All")
 	}
 });
 
@@ -507,7 +509,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 20,
 	command: {
 		id: OPEN_WITH_EXPLORER_COMMAND_ID,
-		title: nls.localize('explorerOpenWith', "打开方式..."),
+		title: nls.localize('explorerOpenWith', "Open With..."),
 	},
 	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
 });
@@ -538,7 +540,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 8,
 	command: {
 		id: CUT_FILE_ID,
-		title: nls.localize('cut', "剪切"),
+		title: nls.localize('cut', "Cut"),
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceWritableContext)
 });
@@ -652,7 +654,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	},
 	alt: {
 		id: DELETE_FILE_ID,
-		title: nls.localize('deleteFile', "永久删除")
+		title: nls.localize('deleteFile', "Delete Permanently")
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash)
 });
@@ -662,15 +664,15 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 20,
 	command: {
 		id: DELETE_FILE_ID,
-		title: nls.localize('deleteFile', "永久删除")
+		title: nls.localize('deleteFile', "Delete Permanently")
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash.toNegated())
 });
 
 // Empty Editor Group / Editor Tabs Container Context Menu
 for (const menuId of [MenuId.EmptyEditorGroupContext, MenuId.EditorTabsBarContext]) {
-	MenuRegistry.appendMenuItem(menuId, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "新建文本文件") }, group: '1_file', order: 10 });
-	MenuRegistry.appendMenuItem(menuId, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "打开文件...") }, group: '1_file', order: 20 });
+	MenuRegistry.appendMenuItem(menuId, { command: { id: NEW_UNTITLED_FILE_COMMAND_ID, title: nls.localize('newFile', "New Text File") }, group: '1_file', order: 10 });
+	MenuRegistry.appendMenuItem(menuId, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "Open File...") }, group: '1_file', order: 20 });
 }
 
 // File menu
@@ -679,7 +681,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',
 	command: {
 		id: NEW_UNTITLED_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "新建文本文件(N)")
+		title: nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New Text File")
 	},
 	order: 1
 });
@@ -688,7 +690,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "保存(S)"),
+		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 1
@@ -698,7 +700,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "另存为(A)..."),
+		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
@@ -708,7 +710,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '4_save',
 	command: {
 		id: SAVE_ALL_COMMAND_ID,
-		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "全部保存(L)"),
+		title: nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"),
 		precondition: DirtyWorkingCopiesContext
 	},
 	order: 3
@@ -718,7 +720,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '5_autosave',
 	command: {
 		id: ToggleAutoSaveAction.ID,
-		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "自动保存(U)"),
+		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "A&&uto Save"),
 		toggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
 	},
 	order: 1
@@ -728,7 +730,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "还原文件(V)"),
+		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
 		precondition: ContextKeyExpr.or(
 			// Active editor can revert
 			ContextKeyExpr.and(ActiveEditorCanRevertContext),
@@ -743,7 +745,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
 		id: CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "关闭编辑器(C)"),
+		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
@@ -755,7 +757,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '3_global_nav',
 	command: {
 		id: 'workbench.action.quickOpen',
-		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "转到文件(F)...")
+		title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File...")
 	},
 	order: 1
 });

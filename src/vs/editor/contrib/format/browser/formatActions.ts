@@ -214,7 +214,7 @@ class FormatDocumentAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument',
-			label: nls.localize2('formatDocument.label', "格式化文档"),
+			label: nls.localize2('formatDocument.label', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -246,7 +246,7 @@ class FormatSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatSelection',
-			label: nls.localize2('formatSelection.label', "格式化选定内容"),
+			label: nls.localize2('formatSelection.label', "Format Selection"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

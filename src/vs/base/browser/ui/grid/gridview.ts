@@ -504,8 +504,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	setVisible(visible: boolean): void {
-		for (const child of this.children) {
-			child.setVisible(visible);
+		for (let index = 0; index < this.children.length; index++) {
+			this.children[index].setVisible(visible && this.isChildVisible(index));
 		}
 	}
 
@@ -738,6 +738,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		this._onDidChange.dispose();
+		this._onDidScroll.dispose();
 		this._onDidSashReset.dispose();
 		this._onDidVisibilityChange.dispose();
 
@@ -933,6 +934,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidSetLinkedNode.dispose();
 		this.disposables.dispose();
 	}
 }
@@ -1133,6 +1135,7 @@ export class GridView implements IDisposable {
 			return;
 		}
 
+		this.exitMaximizedView();
 		const { size, orthogonalSize, absoluteOffset, absoluteOrthogonalOffset } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
 		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: absoluteOrthogonalOffset, absoluteOrthogonalOffset: absoluteOffset, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
@@ -1156,6 +1159,7 @@ export class GridView implements IDisposable {
 	}
 
 	private maximizedNode: LeafNode | undefined = undefined;
+	private maximizedVisibleNodes: ReadonlySet<Node> | undefined;
 
 	private readonly _onDidChangeViewMaximized = new Emitter<boolean>();
 	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
@@ -1322,11 +1326,15 @@ export class GridView implements IDisposable {
 
 		if (sibling instanceof BranchNode) {
 			sizes.splice(parentIndex, 1, ...sibling.children.map(c => c.size));
+			const siblingChildSizes = sibling.children.map((child, index) => {
+				const cachedVisibleSize = sibling.getChildCachedVisibleSize(index);
+				return typeof cachedVisibleSize === 'number' ? Sizing.Invisible(cachedVisibleSize) : child.size;
+			});
 
 			const siblingChildren = sibling.removeAllChildren();
 
 			for (let i = 0; i < siblingChildren.length; i++) {
-				grandParent.addChild(siblingChildren[i], siblingChildren[i].size, parentIndex + i);
+				grandParent.addChild(siblingChildren[i], siblingChildSizes[i], parentIndex + i);
 			}
 		} else {
 			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), this.layoutController, sibling.size);
@@ -1537,7 +1545,7 @@ export class GridView implements IDisposable {
 		return true;
 	}
 
-	maximizeView(location: GridLocation) {
+	maximizeView(location: GridLocation, excludeViews: readonly IView[] = []) {
 		const [, nodeToMaximize] = this.getNode(location);
 		if (!(nodeToMaximize instanceof LeafNode)) {
 			throw new Error('Location is not a LeafNode');
@@ -1551,11 +1559,26 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
+		const excludeViewSet = new Set(excludeViews);
+		const visibleNodes = new Set<Node>();
+
+		function collectVisibleNodes(parent: BranchNode): void {
+			for (let index = 0; index < parent.children.length; index++) {
+				const child = parent.children[index];
+				if (parent.isChildVisible(index)) {
+					visibleNodes.add(child);
+				}
+				if (child instanceof BranchNode) {
+					collectVisibleNodes(child);
+				}
+			}
+		}
+
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude) {
+					if (child !== exclude && !excludeViewSet.has(child.view)) {
 						parent.setChildVisible(i, false);
 					}
 				} else {
@@ -1564,8 +1587,10 @@ export class GridView implements IDisposable {
 			}
 		}
 
+		collectVisibleNodes(this.root);
 		hideAllViewsBut(this.root, nodeToMaximize);
 
+		this.maximizedVisibleNodes = visibleNodes;
 		this.maximizedNode = nodeToMaximize;
 		this._onDidChangeViewMaximized.fire(true);
 	}
@@ -1574,22 +1599,22 @@ export class GridView implements IDisposable {
 		if (!this.maximizedNode) {
 			return;
 		}
+		const visibleNodes = this.maximizedVisibleNodes;
 		this.maximizedNode = undefined;
+		this.maximizedVisibleNodes = undefined;
 
-		// When hiding a view, it's previous size is cached.
-		// To restore the sizes of all views, they need to be made visible in reverse order.
-		function showViewsInReverseOrder(parent: BranchNode): void {
+		// Restoring visible views in reverse order also restores their cached sizes.
+		function restoreViewsInReverseOrder(parent: BranchNode): void {
 			for (let index = parent.children.length - 1; index >= 0; index--) {
 				const child = parent.children[index];
-				if (child instanceof LeafNode) {
-					parent.setChildVisible(index, true);
-				} else {
-					showViewsInReverseOrder(child);
+				if (child instanceof BranchNode) {
+					restoreViewsInReverseOrder(child);
 				}
+				parent.setChildVisible(index, visibleNodes?.has(child) ?? true);
 			}
 		}
 
-		showViewsInReverseOrder(this.root);
+		restoreViewsInReverseOrder(this.root);
 
 		this._onDidChangeViewMaximized.fire(false);
 	}
@@ -1664,7 +1689,6 @@ export class GridView implements IDisposable {
 	setViewVisible(location: GridLocation, visible: boolean): void {
 		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
-			return;
 		}
 
 		const [rest, index] = tail(location);
@@ -1830,6 +1854,7 @@ export class GridView implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidChangeViewMaximized.dispose();
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
 		this.element.remove();

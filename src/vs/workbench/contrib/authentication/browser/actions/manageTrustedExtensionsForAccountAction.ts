@@ -22,8 +22,8 @@ export class ManageTrustedExtensionsForAccountAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageTrustedExtensionsForAccount',
-			title: localize2('manageTrustedExtensionsForAccount', "管理帐户的受信任扩展"),
-			category: localize2('accounts', "帐户"),
+			title: localize2('manageTrustedExtensionsForAccount', "Manage Trusted Extensions For Account"),
+			category: localize2('accounts', "Accounts"),
 			f1: true
 		});
 	}
@@ -41,12 +41,12 @@ interface TrustedExtensionsQuickPickItem extends IQuickPickItem {
 
 class ManageTrustedExtensionsForAccountActionImpl {
 	private readonly _viewDetailsButton = {
-		tooltip: localize('viewExtensionDetails', "查看扩展详细信息"),
+		tooltip: localize('viewExtensionDetails', "View extension details"),
 		iconClass: ThemeIcon.asClassName(Codicon.info),
 	};
 
 	private readonly _managePreferencesButton = {
-		tooltip: localize('accountPreferences', "管理此扩展的帐户首选项"),
+		tooltip: localize('accountPreferences', "Manage account preferences for this extension"),
 		iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 	};
 
@@ -85,7 +85,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 
 		const accounts = await this._getAllAvailableAccounts();
 		const pick = await this._quickInputService.pick(accounts, {
-			placeHolder: localize('pickAccount', "选择要管理受信任扩展的帐户"),
+			placeHolder: localize('pickAccount', "Pick an account to manage trusted extensions for"),
 			matchOnDescription: true,
 		});
 
@@ -143,7 +143,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			});
 
 		if (!filteredExtensions.length) {
-			this._dialogService.info(localize('noTrustedExtensions', "此帐户尚未被任何扩展使用。"));
+			this._dialogService.info(localize('noTrustedExtensions', "This account has not been used by any extensions."));
 			return [];
 		}
 
@@ -154,7 +154,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		const _toQuickPickItem = this._toQuickPickItem.bind(this);
 		return [
 			...otherExtensions.sort(sortByLastUsed).map(_toQuickPickItem),
-			{ type: 'separator', label: localize('trustedExtensions', "受 Microsoft 信任") } satisfies IQuickPickSeparator,
+			{ type: 'separator', label: localize('trustedExtensions', "Trusted by Microsoft") } satisfies IQuickPickSeparator,
 			...trustedExtensions.sort(sortByLastUsed).map(_toQuickPickItem)
 		];
 	}
@@ -162,12 +162,12 @@ class ManageTrustedExtensionsForAccountActionImpl {
 	private _toQuickPickItem(extension: AllowedExtension): TrustedExtensionsQuickPickItem {
 		const lastUsed = extension.lastUsed;
 		const description = lastUsed
-			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "上次使用此帐户: {0}", fromNow(lastUsed, true))
-			: localize('notUsed', "尚未使用此帐户");
+			? localize({ key: 'accountLastUsedDate', comment: ['The placeholder {0} is a string with time information, such as "3 days ago"'] }, "Last used this account {0}", fromNow(lastUsed, true))
+			: localize('notUsed', "Has not used this account");
 		let tooltip: string | undefined;
 		let disabled: boolean | undefined;
 		if (extension.trusted) {
-			tooltip = localize('trustedExtensionTooltip', "此扩展受 Microsoft 信任，\n始终可以访问此帐户");
+			tooltip = localize('trustedExtensionTooltip', "This extension is trusted by Microsoft and\nalways has access to this account");
 			disabled = true;
 		}
 		return {
@@ -188,9 +188,10 @@ class ManageTrustedExtensionsForAccountActionImpl {
 		// Configure quick pick
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
-		quickPick.customLabel = localize('manageTrustedExtensions.cancel', '取消');
-		quickPick.title = localize('manageTrustedExtensions', "管理受信任的扩展");
-		quickPick.placeholder = localize('manageExtensions', "选择哪些扩展可以访问此帐户");
+		quickPick.customLabel = localize('manageTrustedExtensions.cancel', 'Cancel');
+		quickPick.customButtonSecondary = true;
+		quickPick.title = localize('manageTrustedExtensions', "Manage Trusted Extensions");
+		quickPick.placeholder = localize('manageExtensions', "Choose which extensions can access this account");
 
 		// Set up event handlers
 		disposableStore.add(quickPick.onDidAccept(() => {

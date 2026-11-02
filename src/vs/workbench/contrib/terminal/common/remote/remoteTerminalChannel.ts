@@ -8,6 +8,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariableShared.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
@@ -21,7 +22,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { IProcessEnvironment, OperatingSystem } from '../../../../../base/common/platform.js';
 import { ICompleteTerminalConfiguration } from '../terminal.js';
 import { IPtyHostProcessReplayEvent } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ISerializableEnvironmentDescriptionMap as ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
 import type * as performance from '../../../../../base/common/performance.js';
 import { RemoteTerminalChannelEvent, RemoteTerminalChannelRequest } from './terminal.js';
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
@@ -111,6 +112,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) { }
 
 	restartPtyHost(): Promise<void> {
@@ -125,7 +127,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11'
+		unicodeVersion: '6' | '11',
+		os: OperatingSystem
 	): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
@@ -147,12 +150,20 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		}
 
 		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
-		for (const [k, v] of this._environmentVariableService.collections.entries()) {
-			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+		if (options.environmentVariableCollections !== undefined) {
+			for (const [k, v] of this._environmentVariableService.getMergedCollection(this._remoteAuthority, os).collections.entries()) {
+				envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+			}
 		}
 
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);
-		const resolverEnv = resolverResult.options && resolverResult.options.extensionHostEnv;
+		const resolverEnv = {
+			/**
+			 * If the extension host was spawned via a launch configuration,
+			 * include the environment provided by that launch configuration.
+			 */
+			...(this._environmentService.debugExtensionHost.env ?? {}), ...resolverResult.options?.extensionHostEnv
+		};
 
 		const workspace = this._workspaceContextService.getWorkspace();
 		const workspaceFolders = workspace.folders;
@@ -231,8 +242,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.Shutdown, [id, immediate]);
 	}
-	resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.Resize, [id, cols, rows]);
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.Resize, [id, cols, rows, pixelWidth, pixelHeight]);
 	}
 	clearBuffer(id: number): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.ClearBuffer, [id]);

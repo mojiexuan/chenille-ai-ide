@@ -21,7 +21,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatDocument.none',
-			label: nls.localize2('formatDocument.label.multiple', "格式化文档"),
+			label: nls.localize2('formatDocument.label.multiple', "Format Document"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -51,13 +51,13 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		} else if (formatterCount === 1) {
 			return commandService.executeCommand('editor.action.formatDocument');
 		} else if (model.isTooLargeForSyncing()) {
-			notificationService.warn(nls.localize('too.large', "此文件太大，无法格式化"));
+			notificationService.warn(nls.localize('too.large', "This file cannot be formatted because it is too large"));
 		} else {
 			const langName = model.getLanguageId();
-			const message = nls.localize('no.provider', "没有为 '{0}' 文件安装格式化程序。", langName);
+			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);
 			const { confirmed } = await dialogService.confirm({
 				message,
-				primaryButton: nls.localize({ key: 'install.formatter', comment: ['&& denotes a mnemonic'] }, "安装格式化程序...")
+				primaryButton: nls.localize({ key: 'install.formatter', comment: ['&& denotes a mnemonic'] }, "&&Install Formatter...")
 			});
 			if (confirmed) {
 				extensionsWorkbenchService.openSearch(`category:formatters ${langName}`);

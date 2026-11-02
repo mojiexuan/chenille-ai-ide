@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
@@ -105,7 +106,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const resumeProgressOptionsTitle = `[${localize('resuming working changes window', 'Resuming working changes...')}](command:${showOutputChannelCommand.id})`;
+const resumeProgressOptionsTitle = NotificationText.link(localize('resuming working changes window', 'Resuming working changes...'), `command:${showOutputChannelCommand.id}`);
 const resumeProgressOptions = {
 	location: ProgressLocation.Window,
 	type: 'syncing',
@@ -180,11 +181,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.registerContributedEditSessionOptions();
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => {
+		this._register(this.lifecycleService.onWillShutdown((e) => {
 			if (e.reason !== ShutdownReason.RELOAD && this.editSessionsStorageService.isSignedIn && this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
 				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
 			}
-		});
+		}));
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -644,6 +645,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			for (const change of folder.workingChanges) {
 				const uri = joinPath(folderRoot.uri, change.relativeFilePath);
+				if (!this.uriIdentityService.extUri.isEqualOrParent(uri, folderRoot.uri) || this.uriIdentityService.extUri.isEqual(uri, folderRoot.uri)) {
+					this.logService.warn(`Skipping change outside workspace folder: ${change.relativeFilePath}`);
+					continue;
+				}
 
 				changes.push({ uri, type: change.type, contents: change.contents });
 				if (await this.willChangeLocalContents(localChanges, uri, change)) {
@@ -985,9 +990,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
 		quickPick.placeholder = localize('continueEditSessionPick.title.v2', "Select a development environment to continue working on {0} in", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
-		this.extensionService.onDidChangeExtensions(() => {
+		disposables.add(this.extensionService.onDidChangeExtensions(() => {
 			quickPick.items = this.createPickItems();
-		});
+		}));
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
 			disposables.add(quickPick.onDidHide(() => {

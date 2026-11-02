@@ -17,7 +17,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 
 /**
- * The editor scrollbar built on Chenille's scrollable element that sits beside
+ * The editor scrollbar built on VS Code's scrollable element that sits beside
  * the minimap.
  */
 export class EditorScrollbar extends ViewPart {
@@ -105,9 +105,6 @@ export class EditorScrollbar extends ViewPart {
 		this._register(dom.addDisposableListener(this.scrollbarDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(this.scrollbarDomNode.domNode, true, false)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private _setLayout(): void {
 		const options = this._context.configuration.options;

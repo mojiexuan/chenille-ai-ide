@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from '../../base/browser/browser.js';
-import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
+import { getZoomFactor, isSafari, isMobileStandalone, onDidChangeZoomLevel, setFullscreen } from '../../base/browser/browser.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
 import { timeout } from '../../base/common/async.js';
@@ -54,6 +54,19 @@ export abstract class BaseWindow extends Disposable {
 
 		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
 		this.registerContextMenuListeners(targetWindow);
+		this.registerWindowZoomFactor(targetWindow);
+	}
+
+	private registerWindowZoomFactor(targetWindow: CodeWindow): void {
+		// Auxiliary windows mirror document/body styles, but keep their own workbench styles.
+		const container = this.layoutService.getContainer(targetWindow);
+		const update = () => container.style.setProperty('--window-zoom-factor', String(getZoomFactor(targetWindow)));
+		update();
+		this._register(onDidChangeZoomLevel(windowId => {
+			if (windowId === targetWindow.vscodeWindowId) {
+				update();
+			}
+		}));
 	}
 
 	//#region focus handling in multi-window applications
@@ -74,8 +87,9 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	private onElementFocus(targetWindow: CodeWindow): void {
-		const activeWindow = getActiveWindow();
-		if (activeWindow !== targetWindow && activeWindow.document.hasFocus()) {
+
+		// Check if focus should transfer: the application currently has focus somewhere, but not in the target window.
+		if (!targetWindow.document.hasFocus() && hasAppFocus()) {
 
 			// Call original focus()
 			targetWindow.focus();
@@ -153,6 +167,8 @@ export abstract class BaseWindow extends Disposable {
 					didClear = true;
 					(window as { vscodeOriginalClearTimeout?: typeof window.clearTimeout }).vscodeOriginalClearTimeout?.apply(this, [handle]);
 					timeoutDisposables.delete(timeoutDisposable);
+					// Remove from the window's DisposableStore without re-disposing (we're already inside dispose)
+					disposables.deleteAndLeak(timeoutDisposable);
 				});
 
 				disposables.add(timeoutDisposable);
@@ -182,17 +198,17 @@ export abstract class BaseWindow extends Disposable {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "确定要退出吗?") : localize('quitMessage', "确定要退出吗?")) :
-			localize('closeWindowMessage', "确定要关闭窗口吗?");
+			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
+			localize('closeWindowMessage', "Are you sure you want to close the window?");
 		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "退出") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "退出")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "关闭窗口");
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
 
 		const res = await dialogService.confirm({
 			message,
 			primaryButton,
 			checkbox: {
-				label: localize('doNotAskAgain', "不再询问")
+				label: localize('doNotAskAgain', "Do not ask me again")
 			}
 		});
 
@@ -296,11 +312,11 @@ export class BrowserWindow extends BaseWindow {
 			// state.
 			await this.dialogService.prompt({
 				type: Severity.Error,
-				message: localize('shutdownError', "发生意外错误，需要重新加载此页面。"),
-				detail: localize('shutdownErrorDetail', "工作台在运行时意外终止。"),
+				message: localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
+				detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running."),
 				buttons: [
 					{
-						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "重新加载"),
+						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
 						run: () => mainWindow.location.reload() // do not use any services at this point since they are likely not functional at this point
 					}
 				]
@@ -352,18 +368,20 @@ export class BrowserWindow extends BaseWindow {
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					if (isSafari) {
+					// Both block popups opened outside a user gesture, so use the
+					// open-then-navigate path, which can pick up a reserved window.
+					if (isSafari || isMobileStandalone()) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
 							await this.dialogService.prompt({
 								type: Severity.Warning,
-								message: localize('unableToOpenExternal', '浏览器阻止了打开新标签页或窗口。请按"重试"再试一次。'),
+								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
 								custom: {
-									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "请在[浏览器设置]({0})中允许此网站的弹出窗口。", 'https://aka.ms/allow-vscode-popup'), true) }]
+									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
 								},
 								buttons: [
 									{
-										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "重试"),
+										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
 									}
 								],
@@ -395,7 +413,7 @@ export class BrowserWindow extends BaseWindow {
 
 						const buttons: IPromptButton<void>[] = [
 							{
-								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "重试"),
+								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
 								run: () => invokeProtocolHandler()
 							}
 						];
@@ -403,13 +421,13 @@ export class BrowserWindow extends BaseWindow {
 						if (downloadUrl !== undefined) {
 							detail = localize(
 								'openExternalDialogDetail.v2',
-								"我们已在您的计算机上启动 {0}。\n\n如果 {1} 未启动，请重试或在下方安装。",
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
 								this.productService.nameLong,
 								this.productService.nameLong
 							);
 
 							buttons.push({
-								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "安装"),
+								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
 								run: async () => {
 									await this.openerService.open(URI.parse(downloadUrl));
 
@@ -420,7 +438,7 @@ export class BrowserWindow extends BaseWindow {
 						} else {
 							detail = localize(
 								'openExternalDialogDetailNoInstall',
-								"我们已在您的计算机上启动 {0}。\n\n如果 {1} 未启动，请在下方重试。",
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
 								this.productService.nameLong,
 								this.productService.nameLong
 							);
@@ -430,7 +448,7 @@ export class BrowserWindow extends BaseWindow {
 						// to avoid showing the user two dialogs at once
 						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
-							message: localize('openExternalDialogTitle', "全部完成。您现在可以关闭此标签页了。"),
+							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							detail,
 							buttons,
 							cancelButton: true

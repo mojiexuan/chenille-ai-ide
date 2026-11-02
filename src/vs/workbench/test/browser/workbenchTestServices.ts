@@ -7,7 +7,7 @@ import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { timeout } from '../../../base/common/async.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -16,6 +16,7 @@ import { isValidBasename } from '../../../base/common/extpath.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
 import { env } from '../../../base/common/process.js';
@@ -26,7 +27,6 @@ import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { Selection } from '../../../editor/common/core/selection.js';
@@ -58,6 +58,7 @@ import { IFolderBackupInfo, IWorkspaceBackupInfo } from '../../../platform/backu
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
@@ -83,13 +84,14 @@ import { ILabelService } from '../../../platform/label/common/label.js';
 import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerService } from '../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -113,7 +115,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
-import { PaneComposite, PaneCompositeDescriptor } from '../../browser/panecomposite.js';
+import { PaneComposite, PaneCompositeDescriptor, Extensions as PaneCompositeExtensions } from '../../browser/panecomposite.js';
 import { Part } from '../../browser/part.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
 import { EditorPane } from '../../browser/parts/editor/editorPane.js';
@@ -130,6 +132,9 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
 import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -140,15 +145,19 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
+import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions } from '../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
-import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
+import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, IVisibleEditorsChangeEvent, PreferredGroup } from '../../services/editor/common/editorService.js';
 import { BrowserWorkbenchEnvironmentService } from '../../services/environment/browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -157,14 +166,16 @@ import { BrowserElevatedFileService } from '../../services/files/browser/elevate
 import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
 import { FilesConfigurationService, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
-import { IHostService } from '../../services/host/browser/host.js';
+import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
-import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
+import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
+import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
 import { BrowserTextFileService } from '../../services/textfile/browser/browserTextFileService.js';
 import { EncodingOracle, IEncodingOverride } from '../../services/textfile/browser/textFileService.js';
@@ -185,10 +196,12 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 // Backcompat export
-export { TestFileService };
+export { TestFileService, TestLifecycleService };
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -296,7 +309,13 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
-	instantiationService.stub(IPathService, overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService());
+	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, {
+		_serviceBrand: undefined,
+		get home() { return URI.joinPath(pathService.userHome({ preferLocal: true }), '.copilot'); },
+		source: 'userHome',
+	});
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());
@@ -356,7 +375,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IContextMenuService, disposables.add(instantiationService.createInstance(ContextMenuService)));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, NullOpenerService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));
@@ -373,7 +392,14 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
+	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
+	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
 
 	return instantiationService;
 }
@@ -487,7 +513,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		};
 	}
 
@@ -574,11 +601,11 @@ export class TestMenuService implements IMenuService {
 	}
 
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	getMenuContexts(id: MenuId): ReadonlySet<string> {
-		throw new Error('Method not implemented.');
+		return new Set<string>();
 	}
 
 	resetHiddenStates(): void {
@@ -635,7 +662,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
-	readonly onDidChangePartVisibility: Event<void> = Event.None;
+	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
@@ -649,6 +676,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
+	isFloatingPanelsEnabled(): boolean { return false; }
+	isModernUICompact(): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -665,6 +694,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setSideBarHidden(_hidden: boolean): Promise<void> { }
 	async setAuxiliaryBarHidden(_hidden: boolean): Promise<void> { }
 	async setPartHidden(_hidden: boolean, part: Parts): Promise<void> { }
+	isSecondarySideBarVisible(): boolean { return false; }
+	toggleSecondarySideBar(): void { }
 	isPanelHidden(): boolean { return false; }
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
@@ -716,6 +747,12 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
 	}
 
+	getPartId(viewContainerLocation: ViewContainerLocation): SINGLE_WINDOW_PARTS {
+		return this.getPartByLocation(viewContainerLocation).partId;
+	}
+	getRegistryId(viewContainerLocation: ViewContainerLocation): string {
+		return this.getPartByLocation(viewContainerLocation).registryId;
+	}
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
 		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
 	}
@@ -764,6 +801,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
 	readonly partId = Parts.SIDEBAR_PART;
+	readonly registryId = PaneCompositeExtensions.Viewlets;
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
 	maximumWidth = 0;
@@ -801,6 +839,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 	readonly partId = Parts.AUXILIARYBAR_PART;
+	readonly registryId = PaneCompositeExtensions.Auxiliary;
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPaneComposite(id: string): any { return activeViewlet; }
@@ -855,7 +894,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
 	readonly onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
-	readonly onDidActivateGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidActivateGroup: Event<IEditorGroupActivationEvent> = Event.None;
 	readonly onDidAddGroup: Event<IEditorGroup> = Event.None;
 	readonly onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	readonly onDidMoveGroup: Event<IEditorGroup> = Event.None;
@@ -916,8 +955,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
 	readonly mainPart = this;
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
+	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1031,7 +1072,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidActiveEditorChange: Event<void> = Event.None;
-	readonly onDidVisibleEditorsChange: Event<void> = Event.None;
+	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent> = Event.None;
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent> = Event.None;
 	readonly onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
@@ -1187,88 +1228,6 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 	}
 }
 
-export class TestLifecycleService extends Disposable implements ILifecycleService {
-
-	declare readonly _serviceBrand: undefined;
-
-	usePhases = false;
-	_phase!: LifecyclePhase;
-	get phase(): LifecyclePhase { return this._phase; }
-	set phase(value: LifecyclePhase) {
-		this._phase = value;
-		if (value === LifecyclePhase.Starting) {
-			this.whenStarted.complete();
-		} else if (value === LifecyclePhase.Ready) {
-			this.whenReady.complete();
-		} else if (value === LifecyclePhase.Restored) {
-			this.whenRestored.complete();
-		} else if (value === LifecyclePhase.Eventually) {
-			this.whenEventually.complete();
-		}
-	}
-
-	private readonly whenStarted = new DeferredPromise<void>();
-	private readonly whenReady = new DeferredPromise<void>();
-	private readonly whenRestored = new DeferredPromise<void>();
-	private readonly whenEventually = new DeferredPromise<void>();
-	async when(phase: LifecyclePhase): Promise<void> {
-		if (!this.usePhases) {
-			return;
-		}
-		if (phase === LifecyclePhase.Starting) {
-			await this.whenStarted.p;
-		} else if (phase === LifecyclePhase.Ready) {
-			await this.whenReady.p;
-		} else if (phase === LifecyclePhase.Restored) {
-			await this.whenRestored.p;
-		} else if (phase === LifecyclePhase.Eventually) {
-			await this.whenEventually.p;
-		}
-	}
-
-	startupKind!: StartupKind;
-	willShutdown = false;
-
-	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
-	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
-
-	private readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
-	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
-
-	private readonly _onShutdownVeto = this._register(new Emitter<void>());
-	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
-
-	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
-
-	private readonly _onDidShutdown = this._register(new Emitter<void>());
-	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
-
-	shutdownJoiners: Promise<void>[] = [];
-
-	fireShutdown(reason = ShutdownReason.QUIT): void {
-		this.shutdownJoiners = [];
-
-		this._onWillShutdown.fire({
-			join: p => {
-				this.shutdownJoiners.push(typeof p === 'function' ? p() : p);
-			},
-			joiners: () => [],
-			force: () => { /* No-Op in tests */ },
-			token: CancellationToken.None,
-			reason
-		});
-	}
-
-	fireBeforeShutdown(event: InternalBeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
-
-	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
-
-	async shutdown(): Promise<void> {
-		this.fireShutdown();
-	}
-}
-
 export class TestBeforeShutdownEvent implements InternalBeforeShutdownEvent {
 
 	value: boolean | Promise<boolean> | undefined;
@@ -1420,9 +1379,14 @@ export class TestHostService implements IHostService {
 		this._onDidChangeFocus.fire(this._hasFocus);
 	}
 
+	setActiveWindow(windowId: number) {
+		this._onDidChangeWindow.fire(windowId);
+	}
+
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async shutdown(): Promise<void> { }
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		return await expectedShutdownTask();
 	}
@@ -1440,6 +1404,10 @@ export class TestHostService implements IHostService {
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
+	async showToast(_options: IToastOptions, token: CancellationToken): Promise<IToastResult> { return { supported: false, clicked: false }; }
+
+	async setWindowDimmed(_targetWindow: Window, _dimmed: boolean): Promise<void> { }
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
@@ -1699,22 +1667,29 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 }
 
-export class TestSingletonFileEditorInput extends TestFileEditorInput {
+export class TestForceRevealFileEditorInput extends TestFileEditorInput {
 
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.ForceReveal; }
 }
 
 export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {
 
 	declare readonly _serviceBrand: undefined;
 
+	floatingBorderWidth: number | undefined;
+
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
 
 	testSaveState(): void {
 		return super.saveState();
+	}
+
+	protected override getFloatingBorderWidth(): number {
+		return this.floatingBorderWidth ?? super.getFloatingBorderWidth();
 	}
 
 	clearState(): void {
@@ -1734,6 +1709,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+		throw new Error('Method not implemented.');
+	}
+
+	createModalEditorPart(): Promise<IModalEditorPart> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -1804,6 +1783,18 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
+	async getOperatingSystem(_resource: URI): Promise<OperatingSystem | undefined> {
+		return isWindows ? OperatingSystem.Windows : OperatingSystem.Linux;
+	}
+
+	async getPath(_resource: URI) {
+		return this.path;
+	}
+
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
+	}
+
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 	userHome(options: { preferLocal: true }): URI;
 	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
@@ -1872,14 +1863,14 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	onDidChangeInstances = Event.None;
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> { throw new Error('Method not implemented.'); }
 	detachInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance { throw new Error('Method not implemented.'); }
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance> { throw new Error('Method not implemented.'); }
 	revealActiveEditor(preserveFocus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	resolveResource(instance: ITerminalInstance): URI { throw new Error('Method not implemented.'); }
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
-	focusInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	async focusInstance(instance: ITerminalInstance): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }
@@ -1925,7 +1916,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
-	focusInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	async focusInstance(instance: ITerminalInstance): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }
@@ -1946,8 +1937,10 @@ export class TestTerminalProfileService implements ITerminalProfileService {
 	getDefaultProfile(): ITerminalProfile | undefined { throw new Error('Method not implemented.'); }
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> { throw new Error('Method not implemented.'); }
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void> { throw new Error('Method not implemented.'); }
+	registerInternalContributedProfile(_profile: IExtensionTerminalProfile): IDisposable { return Disposable.None; }
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined { throw new Error('Method not implemented.'); }
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable { throw new Error('Method not implemented.'); }
+	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable { return Disposable.None; }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
@@ -1977,9 +1970,14 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
 
+	readonly alignment = observableValue('TestQuickInputService.alignment', 'top' as QuickInputAlignment);
 	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
+
+	withQuickInputAnchor<T>(_anchor: IQuickInput['anchor'], _anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return operation();
+	}
 
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
@@ -2187,4 +2185,29 @@ export class TestContextMenuService implements IContextMenuService {
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export class TestChatWidgetService implements IChatWidgetService {
+
+	_serviceBrand: undefined;
+
+	lastFocusedWidget: IChatWidget | undefined;
+
+	onDidAddWidget = Event.None;
+	onDidRemoveWidget = Event.None;
+	onDidChangeWidgetVisibility = Event.None;
+	onDidBackgroundSession = Event.None;
+	onDidChangeFocusedWidget = Event.None;
+	onDidChangeFocusedSession = Event.None;
+
+	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
+	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
+	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
+	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	async openSession(sessionResource: unknown, target?: unknown, options?: unknown): Promise<IChatWidget | undefined> { return undefined; }
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined { return undefined; }
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> { return []; }
+	register(newWidget: IChatWidget): IDisposable { return Disposable.None; }
 }

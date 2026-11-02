@@ -208,7 +208,7 @@ export class TerminalViewPane extends ViewPane {
 						label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
 						run: () => this.configurationService.updateValue(TerminalSettingId.FontFamily, 'monospace'),
 					}];
-					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart Chenille if this is a newly installed font."), choices);
+					this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. Be sure to restart VS Code if this is a newly installed font."), choices);
 				}
 			}
 		}));
@@ -337,13 +337,12 @@ export class TerminalViewPane extends ViewPane {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this.element.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			// TODO: Improve lifecycle management this event should be disposed after first fire
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
 				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
+				this._store.delete(listener);
 			}));
 		}
 	}
@@ -516,7 +515,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			const primaryActionIcon = this._menuItemAction.item.icon;
+			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined)));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -541,7 +541,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._class = uriClasses?.[0];
 				label.classList.add(...uriClasses);
 			}
-			if (this._commandAction.item.icon) {
+			if (primaryActionIcon) {
 				this._altCommand = `alt-command`;
 				label.classList.add(this._altCommand);
 			}

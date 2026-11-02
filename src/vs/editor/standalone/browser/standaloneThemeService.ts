@@ -16,7 +16,7 @@ import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { asCssVariableName, ColorIdentifier, Extensions, IColorRegistry } from '../../../platform/theme/common/colorRegistry.js';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle } from '../../../platform/theme/common/themeService.js';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IProductIconTheme, IThemingRegistry, ITokenStyle, IFontTokenOptions } from '../../../platform/theme/common/themeService.js';
 import { IDisposable, Disposable } from '../../../base/common/lifecycle.js';
 import { ColorScheme, isDark, isHighContrast } from '../../../platform/theme/common/theme.js';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from '../../../platform/theme/browser/iconsStyleSheet.js';
@@ -176,6 +176,10 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public get tokenColorMap(): string[] {
+		return [];
+	}
+
+	public get tokenFontMap(): IFontTokenOptions[] {
 		return [];
 	}
 
@@ -401,7 +405,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		// If the OS has forced-colors active, disable forced color adjustment for
-		// Monaco editor elements so that Chenille's built-in high contrast themes
+		// Monaco editor elements so that VS Code's built-in high contrast themes
 		// (hc-black / hc-light) are used instead of the OS forcing system colors.
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { forced-color-adjust: none; }`);
 

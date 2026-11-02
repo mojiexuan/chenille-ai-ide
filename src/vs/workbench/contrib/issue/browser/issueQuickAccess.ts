@@ -38,7 +38,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 
 		// Add default items
 		const productLabel = this.productService.nameLong;
-		const marketPlaceLabel = localize("reportExtensionMarketplace", "扩展商店");
+		const marketPlaceLabel = localize("reportExtensionMarketplace", "Extension Marketplace");
 		const productFilter = matchesFuzzy(filter, productLabel, true);
 		const marketPlaceFilter = matchesFuzzy(filter, marketPlaceLabel, true);
 
@@ -62,7 +62,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 			});
 		}
 
-		issuePicksConst.push({ type: 'separator', label: localize('extensions', "扩展") });
+		issuePicksConst.push({ type: 'separator', label: localize('extensions', "Extensions") });
 
 
 		// gets menu actions from contributed
@@ -105,7 +105,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IExtensionDescription): IPickerQuickAccessItem | undefined {
 		const buttons = [{
 			iconClass: ThemeIcon.asClassName(Codicon.info),
-			tooltip: localize('contributedIssuePage', "打开扩展页面")
+			tooltip: localize('contributedIssuePage', "Open Extension Page")
 		}];
 
 		let label: string;

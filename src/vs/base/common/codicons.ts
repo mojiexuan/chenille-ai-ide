@@ -47,13 +47,16 @@ export const codiconsDerived = {
 	gitFetch: register('git-fetch', 0xec1d),
 	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
 	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
+	chatImport: register('chat-import', 0xec86),
+	chatExport: register('chat-export', 0xec87),
+	compare: register('compare', 0xecfa),
 
 } as const;
 
 /**
- * The Codicon library is a set of default icons that are built-in in Chenille.
+ * The Codicon library is a set of default icons that are built-in in VS Code.
  *
- * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in Chenille
+ * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
  * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
  * In that call a Codicon can be named as default.
  */

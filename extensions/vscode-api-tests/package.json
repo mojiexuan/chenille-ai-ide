@@ -1,13 +1,16 @@
 {
   "name": "vscode-api-tests",
-  "description": "API tests for Chenille",
+  "description": "API tests for VS Code",
   "version": "0.0.1",
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
     "activeComment",
     "authSession",
+    "browser",
+    "environmentPower",
     "chatParticipantPrivate",
+    "chatPromptFiles",
     "chatProvider",
     "contribStatusBarItems",
     "contribViewsRemote",
@@ -15,8 +18,10 @@
     "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentSyntaxHighlighting",
     "editorInsets",
     "embeddings",
+    "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -26,15 +31,14 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
+    "mcpServerDefinitions",
     "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
-    "quickInputButtonLocation",
     "quickPickSortByLabel",
-    "quickPickItemResource",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
@@ -54,7 +58,9 @@
     "workspaceTrust",
     "inlineCompletionsAdditions",
     "devDeviceId",
-    "languageModelProxy"
+    "languageModelProxy",
+    "agentSessionsWorkspace",
+    "linkPresentation"
   ],
   "private": true,
   "activationEvents": [],
@@ -68,6 +74,10 @@
       {
         "vendor": "test-lm-vendor",
         "displayName": "Test LM Vendor"
+      },
+      {
+        "vendor": "copilot",
+        "displayName": "Test Copilot LM Vendor"
       }
     ],
     "chatParticipants": [
@@ -143,6 +153,11 @@
         {
           "id": "test.treeId",
           "name": "test-tree",
+          "when": "never"
+        },
+        {
+          "id": "test.treeSwitchUpdate",
+          "name": "test-tree-switch-update",
           "when": "never"
         }
       ]
@@ -272,9 +287,9 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "24.x",
     "@types/node-forge": "^1.3.11",
-    "node-forge": "^1.3.1",
+    "node-forge": "^1.4.0",
     "straightforward": "^4.2.2"
   },
   "repository": {

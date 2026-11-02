@@ -13,13 +13,14 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
 import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { GlobalIdleValue } from '../../../../base/common/async.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, markdownStringEqual } from '../../../../base/common/htmlContent.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../../common/editor.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
@@ -102,7 +103,11 @@ export interface IFilesConfigurationService {
 
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
-	updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void>;
+	/**
+	 * Passing an IMarkdownString marks the resource read-only and displays it as the reason instead of the default session read-only message.
+	 */
+	updateReadonly(resource: URI, readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void>;
+	updateReadonly(resource: URI[], readonly: true | IMarkdownString | false | 'reset'): Promise<void>;
 
 	//#endregion
 
@@ -119,7 +124,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_AUTO_SAVE_MODE = AutoSaveConfiguration.AFTER_DELAY;
+	private static readonly DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 	private static readonly DEFAULT_AUTO_SAVE_DELAY = 1000;
 
 	private static readonly READONLY_MESSAGES = {
@@ -139,7 +144,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
 	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>({ leakWarningThreshold: 500, leakWarningName: 'FilesConfigurationService._onDidChangeReadonly' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfiguration: IAutoSaveConfiguration;
@@ -157,7 +162,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	private readonly readonlyExcludeMatcher = this._register(new GlobalIdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
-	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly sessionReadonlyOverrides = new ResourceMap<boolean | IMarkdownString>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -212,6 +217,9 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (typeof sessionReadonlyOverride === 'boolean') {
 			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
 		}
+		if (sessionReadonlyOverride !== undefined) {
+			return sessionReadonlyOverride;
+		}
 
 		if (
 			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
@@ -238,7 +246,18 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	async updateReadonly(resource: URI, readonly: true | false | 'toggle' | 'reset'): Promise<void> {
+	async updateReadonly(resource: URI | URI[], readonly: true | IMarkdownString | false | 'toggle' | 'reset'): Promise<void> {
+		if (Array.isArray(resource)) {
+			let changed = false;
+			for (const r of resource) {
+				changed = this.applyReadonly(r, readonly as true | IMarkdownString | false | 'reset') || changed;
+			}
+			if (changed) {
+				this._onDidChangeReadonly.fire();
+			}
+			return;
+		}
+
 		if (readonly === 'toggle') {
 			let stat: IFileStatWithMetadata | undefined = undefined;
 			try {
@@ -250,13 +269,23 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			readonly = !this.isReadonly(resource, stat);
 		}
 
+		if (this.applyReadonly(resource, readonly)) {
+			this._onDidChangeReadonly.fire();
+		}
+	}
+
+	private applyReadonly(resource: URI, readonly: true | IMarkdownString | false | 'reset'): boolean {
 		if (readonly === 'reset') {
-			this.sessionReadonlyOverrides.delete(resource);
-		} else {
-			this.sessionReadonlyOverrides.set(resource, readonly);
+			return this.sessionReadonlyOverrides.delete(resource);
 		}
 
-		this._onDidChangeReadonly.fire();
+		const current = this.sessionReadonlyOverrides.get(resource);
+		if (current === readonly || typeof current === 'object' && typeof readonly === 'object' && markdownStringEqual(current, readonly)) {
+			return false;
+		}
+
+		this.sessionReadonlyOverrides.set(resource, readonly);
+		return true;
 	}
 
 	private registerListeners(): void {

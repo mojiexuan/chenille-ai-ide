@@ -13,16 +13,16 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatService } from '../../common/chatService.js';
+import { findChatEditingSessionEntry, IChatEditReviewSession, IChatEditingService, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
-export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "当前编辑器是全局编辑会话的一部分"));
-export const ctxHasEditorModification = new RawContextKey<boolean>('chatEdits.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "当前编辑器包含聊天修改"));
-export const ctxIsCurrentlyBeingModified = new RawContextKey<boolean>('chatEdits.isCurrentlyBeingModified', undefined, localize('chat.isCurrentlyBeingModified', "当前编辑器正在被修改"));
-export const ctxReviewModeEnabled = new RawContextKey<boolean>('chatEdits.isReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "聊天更改的审阅模式已启用"));
-export const ctxHasRequestInProgress = new RawContextKey<boolean>('chatEdits.isRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "当前编辑器显示的文件来自仍在进行中的编辑会话"));
-export const ctxRequestCount = new RawContextKey<number>('chatEdits.requestCount', 0, localize('chatEdits.requestCount', "此编辑器中编辑会话的轮次数"));
-export const ctxCursorInChangeRange = new RawContextKey<boolean>('chatEdits.cursorInChangeRange', false, localize('chat.ctxCursorInChangeRange', "光标位于聊天编辑所做的更改范围内。"));
+export const ctxIsGlobalEditingSession = new RawContextKey<boolean>('chatEdits.isGlobalEditingSession', undefined, localize('chat.ctxEditSessionIsGlobal', "The current editor is part of the global edit session"));
+export const ctxHasEditorModification = new RawContextKey<boolean>('chatEdits.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
+export const ctxIsCurrentlyBeingModified = new RawContextKey<boolean>('chatEdits.isCurrentlyBeingModified', undefined, localize('chat.isCurrentlyBeingModified', "The current editor is currently being modified"));
+export const ctxReviewModeEnabled = new RawContextKey<boolean>('chatEdits.isReviewModeEnabled', true, localize('chat.ctxReviewModeEnabled', "Review mode for chat changes is enabled"));
+export const ctxHasRequestInProgress = new RawContextKey<boolean>('chatEdits.isRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
+export const ctxRequestCount = new RawContextKey<number>('chatEdits.requestCount', 0, localize('chatEdits.requestCount', "The number of turns the editing session in this editor has"));
+export const ctxCursorInChangeRange = new RawContextKey<boolean>('chatEdits.cursorInChangeRange', false, localize('chat.ctxCursorInChangeRange', "The cursor is inside a change range made by chat editing."));
 
 export class ChatEditingEditorContextKeys implements IWorkbenchContribution {
 
@@ -119,7 +119,7 @@ class ContextKeyGroup {
 			const chatModel = chatService.getSession(session.chatSessionResource);
 
 			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
-			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
+			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession.read(r));
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
 			this._ctxHasRequestInProgress.set(chatModel?.requestInProgress.read(r) ?? false);
 			this._ctxIsCurrentlyBeingModified.set(!!entry?.isCurrentlyBeingModifiedBy.read(r));
@@ -136,6 +136,7 @@ class ContextKeyGroup {
 	private _reset(): void {
 		this._ctxIsGlobalEditingSession.reset();
 		this._ctxHasEditorModification.reset();
+		this._ctxIsCurrentlyBeingModified.reset();
 		this._ctxHasRequestInProgress.reset();
 		this._ctxReviewModeEnabled.reset();
 		this._ctxRequestCount.reset();
@@ -149,7 +150,7 @@ class ContextKeyGroup {
 
 export class ObservableEditorSession {
 
-	readonly value: IObservable<undefined | { session: IChatEditingSession; entry: IModifiedFileEntry | undefined; isInlineChat: boolean }>;
+	readonly value: IObservable<undefined | { session: IChatEditReviewSession; entry: IModifiedFileEntry | undefined; isInlineChat: boolean }>;
 
 	constructor(
 		uri: URI,
@@ -157,16 +158,11 @@ export class ObservableEditorSession {
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
 
-		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSession2(uri));
+		const inlineSessionObs = observableFromEvent(this, inlineChatService.onDidChangeSessions, () => inlineChatService.getSessionByTextModel(uri));
 
 		const sessionObs = chatEditingService.editingSessionsObs.map((value, r) => {
-			for (const session of value) {
-				const entry = session.readEntry(uri, r);
-				if (entry) {
-					return { session, entry, isInlineChat: false };
-				}
-			}
-			return undefined;
+			const match = findChatEditingSessionEntry(value, uri, r);
+			return match && { ...match, isInlineChat: false };
 		});
 
 		this.value = derived(r => {

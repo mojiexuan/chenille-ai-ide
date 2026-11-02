@@ -3,53 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { IChatWidget } from '../chat.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { compare } from '../../../../../base/common/strings.js';
-import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { IPromptFileVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
  */
-const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
+export const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
 /**
  * Action ID for the `Configure Instruction` action.
  */
-const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
+export const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
 
 
 class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('configure-instructions', "配置指令..."),
-			shortTitle: localize2('configure-instructions.short', "聊天指令"),
+			title: localize2('configure-instructions', "Configure Instructions & Rules..."),
+			shortTitle: localize2('configure-instructions.short', "Instructions & Rules"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 10,
-				group: '1_level'
-			}
+			category: CHAT_CATEGORY
 		});
 	}
 
@@ -63,7 +56,7 @@ class ManageInstructionsFilesAction extends Action2 {
 
 		const placeholder = localize(
 			'commands.prompt.manage-dialog.placeholder',
-			'选择要打开的指令文件'
+			'Select the instructions file to open'
 		);
 
 		const result = await pickers.selectPromptFile({ placeholder, type: PromptsType.instructions, optionEdit: false });
@@ -85,7 +78,7 @@ export function registerAttachPromptActions(): void {
 export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 
 	readonly type = 'pickerPick';
-	readonly label = localize('chatContext.attach.instructions.label', '指令...');
+	readonly label = localize('chatContext.attach.instructions.label', 'Instructions...');
 	readonly icon = Codicon.bookmark;
 	readonly commandId = ATTACH_INSTRUCTIONS_ACTION_ID;
 
@@ -128,10 +121,10 @@ export class ChatInstructionsPickerPick implements IChatContextPickerItem {
 		});
 
 		return {
-			placeholder: localize('placeholder', '选择要附加的指令文件'),
+			placeholder: localize('placeholder', 'Select instructions files to attach'),
 			picks,
 			configure: {
-				label: localize('configureInstructions', '配置指令...'),
+				label: localize('configureInstructions', 'Configure Instructions...'),
 				commandId: CONFIGURE_INSTRUCTIONS_ACTION_ID
 			}
 		};

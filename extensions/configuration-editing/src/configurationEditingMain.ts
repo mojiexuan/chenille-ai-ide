@@ -7,9 +7,12 @@ import { getLocation, JSONPath, parse, visit, Location } from 'jsonc-parser';
 import * as vscode from 'vscode';
 import { SettingsDocument } from './settingsDocumentHelper';
 import { provideInstalledExtensionProposals } from './extensionsProposals';
-import './importExportProfiles';
+import { registerGitHubGistProfileContentHandler } from './importExportProfiles';
 
 export function activate(context: vscode.ExtensionContext): void {
+	// GitHub gist profile import/export
+	context.subscriptions.push(registerGitHubGistProfileContentHandler());
+
 	//settings.json suggestions
 	context.subscriptions.push(registerSettingsCompletions());
 
@@ -52,8 +55,8 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 				}
 
 				return [
-					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in Chenille") },
-					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in Chenille without any slashes (/)") },
+					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in VS Code") },
+					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in VS Code without any slashes (/)") },
 					{ label: 'fileWorkspaceFolderBasename', detail: vscode.l10n.t("The current opened file workspace folder name without any slashes (/)") },
 					{ label: 'relativeFile', detail: vscode.l10n.t("The current opened file relative to ${workspaceFolder}") },
 					{ label: 'relativeFileDirname', detail: vscode.l10n.t("The current opened file's dirname relative to ${workspaceFolder}") },

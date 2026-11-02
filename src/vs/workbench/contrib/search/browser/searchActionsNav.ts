@@ -15,6 +15,7 @@ import * as SearchEditorConstants from '../../searchEditor/browser/constants.js'
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -31,7 +32,7 @@ registerAction2(class ToggleQueryDetailsAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ToggleQueryDetailsActionId,
-			title: nls.localize2('ToggleQueryDetailsAction.label', "切换查询详细信息"),
+			title: nls.localize2('ToggleQueryDetailsAction.label', "Toggle Query Details"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -56,7 +57,7 @@ registerAction2(class CloseReplaceAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.CloseReplaceWidgetActionId,
-			title: nls.localize2('CloseReplaceWidget.label', "关闭替换小组件"),
+			title: nls.localize2('CloseReplaceWidget.label', "Close Replace Widget"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -83,7 +84,7 @@ registerAction2(class ToggleCaseSensitiveCommandAction extends Action2 {
 
 		super({
 			id: Constants.SearchCommandIds.ToggleCaseSensitiveCommandId,
-			title: nls.localize2('ToggleCaseSensitiveCommandId.label', "切换区分大小写"),
+			title: nls.localize2('ToggleCaseSensitiveCommandId.label', "Toggle Case Sensitive"),
 			category,
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -103,7 +104,7 @@ registerAction2(class ToggleWholeWordCommandAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ToggleWholeWordCommandId,
-			title: nls.localize2('ToggleWholeWordCommandId.label', "切换全字匹配"),
+			title: nls.localize2('ToggleWholeWordCommandId.label', "Toggle Whole Word"),
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchContext.SearchViewFocusedKey,
@@ -121,7 +122,7 @@ registerAction2(class ToggleRegexCommandAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ToggleRegexCommandId,
-			title: nls.localize2('ToggleRegexCommandId.label', "切换正则表达式"),
+			title: nls.localize2('ToggleRegexCommandId.label', "Toggle Regex"),
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchContext.SearchViewFocusedKey,
@@ -139,7 +140,7 @@ registerAction2(class TogglePreserveCaseAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.TogglePreserveCaseId,
-			title: nls.localize2('TogglePreserveCaseId.label', "切换保留大小写"),
+			title: nls.localize2('TogglePreserveCaseId.label', "Toggle Preserve Case"),
 			keybinding: Object.assign({
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: Constants.SearchContext.SearchViewFocusedKey,
@@ -159,7 +160,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.OpenMatch,
-			title: nls.localize2('OpenMatch.label', "打开匹配项"),
+			title: nls.localize2('OpenMatch.label', "Open Match"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -192,7 +193,7 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.OpenMatchToSide,
-			title: nls.localize2('OpenMatchToSide.label', "在侧边打开匹配项"),
+			title: nls.localize2('OpenMatchToSide.label', "Open Match To Side"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -217,7 +218,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.AddCursorsAtSearchResults,
-			title: nls.localize2('AddCursorsAtSearchResults.label', "在搜索结果处添加光标"),
+			title: nls.localize2('AddCursorsAtSearchResults.label', "Add Cursors at Search Results"),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(Constants.SearchContext.SearchViewVisibleKey, Constants.SearchContext.FileMatchOrMatchFocusKey),
@@ -242,7 +243,7 @@ registerAction2(class FocusNextInputAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FocusNextInputActionId,
-			title: nls.localize2('FocusNextInputAction.label', "聚焦下一个输入框"),
+			title: nls.localize2('FocusNextInputAction.label', "Focus Next Input"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -271,7 +272,7 @@ registerAction2(class FocusPreviousInputAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FocusPreviousInputActionId,
-			title: nls.localize2('FocusPreviousInputAction.label', "聚焦上一个输入框"),
+			title: nls.localize2('FocusPreviousInputAction.label', "Focus Previous Input"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -300,7 +301,7 @@ registerAction2(class FocusSearchFromResultsAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FocusSearchFromResults,
-			title: nls.localize2('FocusSearchFromResults.label', "从结果聚焦到搜索"),
+			title: nls.localize2('FocusSearchFromResults.label', "Focus Search From Results"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -322,7 +323,7 @@ registerAction2(class ToggleSearchOnTypeAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.ToggleSearchOnTypeActionId,
-			title: nls.localize2('toggleTabs', "切换键入时搜索"),
+			title: nls.localize2('toggleTabs', "Toggle Search on Type"),
 			category,
 		});
 
@@ -341,7 +342,7 @@ registerAction2(class FocusSearchListCommandAction extends Action2 {
 	) {
 		super({
 			id: Constants.SearchCommandIds.FocusSearchListCommandID,
-			title: nls.localize2('focusSearchListCommandLabel', "聚焦列表"),
+			title: nls.localize2('focusSearchListCommandLabel', "Focus List"),
 			category,
 			f1: true
 		});
@@ -356,7 +357,7 @@ registerAction2(class FocusNextSearchResultAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FocusNextSearchResultActionId,
-			title: nls.localize2('FocusNextSearchResult.label', "聚焦下一个搜索结果"),
+			title: nls.localize2('FocusNextSearchResult.label', "Focus Next Search Result"),
 			keybinding: [{
 				primary: KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -376,7 +377,7 @@ registerAction2(class FocusPreviousSearchResultAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.FocusPreviousSearchResultActionId,
-			title: nls.localize2('FocusPreviousSearchResult.label', "聚焦上一个搜索结果"),
+			title: nls.localize2('FocusPreviousSearchResult.label', "Focus Previous Search Result"),
 			keybinding: [{
 				primary: KeyMod.Shift | KeyCode.F4,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -396,17 +397,19 @@ registerAction2(class ReplaceInFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: Constants.SearchCommandIds.ReplaceInFilesActionId,
-			title: nls.localize2('replaceInFiles', "在文件中替换"),
+			title: nls.localize2('replaceInFiles', "Replace in Files"),
 			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
 				weight: KeybindingWeight.WorkbenchContrib,
 			}],
 			category,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			menu: [{
 				id: MenuId.MenubarEditMenu,
 				group: '4_find_global',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate(),
 			}],
 		});
 	}

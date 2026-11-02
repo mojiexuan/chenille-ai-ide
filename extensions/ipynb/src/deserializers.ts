@@ -129,7 +129,7 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			return NotebookCellOutputItem.text(stringValue, mime);
 		} else if (mime.startsWith('image/') && typeof value === 'string' && mime !== 'image/svg+xml') {
 			// Images in Jupyter are stored in base64 encoded format.
-			// Chenille expects bytes when rendering images.
+			// VS Code expects bytes when rendering images.
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return new NotebookCellOutputItem(Buffer.from(value, 'base64'), mime);
 			} else {
@@ -322,7 +322,7 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 		? { executionOrder: cell.execution_count as number }
 		: {};
 
-	const vscodeCustomMetadata = cell.metadata['vscode'] as { [key: string]: any } | undefined;
+	const vscodeCustomMetadata = cell.metadata?.['vscode'] as { [key: string]: any } | undefined;
 	const cellLanguageId = vscodeCustomMetadata && vscodeCustomMetadata.languageId && typeof vscodeCustomMetadata.languageId === 'string' ? vscodeCustomMetadata.languageId : cellLanguage;
 	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 
@@ -352,7 +352,7 @@ function createNotebookCellDataFromJupyterCell(
 }
 
 /**
- * Converts a NotebookModel into Chenille format.
+ * Converts a NotebookModel into VS Code format.
  */
 export function jupyterNotebookModelToNotebookData(
 	notebookContent: Partial<nbformat.INotebookContent>,

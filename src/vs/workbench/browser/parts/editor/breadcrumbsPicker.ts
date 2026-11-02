@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { FileKind, FileSystemProviderCapabilities, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
-import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { breadcrumbsPickerBackground, widgetBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { isWorkspace, isWorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { BreadcrumbsConfig } from './breadcrumbs.js';
@@ -57,8 +57,8 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo!: ILayoutInfo;
 
-	protected readonly _onWillPickElement = new Emitter<void>();
-	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
+	protected readonly _onWillPickElement = new Emitter<boolean>();
+	readonly onWillPickElement: Event<boolean> = this._onWillPickElement.event;
 
 	private readonly _previewDispoables = new MutableDisposable();
 
@@ -96,7 +96,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 		this._treeContainer.style.background = color ? color.toString() : '';
 		this._treeContainer.style.paddingTop = '2px';
 		this._treeContainer.style.borderRadius = '3px';
-		this._treeContainer.style.boxShadow = `0 0 8px 2px ${this._themeService.getColorTheme().getColor(widgetShadow)}`;
+		this._treeContainer.style.boxShadow = 'var(--vscode-shadow-lg)';
 		this._treeContainer.style.border = `1px solid ${this._themeService.getColorTheme().getColor(widgetBorder)}`;
 		this._domNode.appendChild(this._treeContainer);
 
@@ -142,7 +142,9 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 		this._tree.layout(treeHeight, this._layoutInfo.width);
 	}
 
-	restoreViewState(): void { }
+	restoreViewState(): void {
+		this._previewDispoables.clear();
+	}
 
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
 	protected abstract _createTree(container: HTMLElement, input: unknown): Tree<TInput, TElement>;
@@ -381,7 +383,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 			{
 				multipleSelectionSupport: false,
 				sorter: new FileSorter(),
-				filter: this._instantiationService.createInstance(FileFilter),
+				filter: this._disposables.add(this._instantiationService.createInstance(FileFilter)),
 				identityProvider: new FileIdentityProvider(),
 				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
 				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
@@ -426,7 +428,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 
 	protected async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		if (!isWorkspaceFolder(element) && element.isFile) {
-			this._onWillPickElement.fire();
+			this._onWillPickElement.fire(sideBySide);
 			await this._editorService.openEditor({ resource: element.resource, options }, sideBySide ? SIDE_GROUP : undefined);
 			return true;
 		}
@@ -487,7 +489,10 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	protected _setInput(input: OutlineElement2): Promise<void> {
 
 		const viewState = input.outline.captureViewState();
-		this.restoreViewState = () => { viewState.dispose(); };
+		this.restoreViewState = () => {
+			super.restoreViewState();
+			viewState.dispose();
+		};
 
 		const tree = this._tree as WorkbenchDataTree<IOutline<unknown>, unknown, FuzzyScore>;
 
@@ -507,7 +512,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	}
 
 	protected async _revealElement(element: unknown, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		this._onWillPickElement.fire();
+		this._onWillPickElement.fire(sideBySide);
 		const outline: IOutline<unknown> = this._tree.getInput()!;
 		await outline.reveal(element, options, sideBySide, false);
 		return true;

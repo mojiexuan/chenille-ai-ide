@@ -18,7 +18,8 @@ function code() {
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		NAME=`node -p "require('./product.json').nameLong"`
-		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+		EXE_NAME=`node -p "require('./product.json').nameShort"`
+		CODE="./.build/electron/$NAME.app/Contents/MacOS/$EXE_NAME"
 	else
 		NAME=`node -p "require('./product.json').applicationName"`
 		CODE=".build/electron/$NAME"
@@ -80,7 +81,7 @@ if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
 elif [ -f /mnt/wslg/versions.txt ]; then
 	code --disable-gpu "$@"
-elif [ -f /.dockerenv ]; then
+elif [ -f /.dockerenv ] || { [[ "$OSTYPE" == "linux"* ]] && [ -n "${GITHUB_ENVIRONMENT_ID:-}" ]; }; then
 	# Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1263267
 	# Chromium does not release shared memory when streaming scripts
 	# which might exhaust the available resources in the container environment

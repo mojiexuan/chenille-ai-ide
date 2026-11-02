@@ -12,7 +12,7 @@ import { ITreeDragOverReaction } from '../../base/browser/ui/tree/tree.js';
 import { coalesce } from '../../base/common/arrays.js';
 import { UriList, VSDataTransfer } from '../../base/common/dataTransfer.js';
 import { Emitter, Event } from '../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, markAsSingleton } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable } from '../../base/common/lifecycle.js';
 import { stringify } from '../../base/common/marshalling.js';
 import { Mimes } from '../../base/common/mime.js';
 import { FileAccess, Schemas } from '../../base/common/network.js';
@@ -37,6 +37,34 @@ import { IWorkspaceEditingService } from '../services/workspaces/common/workspac
 import { IEditorOptions } from '../../platform/editor/common/editor.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BroadcastDataChannel } from '../../base/browser/broadcast.js';
+
+const inputDropTargets = new Set<HTMLElement>();
+
+/** Registers an input that handles drops before its enclosing pane's placement targets. */
+export function registerInputDropTarget(element: HTMLElement): IDisposable {
+	inputDropTargets.add(element);
+	return toDisposable(() => inputDropTargets.delete(element));
+}
+
+export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }): boolean {
+	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
+		if (inputDropTargets.has(target)) {
+			return true;
+		}
+	}
+	if (point) {
+		return [...inputDropTargets].some(target => {
+			const bounds = target.getBoundingClientRect();
+			return target.ownerDocument === element.ownerDocument && bounds.width > 0 && bounds.height > 0
+				&& point.clientX >= bounds.left && point.clientX <= bounds.right && point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+		});
+	}
+	return false;
+}
+
+export function getInputDropTargets(container: HTMLElement): readonly HTMLElement[] {
+	return [...inputDropTargets].filter(target => container.contains(target));
+}
 
 //#region Editor / Resources DND
 
@@ -93,7 +121,7 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
@@ -105,6 +133,17 @@ export class ResourcesDropHandler {
 
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus(targetWindow);
+
+		// Check for registered drop handlers
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
+		for (const { resource } of editors) {
+			if (resource) {
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.handleResourceDrop(resource, accessor));
+				if (handled) {
+					return;
+				}
+			}
+		}
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -244,7 +283,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 	}
 
-	// Resource URLs: allows to drop multiple file resources to a target in Chenille
+	// Resource URLs: allows to drop multiple file resources to a target in VS Code
 	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
 	if (files.length) {
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
@@ -362,7 +401,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 		// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=239745, we can only set
 		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
-		// However we write the full uri-list to an internal type so that other parts of Chenille
+		// However we write the full uri-list to an internal type so that other parts of VS Code
 		// can use the full list.
 		if (!options?.disableStandardTransfer) {
 			event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
@@ -540,7 +579,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 
 	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType; id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
@@ -623,7 +662,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 }
 

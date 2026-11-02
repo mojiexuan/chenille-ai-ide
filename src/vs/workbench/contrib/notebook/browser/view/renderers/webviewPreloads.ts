@@ -20,7 +20,7 @@ import type { NotebookCellOutputTransferData } from '../../../../../../platform/
 // function. Imports are not allowed. This is stringified and injected into
 // the webview.
 
-declare module globalThis {
+declare namespace globalThis {
 	const acquireVsCodeApi: () => ({
 		getState(): { [key: string]: unknown };
 		setState(data: { [key: string]: unknown }): void;
@@ -657,7 +657,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
-				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+				const overflowY = window.getComputedStyle(node).overflowY;
+				if (overflowY === 'hidden' || overflowY === 'visible') {
 					continue;
 				}
 
@@ -696,24 +697,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = window.document.getElementById(cellOrOutputId) ??
-			(alternateId ? window.document.getElementById(alternateId) : undefined);
-		if (cellOutputContainer) {
+			(!!alternateId ? window.document.getElementById(alternateId) : undefined);
+		if (!!cellOutputContainer) {
 			if (cellOutputContainer.contains(window.document.activeElement)) {
 				return;
 			}
-			const id = cellOutputContainer.id;
 			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
 			if (!focusableElement) {
 				focusableElement = cellOutputContainer;
 				focusableElement.tabIndex = -1;
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false, id });
-			} else {
-				const inputFocused = hasActiveEditableElement(focusableElement, focusableElement.ownerDocument);
-				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused, id });
 			}
 
-			lastFocusedOutput = cellOutputContainer;
-			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
+			if (lastFocusedOutput?.id !== cellOutputContainer.id) {
+				lastFocusedOutput = cellOutputContainer;
+				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', { id: cellOutputContainer.id });
+			}
 			focusableElement.focus();
 		}
 	}
@@ -2472,7 +2470,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
-			el.innerHTML = trustedHtml as string; // CodeQL [SM03712] The rendered content comes from Chenille's tokenizer and is considered safe
+			el.innerHTML = trustedHtml as string; // CodeQL [SM03712] The rendered content comes from VS Code's tokenizer and is considered safe
 			const root = el.getRootNode();
 			if (root instanceof ShadowRoot) {
 				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {

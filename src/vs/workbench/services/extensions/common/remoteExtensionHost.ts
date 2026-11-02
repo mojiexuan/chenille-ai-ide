@@ -23,12 +23,14 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { parseExtensionDevOptions } from './extensionDevOptions.js';
 import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol.js';
 import { RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from './extensions.js';
 
 export interface IRemoteExtensionHostInitData {
+	readonly os: platform.OperatingSystem;
 	readonly connectionData: IRemoteConnectionData | null;
 	readonly pid: number;
 	readonly appRoot: URI;
@@ -47,6 +49,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly pid = null;
 	public readonly remoteAuthority: string;
+	public remoteOS: platform.OperatingSystem | undefined;
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public extensions: ExtensionHostExtensions | null = null;
 
@@ -72,7 +75,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IProductService private readonly _productService: IProductService,
-		@ISignService private readonly _signService: ISignService
+		@ISignService private readonly _signService: ISignService,
+		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
 	) {
 		super();
 		this.remoteAuthority = this._initDataProvider.remoteAuthority;
@@ -203,6 +207,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
 		const remoteInitData = await this._initDataProvider.getInitData();
+		this.remoteOS = remoteInitData.os;
 		this.extensions = remoteInitData.extensions;
 		const workspace = this._contextService.getWorkspace();
 		return {
@@ -223,7 +228,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
 				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				extensionLogLevel: this._environmentService.extensionLogLevel
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
@@ -249,6 +255,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,

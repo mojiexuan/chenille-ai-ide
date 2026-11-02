@@ -34,7 +34,7 @@ import { isVirtualResource, isVirtualWorkspace } from '../../../../platform/work
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, buttonBackground, buttonSecondaryBackground, editorErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -58,16 +58,15 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { basename, dirname } from '../../../../base/common/resources.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 
-export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', '横幅中工作区信任的图标。'));
+export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
-const checkListIcon = registerIcon('workspace-trust-editor-check', Codicon.check, localize('checkListIcon', '工作区信任编辑器中复选标记的图标。'));
-const xListIcon = registerIcon('workspace-trust-editor-cross', Codicon.x, localize('xListIcon', '工作区信任编辑器中叉号的图标。'));
-const folderPickerIcon = registerIcon('workspace-trust-editor-folder-picker', Codicon.folder, localize('folderPickerIcon', '工作区信任编辑器中选择文件夹的图标。'));
-const editIcon = registerIcon('workspace-trust-editor-edit-folder', Codicon.edit, localize('editIcon', '工作区信任编辑器中编辑文件夹的图标。'));
-const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.close, localize('removeIcon', '工作区信任编辑器中移除文件夹的图标。'));
+const checkListIcon = registerIcon('workspace-trust-editor-check', Codicon.check, localize('checkListIcon', 'Icon for the checkmark in the workspace trust editor.'));
+const xListIcon = registerIcon('workspace-trust-editor-cross', Codicon.x, localize('xListIcon', 'Icon for the cross in the workspace trust editor.'));
+const folderPickerIcon = registerIcon('workspace-trust-editor-folder-picker', Codicon.folder, localize('folderPickerIcon', 'Icon for the pick folder icon in the workspace trust editor.'));
+const editIcon = registerIcon('workspace-trust-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the workspace trust editor.'));
+const removeIcon = registerIcon('workspace-trust-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the workspace trust editor.'));
 
 interface ITrustedUriItem {
 	parentOfWorkspaceItem: boolean;
@@ -113,14 +112,14 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			new TrustedUriTableVirtualDelegate(),
 			[
 				{
-					label: localize('hostColumnLabel', "主机"),
+					label: localize('hostColumnLabel', "Host"),
 					tooltip: '',
 					weight: 1,
 					templateId: TrustedUriHostColumnRenderer.TEMPLATE_ID,
 					project(row: ITrustedUriItem): ITrustedUriItem { return row; }
 				},
 				{
-					label: localize('pathColumnLabel', "路径"),
+					label: localize('pathColumnLabel', "Path"),
 					tooltip: '',
 					weight: 8,
 					templateId: TrustedUriPathColumnRenderer.TEMPLATE_ID,
@@ -150,12 +149,12 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					getAriaLabel: (item: ITrustedUriItem) => {
 						const hostLabel = getHostLabel(this.labelService, item);
 						if (hostLabel === undefined || hostLabel.length === 0) {
-							return localize('trustedFolderAriaLabel', "{0}，已信任", this.labelService.getUriLabel(item.uri));
+							return localize('trustedFolderAriaLabel', "{0}, trusted", this.labelService.getUriLabel(item.uri));
 						}
 
-						return localize('trustedFolderWithHostAriaLabel', "{1} 上的 {0}，已信任", this.labelService.getUriLabel(item.uri), hostLabel);
+						return localize('trustedFolderWithHostAriaLabel', "{0} on {1}, trusted", this.labelService.getUriLabel(item.uri), hostLabel);
 					},
-					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "受信任的文件夹和工作区")
+					getWidgetAriaLabel: () => localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces")
 				},
 				identityProvider: {
 					getId(element: ITrustedUriItem) {
@@ -173,8 +172,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 
 		const buttonBar = this._register(new ButtonBar(addButtonBarElement));
-		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "添加文件夹"), ...defaultButtonStyles }));
-		addButton.label = localize('addButton', "添加文件夹");
+		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder"), ...defaultButtonStyles }));
+		addButton.label = localize('addButton', "Add Folder");
 
 		this._register(addButton.onDidClick(async () => {
 			const uri = await this.fileDialogService.showOpenDialog({
@@ -182,8 +181,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: this.currentWorkspaceUri,
-				openLabel: localize('trustUri', "信任文件夹"),
-				title: localize('selectTrustedUri', "选择要信任的文件夹")
+				openLabel: localize('trustUri', "Trust Folder"),
+				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
 			if (uri) {
@@ -284,8 +283,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		this.container.classList.toggle('empty', entries.length === 0);
 
 		this.descriptionElement.innerText = entries.length ?
-			localize('trustedFoldersDescription', "你信任以下文件夹、其子文件夹和工作区文件。") :
-			localize('noTrustedFoldersDescriptions', "你尚未信任任何文件夹或工作区文件。");
+			localize('trustedFoldersDescription', "You trust the following folders, their subfolders, and workspace files.") :
+			localize('noTrustedFoldersDescriptions', "You haven't trusted any folders or workspace files yet.");
 
 		this.table.splice(0, Number.POSITIVE_INFINITY, this.trustedUriEntries);
 		this.layout();
@@ -301,21 +300,21 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			if (segments.length === 0 && path.startsWith(posix.sep)) {
 				return {
 					type: MessageType.WARNING,
-					content: localize({ key: 'trustAll', comment: ['The {0} will be a host name where repositories are hosted.'] }, "你将信任 {0} 上的所有存储库。", getHostLabel(this.labelService, item))
+					content: localize({ key: 'trustAll', comment: ['The {0} will be a host name where repositories are hosted.'] }, "You will trust all repositories on {0}.", getHostLabel(this.labelService, item))
 				};
 			}
 
 			if (segments.length === 1) {
 				return {
 					type: MessageType.WARNING,
-					content: localize({ key: 'trustOrg', comment: ['The {0} will be an organization or user name.', 'The {1} will be a host name where repositories are hosted.'] }, "你将信任 {1} 上 '{0}' 下的所有存储库和分支。", segments[0], getHostLabel(this.labelService, item))
+					content: localize({ key: 'trustOrg', comment: ['The {0} will be an organization or user name.', 'The {1} will be a host name where repositories are hosted.'] }, "You will trust all repositories and forks under '{0}' on {1}.", segments[0], getHostLabel(this.labelService, item))
 				};
 			}
 
 			if (segments.length > 2) {
 				return {
 					type: MessageType.ERROR,
-					content: localize('invalidTrust', "你无法信任存储库中的单个文件夹。", path)
+					content: localize('invalidTrust', "You cannot trust individual folders within a repository.", path)
 				};
 			}
 		}
@@ -342,14 +341,18 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async delete(item: ITrustedUriItem) {
-		this.table.focusNext();
-		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
-
-		if (this.table.getFocus().length === 0) {
-			this.table.focusLast();
+		const index = this.table.indexOf(item);
+		if (index < this.table.length - 1) {
+			this.table.setFocus([index + 1]);
+		} else if (index > 0) {
+			this.table.setFocus([index - 1]);
+		} else {
+			this.table.setFocus([]);
 		}
-		this._onDelete.fire(item);
 		this.table.domFocus();
+
+		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+		this._onDelete.fire(item);
 	}
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
@@ -365,8 +368,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				canSelectFolders: true,
 				canSelectMany: false,
 				defaultUri: item.uri,
-				openLabel: localize('trustUri', "信任文件夹"),
-				title: localize('selectTrustedUri', "选择要信任的文件夹")
+				openLabel: localize('trustUri', "Trust Folder"),
+				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
 			if (uri) {
@@ -436,7 +439,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
-			tooltip: localize('editTrustedUri', "编辑路径"),
+			tooltip: localize('editTrustedUri', "Edit Path"),
 			run: () => {
 				this.table.edit(item, false);
 			}
@@ -449,7 +452,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 			class: ThemeIcon.asClassName(folderPickerIcon),
 			enabled: true,
 			id: 'pickerTrustedUri',
-			tooltip: localize('pickerTrustedUri', "打开文件选择器"),
+			tooltip: localize('pickerTrustedUri', "Open File Picker"),
 			run: () => {
 				this.table.edit(item, true);
 			}
@@ -462,7 +465,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',
-			tooltip: localize('deleteTrustedUri', "删除路径"),
+			tooltip: localize('deleteTrustedUri', "Delete Path"),
 			run: async () => {
 				await this.table.delete(item);
 			}
@@ -620,7 +623,7 @@ interface ITrustedUriHostColumnTemplateData {
 }
 
 function getHostLabel(labelService: ILabelService, item: ITrustedUriItem): string {
-	return item.uri.authority ? labelService.getHostLabel(item.uri.scheme, item.uri.authority) : localize('localAuthority', "本地");
+	return item.uri.authority ? labelService.getHostLabel(item.uri.scheme, item.uri.authority) : localize('localAuthority', "Local");
 }
 
 class TrustedUriHostColumnRenderer implements ITableRenderer<ITrustedUriItem, ITrustedUriHostColumnTemplateData> {
@@ -753,10 +756,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 					this.workspaceTrustManagementService.setWorkspaceTrust(!this.workspaceTrustManagementService.isWorkspaceTrusted());
 				}
-			} else if (event.equals(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter)) {
-				if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-					this.workspaceTrustManagementService.setParentFolderTrust(true);
-				}
 			}
 		}));
 	}
@@ -795,20 +794,20 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private getHeaderTitleText(trusted: boolean): string {
 		if (trusted) {
 			if (this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-				return localize('trustedUnsettableWindow', "此窗口受信任");
+				return localize('trustedUnsettableWindow', "This window is trusted");
 			}
 
 			switch (this.workspaceService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
-					return localize('trustedHeaderWindow', "你信任此窗口");
+					return localize('trustedHeaderWindow', "You trust this window");
 				case WorkbenchState.FOLDER:
-					return localize('trustedHeaderFolder', "你信任此文件夹");
+					return localize('trustedHeaderFolder', "You trust this folder");
 				case WorkbenchState.WORKSPACE:
-					return localize('trustedHeaderWorkspace', "你信任此工作区");
+					return localize('trustedHeaderWorkspace', "You trust this workspace");
 			}
 		}
 
-		return localize('untrustedHeader', "你正处于受限模式");
+		return localize('untrustedHeader', "You are in Restricted Mode");
 	}
 
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
@@ -821,21 +820,21 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		switch (this.workspaceService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
-				title = trusted ? localize('trustedWindow', "在受信任的窗口中") : localize('untrustedWorkspace', "在受限模式中");
-				subTitle = trusted ? localize('trustedWindowSubtitle', "你信任当前窗口中文件的作者。所有功能均已启用:") :
-					localize('untrustedWindowSubtitle', "你不信任当前窗口中文件的作者。以下功能已被禁用:");
+				title = trusted ? localize('trustedWindow', "In a Trusted Window") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedWindowSubtitle', "You trust the authors of the files in the current window. All features are enabled:") :
+					localize('untrustedWindowSubtitle', "You do not trust the authors of the files in the current window. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.FOLDER: {
-				title = trusted ? localize('trustedFolder', "在受信任的文件夹中") : localize('untrustedWorkspace', "在受限模式中");
-				subTitle = trusted ? localize('trustedFolderSubtitle', "你信任当前文件夹中文件的作者。所有功能均已启用:") :
-					localize('untrustedFolderSubtitle', "你不信任当前文件夹中文件的作者。以下功能已被禁用:");
+				title = trusted ? localize('trustedFolder', "In a Trusted Folder") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedFolderSubtitle', "You trust the authors of the files in the current folder. All features are enabled:") :
+					localize('untrustedFolderSubtitle', "You do not trust the authors of the files in the current folder. The following features are disabled:");
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
-				title = trusted ? localize('trustedWorkspace', "在受信任的工作区中") : localize('untrustedWorkspace', "在受限模式中");
-				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "你信任当前工作区中文件的作者。所有功能均已启用:") :
-					localize('untrustedWorkspaceSubtitle', "你不信任当前工作区中文件的作者。以下功能已被禁用:");
+				title = trusted ? localize('trustedWorkspace', "In a Trusted Workspace") : localize('untrustedWorkspace', "In Restricted Mode");
+				subTitle = trusted ? localize('trustedWorkspaceSubtitle', "You trust the authors of the files in the current workspace. All features are enabled:") :
+					localize('untrustedWorkspaceSubtitle', "You do not trust the authors of the files in the current workspace. The following features are disabled:");
 				break;
 			}
 		}
@@ -847,6 +846,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
+		// The debounced render can fire after the editor pane (and its scoped
+		// instantiation service) has been disposed. Bail out so we never call
+		// createInstance on a disposed InstantiationService.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		if (this.rendering) {
 			return;
 		}
@@ -866,11 +872,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		const headerDescriptionText = append(this.headerDescription, $('div'));
 		headerDescriptionText.innerText = isWorkspaceTrusted ?
-			localize('trustedDescription', "由于已授予工作区信任，所有功能均已启用。") :
-			localize('untrustedDescription', "{0} 正处于用于安全代码浏览的受限模式。", this.productService.nameShort);
+			localize('trustedDescription', "All features are enabled because trust has been granted to the workspace.") :
+			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", this.productService.nameShort);
 
 		const headerDescriptionActions = append(this.headerDescription, $('div'));
-		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[配置你的设置]({0})或[了解更多](https://aka.ms/vscode-workspace-trust)。", `command:workbench.trust.configure`);
+		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
 		for (const node of parseLinkedText(headerDescriptionActionsText).nodes) {
 			if (typeof node === 'string') {
 				append(headerDescriptionActions, document.createTextNode(node));
@@ -880,7 +886,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
-		this.rootElement.setAttribute('aria-label', `${localize('root element label', "管理工作区信任")}:  ${this.headerContainer.innerText}`);
+		this.rootElement.setAttribute('aria-label', `${localize('root element label', "Manage Workspace Trust")}:  ${this.headerContainer.innerText}`);
 
 		// Settings
 		const restrictedSettings = this.configurationService.restrictedSettings;
@@ -964,7 +970,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private createConfigurationElement(parent: HTMLElement): void {
 		this.configurationContainer = append(parent, $('.workspace-trust-settings', { tabIndex: '0' }));
 		const configurationTitle = append(this.configurationContainer, $('.workspace-trusted-folders-title'));
-		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "受信任的文件夹和工作区");
+		configurationTitle.innerText = localize('trustedFoldersAndWorkspaces', "Trusted Folders & Workspaces");
 
 		this.workspaceTrustedUrisTable = this._register(this.instantiationService.createInstance(WorkspaceTrustedUrisTable, this.configurationContainer));
 	}
@@ -985,15 +991,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderLimitationsHeaderElement(this.trustedContainer, trustedTitle, trustedSubTitle);
 		const trustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
 			[
-				localize('trustedTasks', "允许运行任务"),
-				localize('trustedDebugging', "已启用调试"),
-				localize('trustedExtensions', "所有已启用的扩展均已激活")
+				localize('trustedTasks', "Tasks are allowed to run"),
+				localize('trustedDebugging', "Debugging is enabled"),
+				localize('trustedExtensions', "All enabled extensions are activated")
 			] :
 			[
-				localize('trustedTasks', "允许运行任务"),
-				localize('trustedDebugging', "已启用调试"),
-				localize('trustedSettings', "已应用所有工作区设置"),
-				localize('trustedExtensions', "所有已启用的扩展均已激活")
+				localize('trustedTasks', "Tasks are allowed to run"),
+				localize('trustedDebugging', "Debugging is enabled"),
+				localize('trustedSettings', "All workspace settings are applied"),
+				localize('trustedExtensions', "All enabled extensions are activated")
 			];
 		this.renderLimitationsListElement(this.trustedContainer, trustedContainerItems, ThemeIcon.asClassNameArray(checkListIcon));
 
@@ -1003,15 +1009,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderLimitationsHeaderElement(this.untrustedContainer, untrustedTitle, untrustedSubTitle);
 		const untrustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
 			[
-				localize('untrustedTasks', "不允许运行任务"),
-				localize('untrustedDebugging', "已禁用调试"),
-				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} 个扩展]({1})已被禁用或功能受限", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
+				localize('untrustedTasks', "Tasks are not allowed to run"),
+				localize('untrustedDebugging', "Debugging is disabled"),
+				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
 			] :
 			[
-				localize('untrustedTasks', "不允许运行任务"),
-				localize('untrustedDebugging', "已禁用调试"),
-				fixBadLocalizedLinks(numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} 个工作区设置]({1})未被应用", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "需要信任的工作区设置未被应用")),
-				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} 个扩展]({1})已被禁用或功能受限", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
+				localize('untrustedTasks', "Tasks are not allowed to run"),
+				localize('untrustedDebugging', "Debugging is disabled"),
+				fixBadLocalizedLinks(numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied")),
+				fixBadLocalizedLinks(localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`))
 			];
 		this.renderLimitationsListElement(this.untrustedContainer, untrustedContainerItems, ThemeIcon.asClassNameArray(xListIcon));
 
@@ -1039,7 +1045,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			button.label = action.label;
 			button.enabled = enabled !== undefined ? enabled : action.enabled;
 			button.description = keybinding.getLabel()!;
-			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "键盘快捷键: {0}", keybinding.getAriaLabel()!);
+			button.element.ariaLabel = action.label + ', ' + localize('keyboardShortcut', "Keyboard Shortcut: {0}", keybinding.getAriaLabel()!);
 
 			this.rerenderDisposables.add(button.onDidClick(e => {
 				if (e) {
@@ -1052,32 +1058,18 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grant', localize('trustButton', "信任"), undefined, true, async () => {
+		const trustAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
 			await this.workspaceTrustManagementService.setWorkspaceTrust(true);
 		}));
 
 		const trustActions = [{ action: trustAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0] }];
-
-		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
-			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
-			const name = basename(dirname(workspaceIdentifier.uri));
-
-			const trustMessageElement = append(parent, $('.trust-message-box'));
-			trustMessageElement.innerText = localize('trustMessage', "信任当前文件夹或其父文件夹 '{0}' 中所有文件的作者。", name);
-
-			const trustParentAction = this.rerenderDisposables.add(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "信任父文件夹"), undefined, true, async () => {
-				await this.workspaceTrustManagementService.setParentFolderTrust(true);
-			}));
-
-			trustActions.push({ action: trustParentAction, keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Shift+Enter' : 'Ctrl+Shift+Enter')[0] });
-		}
 
 		this.createButtonRow(parent, trustActions);
 	}
 
 	private addDontTrustButtonToElement(parent: HTMLElement): void {
 		this.createButtonRow(parent, [{
-			action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "不信任"), undefined, true, async () => {
+			action: this.rerenderDisposables.add(new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setWorkspaceTrust(false);
 			})),
 			keybinding: this.keybindingService.resolveUserBinding(isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter')[0]
@@ -1091,9 +1083,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
-			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "此工作区通过下方受信任文件夹中的粗体条目获得信任。") : localize('untrustedFolderReason', "此文件夹通过下方受信任文件夹中的粗体条目获得信任。");
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the trusted folders below.");
 		} else {
-			textElement.innerText = localize('trustedForcedReason', "由于打开的工作区的性质，此窗口受信任。");
+			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
 		}
 	}
 

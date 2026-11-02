@@ -6,6 +6,10 @@ trigger:
 
 pr: none
 
+variables:
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
 pool:
   vmImage: ubuntu-latest
 
@@ -52,7 +56,7 @@ steps:
       git add -A
       git status
       git checkout -b "vscode-types-$TAG_VERSION"
-      git commit -m "Chenille $TAG_VERSION Extension API"
+      git commit -m "VS Code $TAG_VERSION Extension API"
       git push origin "vscode-types-$TAG_VERSION"
 
     displayName: Push update to DefinitelyTyped

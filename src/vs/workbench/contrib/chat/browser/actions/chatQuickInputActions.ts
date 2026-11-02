@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
 export function registerQuickChatActions() {
@@ -23,7 +23,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.openInChatView',
-				title: localize2('chat.openInChatView.label', "在聊天视图中打开"),
+				title: localize2('chat.openInChatView.label', "Open in Chat View"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.chatSparkle,
@@ -45,10 +45,10 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.close',
-				title: localize2('chat.closeQuickChat.label', "关闭快速聊天"),
+				title: localize2('chat.closeQuickChat.label', "Close Quick Chat"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.close,
+				icon: Codicon.closeSmall,
 				menu: {
 					id: MenuId.ChatInputSide,
 					group: 'navigation',
@@ -69,7 +69,7 @@ class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: localize2('quickChat', '打开快速聊天'),
+			title: localize2('quickChat', 'Open Quick Chat'),
 			precondition: ChatContextKeys.enabled,
 			icon: Codicon.chatSparkle,
 			f1: false,
@@ -84,7 +84,7 @@ class QuickChatGlobalAction extends Action2 {
 				order: 4
 			},
 			metadata: {
-				description: localize('toggle.desc', '切换快速聊天'),
+				description: localize('toggle.desc', 'Toggle the quick chat'),
 				args: [{
 					name: 'args',
 					schema: {
@@ -94,18 +94,18 @@ class QuickChatGlobalAction extends Action2 {
 								required: ['query'],
 								properties: {
 									query: {
-										description: localize('toggle.query', "打开快速聊天时使用的查询"),
+										description: localize('toggle.query', "The query to open the quick chat with"),
 										type: 'string'
 									},
 									isPartialQuery: {
-										description: localize('toggle.isPartialQuery', "查询是否为部分查询；将等待更多用户输入"),
+										description: localize('toggle.isPartialQuery', "Whether the query is partial; it will wait for more user input"),
 										type: 'boolean'
 									}
 								},
 							},
 							{
 								type: 'string',
-								description: localize('toggle.query', "打开快速聊天时使用的查询")
+								description: localize('toggle.query', "The query to open the quick chat with")
 							}
 						]
 					}
@@ -133,7 +133,7 @@ class AskQuickChatAction extends Action2 {
 		super({
 			id: `workbench.action.openQuickChat`,
 			category: CHAT_CATEGORY,
-			title: localize2('interactiveSession.open', "打开快速聊天"),
+			title: localize2('interactiveSession.open', "Open Quick Chat"),
 			precondition: ChatContextKeys.enabled,
 			f1: true
 		});

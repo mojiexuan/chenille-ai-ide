@@ -84,10 +84,10 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 				return true;
 			}
 
-			const result = await this.requestService.request({ type: 'GET', url: urlString }, CancellationToken.None);
+			const result = await this.requestService.request({ type: 'GET', url: urlString, callSite: 'promptUrlHandler.resolveUrl' }, CancellationToken.None);
 			if (result.res.statusCode !== 200) {
 				this.logService.error(`[PromptUrlHandler] Failed to fetch URL: ${urlString}`);
-				this.notificationService.error(localize('failed', '获取 URL 失败: {0}', urlString));
+				this.notificationService.error(localize('failed', 'Failed to fetch URL: {0}', urlString));
 				return true;
 			}
 
@@ -124,26 +124,26 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		const detail = new MarkdownString('', { supportHtml: true });
-		detail.appendMarkdown(localize('confirmOpenDetail2', "这将访问 {0}。\n\n", `[${uriLabel}](${url.toString()})`));
-		detail.appendMarkdown(localize('confirmOpenDetail3', "如果您没有发起此请求，这可能是对您系统的攻击尝试。除非您明确执行了发起此请求的操作，否则应按'否'"));
+		detail.appendMarkdown(localize('confirmOpenDetail2', "This will access {0}.\n\n", `[${uriLabel}](${url.toString()})`));
+		detail.appendMarkdown(localize('confirmOpenDetail3', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"));
 
 		let message: string;
 		switch (promptType) {
 			case PromptsType.prompt:
-				message = localize('confirmInstallPrompt', "外部应用程序想要使用 URL 中的内容创建提示文件。是否继续选择目标文件夹和名称？");
+				message = localize('confirmInstallPrompt', "An external application wants to create a prompt file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			case PromptsType.instructions:
-				message = localize('confirmInstallInstructions', "外部应用程序想要使用 URL 中的内容创建指令文件。是否继续选择目标文件夹和名称？");
+				message = localize('confirmInstallInstructions', "An external application wants to create an instructions file with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 			default:
-				message = localize('confirmInstallAgent', "外部应用程序想要使用 URL 中的内容创建自定义智能体。是否继续选择目标文件夹和名称？");
+				message = localize('confirmInstallAgent', "An external application wants to create a custom agent with content from a URL. Do you want to continue by selecting a destination folder and name?");
 				break;
 		}
 
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
-			primaryButton: localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "是(Y)"),
-			cancelButton: localize('noButton', "否"),
+			primaryButton: localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			cancelButton: localize('noButton', "No"),
 			message,
 			custom: {
 				markdownDetails: [{

@@ -10,8 +10,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
 	registerAction2(class NextFileTreeAction extends Action2 {
@@ -67,7 +67,7 @@ function navigateTrees(accessor: ServicesAccessor, reverse: boolean) {
 	const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
 	const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-	const currentResponse = focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
+	const currentResponse = focusedResponse ?? widget.viewModel?.getItems().findLast((item): item is IChatResponseViewModel => isResponseVM(item));
 	if (!currentResponse) {
 		return;
 	}

@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, dispose, Disposable, DisposableStore, toDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewState } from '../common/extensions.js';
 import { Event } from '../../../../base/common/event.js';
@@ -16,7 +16,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { IAsyncDataSource, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Delegate, Renderer } from './extensionsList.js';
 import { listFocusForeground, listFocusBackground, foreground, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -35,14 +36,16 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 function getAriaLabelForExtension(extension: IExtension | null): string {
 	if (!extension) {
 		return '';
 	}
-	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "已验证的发布者 {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "发布者 {0}", extension.publisherDisplayName);
-	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "已弃用") : '';
-	const rating = extension?.rating ? localize('extension.arialabel.rating', "被 {1} 位用户评为 {0} 星(满分 5 星)", extension.rating.toFixed(2), extension.ratingCount) : '';
+	const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublisher', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publisher', "Publisher {0}", extension.publisherDisplayName);
+	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
+	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }
 
@@ -50,6 +53,8 @@ export class ExtensionsList extends Disposable {
 
 	readonly list: WorkbenchPagedList<IExtension>;
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+
+	private readonly modalNavigationDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		parent: HTMLElement,
@@ -63,6 +68,7 @@ export class ExtensionsList extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && notificationService.error(error)));
@@ -90,7 +96,7 @@ export class ExtensionsList extends Disposable {
 					return getAriaLabelForExtension(extension);
 				},
 				getWidgetAriaLabel(): string {
-					return localize('extensions', "扩展");
+					return localize('extensions', "Extensions");
 				}
 			},
 			overrideStyles: getLocationBasedViewColors(viewDescriptorService.getViewLocationById(viewId)).listOverrideStyles,
@@ -115,7 +121,17 @@ export class ExtensionsList extends Disposable {
 
 	private openExtension(extension: IExtension, options: { sideByside?: boolean; preserveFocus?: boolean; pinned?: boolean }): void {
 		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
-		this.extensionsWorkbenchService.open(extension, options);
+		this.extensionsWorkbenchService.open(extension, {
+			...options,
+			modal: options.sideByside ? undefined : buildModalNavigationForPagedList(
+				extension,
+				() => this.list.model,
+				(extA, extB) => areSameExtensions(extA.identifier, extB.identifier),
+				(ext, modal) => this.extensionsWorkbenchService.open(ext, { pinned: false, modal }),
+				this.modalNavigationDisposable,
+				this.logService
+			),
+		});
 	}
 
 	private async onContextMenu(e: IListContextMenuEvent<IExtension>): Promise<void> {
@@ -315,8 +331,8 @@ class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 
 	public renderTemplate(container: HTMLElement): IUnknownExtensionTemplateData {
 		const messageContainer = dom.append(container, dom.$('div.unknown-extension'));
-		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "错误");
-		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "未知扩展:");
+		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
+		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "Unknown Extension:");
 
 		const identifier = dom.append(messageContainer, dom.$('span.message'));
 		return { identifier };
@@ -387,7 +403,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 						return getAriaLabelForExtension(extensionData.extension);
 					},
 					getWidgetAriaLabel(): string {
-						return localize('extensions', "扩展");
+						return localize('extensions', "Extensions");
 					}
 				}
 			},
@@ -451,6 +467,80 @@ export async function getExtensions(extensions: string[], extensionsWorkbenchSer
 		result.push(...galleryResult);
 	}
 	return result;
+}
+
+/**
+ * Builds modal navigation options for navigating items in a paged list model.
+ */
+export function buildModalNavigationForPagedList<T>(
+	openedItem: T,
+	getModel: () => IPagedModel<T> | undefined,
+	isSame: (a: T, b: T) => boolean,
+	openItem: (item: T, modal: IModalEditorPartOptions) => void,
+	cancellationStore: MutableDisposable<IDisposable>,
+	logService: ILogService
+): IModalEditorPartOptions | undefined {
+	const model = getModel();
+	if (!model) {
+		return undefined;
+	}
+
+	const total = model.length;
+	if (total <= 1) {
+		return undefined;
+	}
+
+	// Find the index of the opened item in the list
+	let current = -1;
+	for (let i = 0; i < total; i++) {
+		if (model.isResolved(i) && isSame(model.get(i), openedItem)) {
+			current = i;
+			break;
+		}
+	}
+
+	if (current === -1) {
+		return undefined;
+	}
+
+	const openAtIndex = (index: number, item: T) => {
+		const currentTotal = getModel()?.length ?? 0;
+		openItem(item, { navigation: { total: currentTotal, current: index, navigate } });
+	};
+
+	let cts: CancellationTokenSource | undefined;
+	const navigate = (index: number) => {
+		cts?.cancel();
+		cts = cancellationStore.value = new CancellationTokenSource();
+		const token = cts.token;
+
+		const currentModel = getModel();
+		if (!currentModel || index < 0 || index >= currentModel.length) {
+			return;
+		}
+
+		// Fast path: item already resolved
+		if (currentModel.isResolved(index)) {
+			openAtIndex(index, currentModel.get(index));
+		}
+
+		// Slow path: resolve the item first
+		else {
+			currentModel.resolve(index, token).then(item => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				openAtIndex(index, item);
+			}, error => {
+				if (!isCancellationError(error)) {
+					logService.error(`Error while resolving item at index ${index} for modal navigation`, error);
+				}
+			});
+		}
+	};
+
+	return { navigation: { total, current, navigate } };
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {

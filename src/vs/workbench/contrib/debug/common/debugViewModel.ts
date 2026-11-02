@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_THREADS_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from './debug.js';
+import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_THREADS_SUPPORTED, hasMultipleStackFrames, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from './debug.js';
 import { isSessionAttach } from './debugUtils.js';
 
-export class ViewModel implements IViewModel {
+export class ViewModel extends Disposable implements IViewModel {
 
 	firstSessionStart = true;
 
@@ -16,13 +17,13 @@ export class ViewModel implements IViewModel {
 	private _focusedSession: IDebugSession | undefined;
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: { expression: IExpression; settingWatch: boolean } | undefined;
-	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
-	private readonly _onDidFocusThread = new Emitter<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>();
-	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>();
-	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
-	private readonly _onDidEvaluateLazyExpression = new Emitter<IExpressionContainer>();
-	private readonly _onWillUpdateViews = new Emitter<void>();
-	private readonly _onDidChangeVisualization = new Emitter<{ original: IExpression; replacement: IExpression }>();
+	private readonly _onDidFocusSession = this._register(new Emitter<IDebugSession | undefined>());
+	private readonly _onDidFocusThread = this._register(new Emitter<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>());
+	private readonly _onDidFocusStackFrame = this._register(new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>());
+	private readonly _onDidSelectExpression = this._register(new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>());
+	private readonly _onDidEvaluateLazyExpression = this._register(new Emitter<IExpressionContainer>());
+	private readonly _onWillUpdateViews = this._register(new Emitter<void>());
+	private readonly _onDidChangeVisualization = this._register(new Emitter<{ original: IExpression; replacement: IExpression }>());
 	private readonly visualized = new WeakMap<IExpression, IExpression>();
 	private readonly preferredVisualizers = new Map</** cache key */ string, /* tree ID */ string>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
@@ -42,8 +43,10 @@ export class ViewModel implements IViewModel {
 	private terminateThreadsSupported!: IContextKey<boolean>;
 	private disassembleRequestSupported!: IContextKey<boolean>;
 	private focusedStackFrameHasInstructionPointerReference!: IContextKey<boolean>;
+	private threadHasMultipleStackFrames!: IContextKey<boolean>;
 
 	constructor(private contextKeyService: IContextKeyService) {
+		super();
 		contextKeyService.bufferChangeEvents(() => {
 			this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 			this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
@@ -62,6 +65,7 @@ export class ViewModel implements IViewModel {
 			this.terminateThreadsSupported = CONTEXT_TERMINATE_THREADS_SUPPORTED.bindTo(contextKeyService);
 			this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
 			this.focusedStackFrameHasInstructionPointerReference = CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE.bindTo(contextKeyService);
+			this.threadHasMultipleStackFrames = CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES.bindTo(contextKeyService);
 		});
 	}
 
@@ -105,6 +109,7 @@ export class ViewModel implements IViewModel {
 			this.terminateThreadsSupported.set(!!session?.capabilities.supportsTerminateThreadsRequest);
 			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
 			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
+			this.updateFocusedThreadHasMultipleStackFrames();
 			const attach = !!session && isSessionAttach(session);
 			this.focusedSessionIsAttach.set(attach);
 			this.focusedSessionIsNoDebug.set(!!session && !!session.configuration.noDebug);
@@ -120,6 +125,10 @@ export class ViewModel implements IViewModel {
 		} else if (shouldEmitForThread) {
 			this._onDidFocusThread.fire({ thread, explicit, session });
 		}
+	}
+
+	updateFocusedThreadHasMultipleStackFrames(): void {
+		this.threadHasMultipleStackFrames.set(hasMultipleStackFrames(this._focusedThread));
 	}
 
 	get onDidFocusSession(): Event<IDebugSession | undefined> {

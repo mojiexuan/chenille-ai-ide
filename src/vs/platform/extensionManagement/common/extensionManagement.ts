@@ -21,7 +21,9 @@ import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+export const EXTENSION_PUBLISHER_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const WEB_EXTENSION_TAG = '__web_extension';
+export const LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG = 'language-models';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
 export const EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT = 'skipPublisherTrust';
 export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
@@ -173,6 +175,18 @@ export interface IGalleryExtensionProperties {
 	executesCode?: boolean;
 }
 
+/** Who made the blocking statement: the marketplace, or a policy scoped to this tenant. */
+export const enum ExtensionBlockingOrigin {
+	/** Also the degraded value for any origin this client does not recognize, being the more severe. */
+	Service = 'service',
+	Policy = 'policy',
+}
+
+/** Present only when the gallery reports an extension, or the version in hand, as blocked. */
+export interface IExtensionBlockingInfo {
+	readonly origin: ExtensionBlockingOrigin;
+}
+
 export interface IGalleryExtensionAsset {
 	uri: string;
 	fallbackUri: string;
@@ -236,6 +250,8 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	private: boolean;
+	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
+	blockingInfo?: IExtensionBlockingInfo;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
@@ -286,6 +302,7 @@ export interface ILocalExtension extends IExtension {
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	forceAutoUpdate: boolean;
 	source: InstallSource;
 	size: number;
 }
@@ -339,7 +356,10 @@ export interface IDeprecationInfo {
 	readonly extension?: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly autoMigrate?: { readonly storage: boolean };
+		readonly autoMigrate?: {
+			readonly storage: boolean;
+			readonly donotDisable?: boolean;
+		};
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];
@@ -378,6 +398,7 @@ export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
 	preRelease?: boolean;
 	hasPreRelease?: boolean;
+	currentVersion?: string;
 }
 
 export interface IExtensionQueryOptions {
@@ -385,6 +406,7 @@ export interface IExtensionQueryOptions {
 	productVersion?: IProductVersion;
 	compatible?: boolean;
 	queryAllVersions?: boolean;
+	includeBlockedVersions?: boolean;
 	source?: string;
 }
 
@@ -707,8 +729,8 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 	return stat.size ?? 0;
 }
 
-export const ExtensionsLocalizedLabel = localize2('extensions', "扩展");
-export const PreferencesLocalizedLabel = localize2('preferences', '首选项');
+export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
+export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
 export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
 export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
@@ -717,22 +739,22 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 	.registerConfiguration({
 		id: 'extensions',
 		order: 30,
-		title: localize('extensionsConfigurationTitle', "扩展"),
+		title: localize('extensionsConfigurationTitle', "Extensions"),
 		type: 'object',
 		properties: {
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
-				markdownDescription: localize('extensions.allowed', "指定允许使用的扩展列表。这有助于通过限制使用未经授权的扩展来维护安全一致的开发环境。有关如何配置此设置的更多信息，请访问[配置允许的扩展](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions)部分。"),
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://aka.ms/vscode/enterprise/extensions/allowed) section."),
 				default: '*',
 				defaultSnippets: [{
 					body: {},
-					description: localize('extensions.allowed.none', "不允许任何扩展。"),
+					description: localize('extensions.allowed.none', "No extensions are allowed."),
 				}, {
 					body: {
 						'*': true
 					},
-					description: localize('extensions.allowed.all', "允许所有扩展。"),
+					description: localize('extensions.allowed.all', "All extensions are allowed."),
 				}],
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
@@ -742,22 +764,22 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 					localization: {
 						description: {
 							key: 'extensions.allowed.policy',
-							value: localize('extensions.allowed.policy', "指定允许使用的扩展列表。这有助于通过限制使用未经授权的扩展来维护安全一致的开发环境。更多信息: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"),
 						}
 					}
 				},
 				additionalProperties: false,
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					[EXTENSION_IDENTIFIER_PATTERN]: {
 						anyOf: [
 							{
 								type: ['boolean', 'string'],
 								enum: [true, false, 'stable'],
-								description: localize('extensions.allow.description', "允许或禁止该扩展。"),
+								description: localize('extensions.allow.description', "Allow or disallow the extension."),
 								enumDescriptions: [
-									localize('extensions.allowed.enable.desc', "允许该扩展。"),
-									localize('extensions.allowed.disable.desc', "不允许该扩展。"),
-									localize('extensions.allowed.disable.stable.desc', "仅允许该扩展的稳定版本。"),
+									localize('extensions.allowed.enable.desc', "Extension is allowed."),
+									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
+									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
 								],
 							},
 							{
@@ -765,27 +787,27 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 								items: {
 									type: 'string',
 								},
-								description: localize('extensions.allow.version.description', "允许或禁止扩展的特定版本。要指定特定平台的版本，请使用格式 `platform@1.2.3`，例如 `win32-x64@1.2.3`。支持的平台有 `win32-x64`、`win32-arm64`、`linux-x64`、`linux-arm64`、`linux-armhf`、`alpine-x64`、`alpine-arm64`、`darwin-x64`、`darwin-arm64`"),
+								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
 							},
 						]
 					},
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+					[EXTENSION_PUBLISHER_IDENTIFIER_PATTERN]: {
 						type: ['boolean', 'string'],
 						enum: [true, false, 'stable'],
-						description: localize('extension.publisher.allow.description', "允许或禁止来自该发布者的所有扩展。"),
+						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
 						enumDescriptions: [
-							localize('extensions.publisher.allowed.enable.desc', "允许来自该发布者的所有扩展。"),
-							localize('extensions.publisher.allowed.disable.desc', "不允许来自该发布者的所有扩展。"),
-							localize('extensions.publisher.allowed.disable.stable.desc', "仅允许来自该发布者的扩展的稳定版本。"),
+							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
+							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
+							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
 						],
 					},
 					'\\*': {
 						type: 'boolean',
 						enum: [true, false],
-						description: localize('extensions.allow.all.description', "允许或禁止所有扩展。"),
+						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
 						enumDescriptions: [
-							localize('extensions.allow.all.enable', "允许所有扩展。"),
-							localize('extensions.allow.all.disable', "禁止所有扩展。")
+							localize('extensions.allow.all.enable', "Allow all extensions."),
+							localize('extensions.allow.all.disable', "Disallow all extensions.")
 						],
 					}
 				}
@@ -799,4 +821,3 @@ export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryM
 	}
 	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
 }
-

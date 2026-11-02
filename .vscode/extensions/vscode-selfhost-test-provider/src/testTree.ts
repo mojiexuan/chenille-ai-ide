@@ -19,7 +19,7 @@ export const itemData = new WeakMap<vscode.TestItem, VSCodeTest>();
 export const clearFileDiagnostics = (uri: vscode.Uri) => diagnosticCollection.delete(uri);
 
 /**
- * Tries to guess which workspace folder Chenille is in.
+ * Tries to guess which workspace folder VS Code is in.
  */
 export const guessWorkspaceFolder = async () => {
 	if (!vscode.workspace.workspaceFolders) {
@@ -31,16 +31,23 @@ export const guessWorkspaceFolder = async () => {
 	}
 
 	for (const folder of vscode.workspace.workspaceFolders) {
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, 'src/vs/loader.js'));
+		if (await isVsCodeWorkspaceFolder(folder)) {
 			return folder;
-		} catch {
-			// ignored
 		}
 	}
 
 	return undefined;
 };
+
+export async function isVsCodeWorkspaceFolder(folder: vscode.WorkspaceFolder): Promise<boolean> {
+	try {
+		const buffer = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(folder.uri, 'package.json'));
+		const pkg = JSON.parse(textDecoder.decode(buffer));
+		return pkg.name === 'code-oss-dev';
+	} catch {
+		return false;
+	}
+}
 
 export const getContentFromFilesystem: ContentGetter = async uri => {
 	try {

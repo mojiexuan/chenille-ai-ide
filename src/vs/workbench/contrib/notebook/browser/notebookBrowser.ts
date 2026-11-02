@@ -539,6 +539,7 @@ export interface INotebookEditor {
 	readonly textModel?: NotebookTextModel;
 	readonly isVisible: boolean;
 	readonly isReadOnly: boolean;
+	readonly isReplHistory: boolean;
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
@@ -835,6 +836,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	readonly onDidChangeOptions: Event<void>;
 	readonly onDidChangeDecorations: Event<void>;
+	getOverflowContainerDomNode(): HTMLElement;
 	createMarkupPreview(cell: ICellViewModel): Promise<void>;
 	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;

@@ -117,7 +117,7 @@ export function validate(allowStylesheet: boolean = true): boolean {
 }
 
 export function getMappingForIncludedLanguages(): Record<string, string> {
-	// Explicitly map languages that have built-in grammar in Chenille to their parent language
+	// Explicitly map languages that have built-in grammar in VS Code to their parent language
 	// to get emmet completion support
 	// For other languages, users will have to use `emmet.includeLanguages` or
 	// language specific extensions can provide emmet completion support
@@ -606,8 +606,8 @@ export function sameNodes(node1: FlatNode | undefined, node2: FlatNode | undefin
 
 export function getEmmetConfiguration(syntax: string) {
 	const emmetConfig = vscode.workspace.getConfiguration('emmet');
-	const syntaxProfiles = Object.assign({}, emmetConfig['syntaxProfiles'] || {});
-	const preferences = Object.assign({}, emmetConfig['preferences'] || {});
+	const syntaxProfiles = Object.assign({}, emmetConfig.syntaxProfiles || {});
+	const preferences = Object.assign({}, emmetConfig.preferences || {});
 	// jsx, xml and xsl syntaxes need to have self closing tags unless otherwise configured by user
 	if (syntax === 'jsx' || syntax === 'xml' || syntax === 'xsl') {
 		syntaxProfiles[syntax] = syntaxProfiles[syntax] || {};
@@ -624,12 +624,12 @@ export function getEmmetConfiguration(syntax: string) {
 
 	return {
 		preferences,
-		showExpandedAbbreviation: emmetConfig['showExpandedAbbreviation'],
-		showAbbreviationSuggestions: emmetConfig['showAbbreviationSuggestions'],
+		showExpandedAbbreviation: emmetConfig.showExpandedAbbreviation,
+		showAbbreviationSuggestions: emmetConfig.showAbbreviationSuggestions,
 		syntaxProfiles,
-		variables: emmetConfig['variables'],
-		excludeLanguages: emmetConfig['excludeLanguages'],
-		showSuggestionsAsSnippets: emmetConfig['showSuggestionsAsSnippets']
+		variables: emmetConfig.variables,
+		excludeLanguages: emmetConfig.excludeLanguages,
+		showSuggestionsAsSnippets: emmetConfig.showSuggestionsAsSnippets
 	};
 }
 
