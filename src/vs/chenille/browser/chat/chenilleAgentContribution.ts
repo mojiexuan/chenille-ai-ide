@@ -23,6 +23,7 @@ import {
 	IChatAgentHistoryEntry,
 } from '../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import {
+	IChatService,
 	IChatProgress,
 	IChatContentReference,
 	IChatTreeData,
@@ -32,7 +33,6 @@ import {
 import { IChatProgressHistoryResponseContent } from '../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat/common/constants.js';
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
-import { IChenilleChatModeService } from '../../common/chatMode.js';
 import { AiModelMessage, AiToolCall, AiTool, AiMessageContent } from '../../common/types.js';
 import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
 import { IChenilleToolDispatcher, isChenilleFileTool, getInternalToolId } from '../../tools/dispatcher.js';
@@ -120,7 +120,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 	constructor(
 		@IChenilleAiService private readonly aiService: IChenilleAiService,
 		@IChenilleToolDispatcher private readonly toolDispatcher: IChenilleToolDispatcher,
-		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
+		@IChatService private readonly chatService: IChatService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
@@ -145,7 +145,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			return { errorDetails: { message: 'Agent not configured' } };
 		}
 
-		const isAgentMode = this.modeService.isAgentMode();
+		const isAgentMode = this.isAgentMode(request);
 		const isNewSession = history.length === 0;
 
 		// 新会话时获取合并后的规则（全局 + 项目）
@@ -180,6 +180,18 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			this.logService.error('[Chenille Agent] Error:', errorMessage);
 			return { errorDetails: { message: errorMessage } };
 		}
+	}
+
+	/**
+	 * Agent 模式由官方 Chat UI 的模式切换决定，从当前会话请求的 modeInfo 中读取。
+	 */
+	private isAgentMode(request: IChatAgentRequest): boolean {
+		if (request.location !== ChatAgentLocation.Chat) {
+			return false;
+		}
+		const session = this.chatService.getSession(request.sessionResource);
+		const currentRequest = session?.getRequests().find(r => r.id === request.requestId);
+		return currentRequest?.modeInfo?.kind === ChatModeKind.Agent;
 	}
 
 	/**
@@ -1245,8 +1257,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			parameters,
 			tokenBudget: undefined,
 			context: {
-				sessionId: sessionContext.requestId,
 				sessionResource: sessionContext.sessionResource,
+				requestId: sessionContext.requestId,
 			},
 			chatRequestId: sessionContext.requestId,
 			modelId: undefined,
@@ -1311,8 +1323,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			parameters,
 			tokenBudget: undefined,
 			context: {
-				sessionId: sessionContext.requestId,
 				sessionResource: sessionContext.sessionResource,
+				requestId: sessionContext.requestId,
 			},
 			chatRequestId: sessionContext.requestId,
 			modelId: undefined,
