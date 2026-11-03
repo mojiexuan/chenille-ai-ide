@@ -38,6 +38,8 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 set DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+:: Chenille: the in-repo extensions/copilot is not built and would hijack the default chat agent
+set DISABLE_CHENILLE_COPILOT_CHAT="--disable-extension=GitHub.copilot-chat"
 for %%A in (%*) do (
 	if "%%~A"=="--extensionTestsPath" (
 		set DISABLE_TEST_EXTENSION=""
@@ -45,7 +47,7 @@ for %%A in (%*) do (
 )
 
 :: Launch Code
-%CODE% . %DISABLE_TEST_EXTENSION% %*
+%CODE% . %DISABLE_TEST_EXTENSION% %DISABLE_CHENILLE_COPILOT_CHAT% %*
 goto end
 
 :builtin

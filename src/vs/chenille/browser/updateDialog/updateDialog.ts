@@ -14,7 +14,7 @@ import { IVersionUpdateInfo } from '../../common/versionCheckService.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { FileAccess } from '../../../base/common/network.js';
-import { INativeHostService } from '../../../platform/native/common/native.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 export class ChenilleUpdateDialog extends Disposable {
 	private modalElement: HTMLElement | undefined;
@@ -28,7 +28,7 @@ export class ChenilleUpdateDialog extends Disposable {
 		private readonly updateInfo: IVersionUpdateInfo,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
@@ -79,7 +79,7 @@ export class ChenilleUpdateDialog extends Disposable {
 		laterBtn.textContent = isForceUpdate ? '退出程序' : '稍后提醒';
 		this.dialogDisposables.add(addDisposableListener(laterBtn, EventType.CLICK, () => {
 			if (isForceUpdate) {
-				this.nativeHostService.closeWindow();
+				this.commandService.executeCommand('workbench.action.quit');
 			} else {
 				this.hide();
 			}
@@ -96,7 +96,7 @@ export class ChenilleUpdateDialog extends Disposable {
 				this.openerService.open(URI.parse(this.updateInfo.url), { openExternal: true });
 				if (isForceUpdate) {
 					// 强制更新：打开链接后关闭程序
-					this.nativeHostService.closeWindow();
+					this.commandService.executeCommand('workbench.action.quit');
 				} else {
 					this.hide();
 				}

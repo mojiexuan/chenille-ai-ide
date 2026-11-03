@@ -21,6 +21,8 @@ export interface IAiCallRequest {
 	tools?: AiTool[];
 	/** 自定义系统提示（覆盖 agent 默认的系统提示） */
 	systemPrompt?: string;
+	/** 指定使用的 Chenille 模型名称；未指定时使用当前激活模型 */
+	modelName?: string;
 }
 
 /**

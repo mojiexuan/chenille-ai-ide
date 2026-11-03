@@ -11,18 +11,36 @@
 		],
 		"allowedUpstreamChanges": {
 			"build/next/resources.ts": "复制 Chenille 静态资源",
+			"build/.moduleignore": "本地打包内置 Copilot 扩展时保留 SDK 脚本",
 			"eslint.config.js": "Chenille 导入规则、版权头与分层例外",
 			"package.json": "Chenille 产品元数据与 AI SDK 依赖",
+			"package-lock.json": { "reason": "npm 依赖锁定文件，随 package.json 自动生成", "maxChangedLines": 2000 },
 			"product.json": { "reason": "Chenille 品牌与产品配置", "maxChangedLines": 200 },
+			"resources/darwin/code.icns": "Chenille 应用图标（macOS）",
+			"resources/linux/code.png": "Chenille 应用图标（Linux）",
+			"resources/win32/code.ico": "Chenille 应用图标（Windows）",
+			"resources/win32/sessions.ico": "Chenille Agents 窗口图标",
+			"resources/win32/code_150x150.png": "Chenille 开始菜单磁贴图标",
+			"resources/win32/code_70x70.png": "Chenille 开始菜单磁贴图标",
+			"scripts/code.bat": "开发版启动时禁用未构建的内置 Copilot Chat 扩展",
+			"src/mainImpl.ts": { "reason": "首次启动写入内置中文语言包配置，默认简体中文", "maxChangedLines": 160 },
 			"src/vs/code/electron-main/app.ts": "注册 Chenille 主进程服务与 IPC 通道",
+			"src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.ts": "未配置模型时展示 Chenille 配置入口而非 GitHub 登录",
+			"src/vs/platform/windows/electron-main/windowImpl.ts": "Windows 窗口使用 Chenille 图标，Agents 窗口跳过 GitHub 登录欢迎流程",
 			"src/vs/workbench/contrib/scm/browser/scmInput.ts": "把提交消息生成委托给 Chenille 命令",
-			"src/vs/workbench/workbench.desktop.main.ts": "加载 Chenille 贡献"
+			"src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts": "关闭 GitHub Copilot 登录与设置入口",
+			"src/vs/workbench/workbench.desktop.main.ts": "加载 Chenille 贡献",
+			"src/vs/sessions/sessions.desktop.main.ts": "加载 Chenille Agents 窗口贡献",
+			"src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts": "Agents 窗口不注册需要 GitHub 登录的 Copilot Cloud 会话提供者",
+			"src/vs/sessions/contrib/providers/agentHost/browser/localAgentHost.contribution.ts": "Agents 窗口不注册需要 GitHub 登录的 Copilot CLI 会话提供者"
 		},
 		"allowedNewPaths": [
 			"UPGRADING.md",
 			"CHENILLE_UPSTREAM.json",
 			"scripts/chenille/*",
-			".github/workflows/chenille-*.yml"
+			".github/workflows/chenille-*.yml",
+			"extensions/chenille-language-pack-zh-hans/**",
+			"extensions/chenille-theme/**"
 		],
 		"maxChangedLinesPerUpstreamFile": 80
 	}

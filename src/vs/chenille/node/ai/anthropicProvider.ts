@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam, Tool, TextBlock, ToolUseBlock, ToolResultBlockParam, ImageBlockParam, ContentBlockParam, ThinkingBlock } from '@anthropic-ai/sdk/resources/messages';
+import { loadSdkModule } from './sdkLoader.js';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 
 /**
@@ -93,6 +94,7 @@ function toAnthropicMessages(messages: AiModelMessage[]): MessageParam[] {
 						type: 'tool_use',
 						id: tc.id,
 						name: tc.function.name,
+						caller: { type: 'direct' },
 						input: JSON.parse(tc.function.arguments || '{}'),
 					};
 					content.push(toolUseBlock);
@@ -153,15 +155,16 @@ function isThinkingModel(modelName: string): boolean {
 export class AnthropicProvider implements IAIProvider {
 	readonly name = 'anthropic';
 
-	private createClient(options: ChatCompletionOptions): Anthropic {
-		return new Anthropic({
+	private async createClient(options: ChatCompletionOptions): Promise<Anthropic> {
+		const { default: AnthropicClient } = await loadSdkModule<{ default: new (options: { apiKey: string; baseURL?: string }) => Anthropic }>('@anthropic-ai/sdk', 'index.mjs');
+		return new AnthropicClient({
 			apiKey: options.agent.model.apiKey,
 			baseURL: options.agent.model.baseUrl || undefined,
 		});
 	}
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 
 		const messages = toAnthropicMessages(options.messages);
@@ -233,7 +236,7 @@ export class AnthropicProvider implements IAIProvider {
 	}
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 
 		const messages = toAnthropicMessages(options.messages);

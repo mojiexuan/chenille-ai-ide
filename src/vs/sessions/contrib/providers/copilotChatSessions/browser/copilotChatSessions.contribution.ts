@@ -5,6 +5,7 @@
 
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import product from '../../../../../platform/product/common/product.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
@@ -31,6 +32,11 @@ class DefaultSessionsProviderContribution extends Disposable implements IWorkben
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+
+		// Chenille 只使用本地可配置模型，不注册需要 GitHub 登录的 Copilot Cloud 会话提供者。
+		if ((product as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup) {
+			return;
+		}
 
 		const provider = this._register(instantiationService.createInstance(CopilotChatSessionsProvider, 'default'));
 		this._register(sessionsProvidersService.registerProvider(provider));

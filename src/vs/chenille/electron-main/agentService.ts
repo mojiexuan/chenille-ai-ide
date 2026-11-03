@@ -7,60 +7,70 @@ import { createDecorator } from '../../platform/instantiation/common/instantiati
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IAiAgentStorageMainService } from './agentStorage.js';
 import { IAiModelStorageMainService } from './modelStorage.js';
-import { IAiPromptStorageMainService } from './promptStorage.js';
 import { AgentType, AiAgent, AiModel, AiPrompt } from '../common/types.js';
 import { ChenilleError } from '../common/errors.js';
 import { localize } from '../../nls.js';
+import { BUILTIN_PROMPTS, getDefaultPromptNameForAgentType } from '../common/builtinPrompts.js';
 
 export const IAiAgentMainService = createDecorator<IAiAgentMainService>('aiAgentMainService');
 
 export interface IAiAgentMainService {
 	readonly _serviceBrand: undefined;
-	getAgent(type: AgentType): Promise<AiAgent>;
+	getAgent(type: AgentType, modelName?: string): Promise<AiAgent>;
 }
 
+/**
+ * 所有智能体共用同一个模型配置。
+ * 用户在设置面板中保存的模型直接生效，无需再为每个智能体单独绑定模型和提示词。
+ */
 export class AiAgentMainService extends Disposable implements IAiAgentMainService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IAiAgentStorageMainService private readonly agentStorage: IAiAgentStorageMainService,
 		@IAiModelStorageMainService private readonly modelStorage: IAiModelStorageMainService,
-		@IAiPromptStorageMainService private readonly promptStorage: IAiPromptStorageMainService,
 	) {
 		super();
 	}
 
-	async getAgent(type: AgentType): Promise<AiAgent> {
-		const config = await this.agentStorage.get(type);
-		const agentName = this.getAgentDisplayName(type);
-
-		if (!config) {
-			throw new ChenilleError(localize('agentNotConfigured', "智能体 '{0}' 未配置", agentName));
-		}
-
-		if (!config.modelName) {
-			throw new ChenilleError(localize('agentModelNotSet', "智能体 '{0}' 未设置模型", agentName));
-		}
-
-		if (!config.promptName) {
-			throw new ChenilleError(localize('agentPromptNotSet', "智能体 '{0}' 未设置提示词", agentName));
-		}
-
-		const model = await this.modelStorage.get(config.modelName);
-		const prompt = await this.promptStorage.get(config.promptName);
-
-		if (!model) {
-			throw new ChenilleError(localize('modelNotFound', "模型 '{0}' 不存在，可能已被删除", config.modelName));
-		}
-
-		if (!prompt) {
-			throw new ChenilleError(localize('promptNotFound', "提示词 '{0}' 不存在，可能已被删除", config.promptName));
-		}
+	async getAgent(type: AgentType, modelName?: string): Promise<AiAgent> {
+		const model = await this.getActiveModel(type, modelName);
+		const prompt = this.getBuiltinPrompt(type);
 
 		this.validateModel(model);
-		this.validatePrompt(prompt);
 
 		return { model, prompt };
+	}
+
+	private async getActiveModel(type: AgentType, modelName?: string): Promise<AiModel> {
+		const models = await this.modelStorage.getAll();
+
+		if (models.length === 0) {
+			throw new ChenilleError(localize('noModelConfigured', "尚未配置 AI 模型，请在 Chenille 设置中添加模型"));
+		}
+
+		// 聊天模型选择器传入的模型优先；其次是设置面板保存的激活模型；最后回退到第一个模型
+		if (modelName) {
+			const requested = models.find(model => model.name === modelName);
+			if (requested) {
+				return requested;
+			}
+		}
+
+		const config = await this.agentStorage.get(type);
+		const selected = config?.modelName ? models.find(model => model.name === config.modelName) : undefined;
+		return selected ?? models[0];
+	}
+
+	private getBuiltinPrompt(type: AgentType): AiPrompt {
+		const promptName = getDefaultPromptNameForAgentType(type);
+		const prompt = BUILTIN_PROMPTS.find(item => item.name === promptName);
+
+		if (!prompt) {
+			throw new ChenilleError(localize('promptNotFound', "内置提示词 '{0}' 不存在", promptName));
+		}
+
+		return prompt;
 	}
 
 	private validateModel(model: AiModel): void {
@@ -80,8 +90,8 @@ export class AiAgentMainService extends Disposable implements IAiAgentMainServic
 			throw new ChenilleError(localize('modelIdEmpty', "模型 '{0}' 的模型标识不能为空", model.name));
 		}
 
-		if (typeof model.contextSize !== 'number' || model.contextSize < 1 || model.contextSize > 1000000) {
-			throw new ChenilleError(localize('modelContextSizeInvalid', "模型 '{0}' 的上下文大小必须在 1-1000000 之间", model.name));
+		if (typeof model.contextSize !== 'number' || model.contextSize < 1) {
+			throw new ChenilleError(localize('modelContextSizeInvalid', "模型 '{0}' 的上下文大小必须大于 0", model.name));
 		}
 
 		if (typeof model.maxTokens !== 'number' || model.maxTokens < 1 || model.maxTokens > model.contextSize) {
@@ -90,29 +100,6 @@ export class AiAgentMainService extends Disposable implements IAiAgentMainServic
 
 		if (typeof model.temperature !== 'number' || model.temperature < 0 || model.temperature > 2) {
 			throw new ChenilleError(localize('modelTemperatureInvalid', "模型 '{0}' 的温度必须在 0-2 之间", model.name));
-		}
-	}
-
-	private validatePrompt(prompt: AiPrompt): void {
-		if (!prompt.name?.trim()) {
-			throw new ChenilleError(localize('promptNameEmpty', "提示词名称不能为空"));
-		}
-
-		if (!prompt.content?.trim()) {
-			throw new ChenilleError(localize('promptContentEmpty', "提示词 '{0}' 的内容不能为空", prompt.name));
-		}
-	}
-
-	private getAgentDisplayName(type: AgentType): string {
-		switch (type) {
-			case AgentType.COMMIT_MESSAGE:
-				return localize('commitMessageAgent', "Commit 消息生成");
-			case AgentType.CODE_WRITER:
-				return localize('codeWriterAgent', "代码编写");
-			case AgentType.INLINE_COMPLETION:
-				return localize('inlineCompletionAgent', "代码补全");
-			default:
-				return type;
 		}
 	}
 }

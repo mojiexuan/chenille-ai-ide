@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .window-appicon:not(.codicon) {
+	background-image: url('./chenille-icon.png') !important;
+	background-repeat: no-repeat !important;
+	background-position: center center !important;
+	background-size: 18px !important;
+}
+
+/* 移除欢迎页内置引导里的 GitHub Copilot 登录步骤 */
+.monaco-workbench .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step[data-step-id^="CopilotSetup"] {
+	display: none !important;
+}

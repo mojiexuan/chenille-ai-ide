@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export {
-	IChenilleChatController,
+export type {
 	IChenilleChatChunk,
-	IChenilleChatRequest,
-	ChenilleChatControllerImpl
+	IChenilleChatRequest
 } from './chenilleChatController.js';
+export { IChenilleChatController, ChenilleChatControllerImpl } from './chenilleChatController.js';
 
-export {
-	IChenilleChatIntegration,
+export type {
 	IChenilleChatResult,
 	IChenilleChatProgress,
-	IChenilleChatHistoryMessage,
-	ChenilleChatIntegrationImpl
+	IChenilleChatHistoryMessage
 } from './chenilleChatIntegration.js';
+export { IChenilleChatIntegration, ChenilleChatIntegrationImpl } from './chenilleChatIntegration.js';
 
 export {
 	ChenilleChatProviderImpl

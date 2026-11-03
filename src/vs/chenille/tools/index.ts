@@ -4,4 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { CHENILLE_TOOLS, CHENILLE_FILE_TOOLS, VSCODE_TOOL_DEFINITIONS, getToolByName, getAllToolNames, getChenilleFileToolNames, getVSCodeToolId, buildToolDefinitionsForAI } from './definitions.js';
-export { IChenilleToolDispatcher, ChenilleToolDispatcher, IToolResult, getInternalToolId, isChenilleFileTool } from './dispatcher.js';
+export type { IChenilleToolDispatcher, IToolResult } from './dispatcher.js';
+export { ChenilleToolDispatcher, getInternalToolId, isChenilleFileTool } from './dispatcher.js';

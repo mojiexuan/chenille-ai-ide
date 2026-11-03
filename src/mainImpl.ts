@@ -6,6 +6,7 @@
 import * as path from 'node:path';
 import * as fs from 'original-fs';
 import * as os from 'node:os';
+import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
@@ -66,6 +67,10 @@ if (process.platform === 'win32') {
 }
 app.setPath('userData', userDataPath);
 perf.mark('code/didGetUserDataPath');
+
+// Chenille: 内置中文语言包不会进入 languagepacks.json（该文件只记录用户安装的扩展），
+// 首次启动时扫描内置扩展写入语言包元数据，让界面默认使用简体中文。
+const hasBuiltinLanguagePack = ensureBuiltinLanguagePackConfig(userDataPath);
 
 if (process.platform === 'linux') {
 	const snapName = process.env['SNAP_INSTANCE_NAME'];
@@ -148,7 +153,7 @@ let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 perf.mark('code/willGetPreferredSystemLanguages');
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 perf.mark('code/didGetPreferredSystemLanguages');
-const userLocale = getUserDefinedLocale(argvConfig);
+const userLocale = getUserDefinedLocale(argvConfig) ?? (hasBuiltinLanguagePack ? 'zh-cn' : undefined);
 if (userLocale) {
 	nlsConfigurationPromise = resolveNLSConfiguration({
 		userLocale,
@@ -761,6 +766,96 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.
  */
+interface IBuiltinLanguagePack {
+	hash: string;
+	label: string;
+	extensions: { extensionIdentifier: { id: string }; version: string }[];
+	translations: Record<string, string>;
+}
+
+/**
+ * Chenille: `languagepacks.json` 只记录用户安装的语言包，内置中文语言包不会被写入。
+ * 首次启动时扫描内置扩展补齐该文件，返回是否可默认使用简体中文。
+ */
+function ensureBuiltinLanguagePackConfig(userDataPath: string): boolean {
+	const configFile = path.join(userDataPath, 'languagepacks.json');
+	let existing: Record<string, IBuiltinLanguagePack> = {};
+	if (fs.existsSync(configFile)) {
+		try {
+			const parsed = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+				return false;
+			}
+			existing = parsed;
+		} catch {
+			return false;
+		}
+		if ('zh-cn' in existing) {
+			return true;
+		}
+	}
+
+	let entries: string[];
+	try {
+		entries = fs.readdirSync(path.join(import.meta.dirname, '..', 'extensions'));
+	} catch {
+		return false;
+	}
+
+	const packs: Record<string, IBuiltinLanguagePack> = {};
+	for (const entry of entries) {
+		const location = path.join(import.meta.dirname, '..', 'extensions', entry);
+		let manifest: { publisher?: string; name?: string; version?: string; contributes?: { localizations?: unknown } };
+		try {
+			manifest = JSON.parse(fs.readFileSync(path.join(location, 'package.json'), 'utf8'));
+		} catch {
+			continue;
+		}
+		const localizations = manifest.contributes?.localizations;
+		if (!Array.isArray(localizations)) {
+			continue;
+		}
+		const extensionId = `${manifest.publisher}.${manifest.name}`;
+		for (const localization of localizations) {
+			if (!localization?.languageId || !Array.isArray(localization.translations) || 'zh-cn' in existing && localization.languageId !== 'zh-cn') {
+				continue;
+			}
+			const pack: IBuiltinLanguagePack = packs[localization.languageId] ??= {
+				hash: '',
+				label: localization.localizedLanguageName ?? localization.languageName ?? localization.languageId,
+				extensions: [],
+				translations: {},
+			};
+			pack.extensions.push({ extensionIdentifier: { id: extensionId }, version: manifest.version ?? '' });
+			for (const translation of localization.translations) {
+				if (typeof translation?.id === 'string' && typeof translation?.path === 'string') {
+					pack.translations[translation.id] = path.join(location, translation.path);
+				}
+			}
+		}
+	}
+
+	if (!Object.keys(packs).length) {
+		return false;
+	}
+
+	for (const pack of Object.values(packs)) {
+		const hash = createHash('md5');
+		for (const extension of pack.extensions) {
+			hash.update(extension.extensionIdentifier.id).update(extension.version);
+		}
+		pack.hash = hash.digest('hex');
+	}
+
+	try {
+		fs.mkdirSync(path.dirname(configFile), { recursive: true });
+		fs.writeFileSync(configFile, JSON.stringify({ ...existing, ...packs }));
+	} catch {
+		return false;
+	}
+	return 'zh-cn' in packs;
+}
+
 function getUserDefinedLocale(argvConfig: IArgvConfig): string | undefined {
 	const locale = args.locale;
 	if (locale) {

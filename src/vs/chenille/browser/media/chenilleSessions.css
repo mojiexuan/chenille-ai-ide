@@ -1,0 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Chenille. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Chenille 使用本地模型，隐藏 Agents 窗口里的 GitHub 账号/登录入口。 */
+.agent-sessions-workbench .sessions-account-titlebar-widget {
+	display: none !important;
+}

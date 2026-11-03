@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionContentPart } from 'openai/resources/index';
 import type { Stream } from 'openai/streaming';
+import { loadSdkModule } from './sdkLoader.js';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiToolCall, generateToolCallId, AiModelMessage } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
 
@@ -141,15 +142,16 @@ function parseToolCalls(message: MessageWithReasoning): AiToolCall[] | undefined
 export class OpenAIProvider implements IAIProvider {
 	readonly name = 'openai';
 
-	private createClient(options: ChatCompletionOptions): OpenAI {
-		return new OpenAI({
+	private async createClient(options: ChatCompletionOptions): Promise<OpenAI> {
+		const { default: OpenAIClient } = await loadSdkModule<{ default: new (options: { apiKey: string; baseURL?: string }) => OpenAI }>('openai', 'index.mjs');
+		return new OpenAIClient({
 			apiKey: options.agent.model.apiKey,
 			baseURL: options.agent.model.baseUrl,
 		});
 	}
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
@@ -187,7 +189,7 @@ export class OpenAIProvider implements IAIProvider {
 	}
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 

@@ -61,9 +61,18 @@ node scripts/chenille/check-isolation.mjs
      eslint.config.js \
      package.json \
      product.json \
+     resources/darwin/code.icns \
+     resources/linux/code.png \
+     resources/win32/code.ico \
+     resources/win32/sessions.ico \
+     resources/win32/code_150x150.png \
+     resources/win32/code_70x70.png \
+     scripts/code.bat \
      src/vs/code/electron-main/app.ts \
+     src/vs/platform/windows/electron-main/windowImpl.ts \
      src/vs/workbench/contrib/scm/browser/scmInput.ts \
-     src/vs/workbench/workbench.desktop.main.ts
+     src/vs/workbench/workbench.desktop.main.ts \
+     src/vs/sessions/sessions.desktop.main.ts
    ```
 
    逐个人工重新应用。能搬进 `src/vs/chenille/**` 的逻辑一律搬走，上游文件只留注册、导入和最小委托代码。恢复时同步检查：
@@ -73,7 +82,11 @@ node scripts/chenille/check-isolation.mjs
    - `src/vs/code/electron-main/app.ts`：`registerChenilleMainServices` / `registerChenilleMainChannels` 调用。
    - `src/vs/workbench/workbench.desktop.main.ts`：Chenille contribution 导入。
    - `product.json` / `package.json`：品牌、仓库地址、AI SDK 依赖。
+   - `resources/**` 下的应用图标：由 `node scripts/chenille/generate-app-icons.mjs` 从 `src/vs/chenille/browser/media/chenille-icon.png` 生成，升级后重新执行。
+   - `scripts/code.bat`：开发版启动时追加 `--disable-extension=GitHub.copilot-chat`，避免仓库内未构建的 Copilot Chat 扩展抢占默认 Chat agent。
+   - `src/vs/platform/windows/electron-main/windowImpl.ts`：Windows 窗口统一使用 Chenille 图标，不再使用 Electron 可执行文件内嵌的图标；Agents 窗口 URL 追加 `?skip-sessions-welcome`，跳过需要 GitHub 登录的欢迎流程。
    - `src/vs/workbench/contrib/scm/browser/scmInput.ts`：仅在 Chenille 提交消息命令已注册时委托。
+   - `src/vs/sessions/sessions.desktop.main.ts`：导入 `vs/chenille/sessions/electron-browser/chenilleSessions.contribution.js`，把 Chenille 会话 provider 与聊天内容提供者注册到 Agents 窗口。
 
 6. 更新 `CHENILLE_UPSTREAM.json` 中的 `upstream.version`、`upstream.commit` 和 `upstream.tag`。如果新增了上游挂钩文件，同时登记到 `allowedUpstreamChanges`；如果某个挂钩变大，评估能否迁入 `src/vs/chenille/**` 或调整该文件的 `maxChangedLines`。
 

@@ -1,0 +1,24 @@
+{
+	"name": "chenille-theme",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"categories": [
+		"Themes"
+	],
+	"version": "1.0.0",
+	"publisher": "chenille",
+	"license": "MIT",
+	"engines": {
+		"vscode": "*"
+	},
+	"contributes": {
+		"themes": [
+			{
+				"id": "Chenille Dark",
+				"label": "%chenilleDarkThemeLabel%",
+				"uiTheme": "vs-dark",
+				"path": "./themes/chenille-dark.json"
+			}
+		]
+	}
+}

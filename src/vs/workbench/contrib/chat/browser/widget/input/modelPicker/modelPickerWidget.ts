@@ -599,6 +599,21 @@ export class ModelPickerWidget extends Disposable {
 			}];
 		}
 		if (reason === ModelPickerUnavailableReason.SetupRequired) {
+			// Chenille 不提供 GitHub 登录，未配置模型时改为引导到 Chenille 设置面板。
+			if ((this._productService as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup) {
+				return [{
+					vendor,
+					label: localize('chat.modelPicker.chenilleLabel', "Chenille 模型"),
+					message: localize('chat.modelPicker.chenilleNoModelMessage', "尚未配置 Chenille 模型。"),
+					action: {
+						label: localize('chat.modelPicker.chenilleConfigure', "配置 Chenille 模型"),
+						run: () => {
+							this._tabbedPicker.value?.hide();
+							void this._commandService.executeCommand('chenille.openSettings');
+						},
+					},
+				}];
+			}
 			return [{
 				vendor,
 				label,
@@ -932,7 +947,9 @@ export class ModelPickerWidget extends Disposable {
 		const ariaLabel = restrictedMode
 			? localize('chat.modelPicker.ariaLabelRestricted', "Models, unavailable while in Restricted mode")
 			: setupRequired
-				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
+				? ((this._productService as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup
+					? localize('chat.modelPicker.ariaLabelChenilleSetupRequired', "Models, 配置 Chenille 模型")
+					: localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot"))
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
 		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;

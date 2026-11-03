@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ChenilleSettingsPanel } from './chenilleSettingsPanel.js';
+import { ChenilleSettingsPanel, PanelType } from './chenilleSettingsPanel.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
@@ -29,7 +29,7 @@ export class ChenilleSettingsDialog extends Disposable {
 		super();
 	}
 
-	show(): void {
+	show(initialPanel: PanelType = 'model'): void {
 		// 使用 layoutService 获取主容器，CSS 变量定义在这里
 		const container = this.layoutService.mainContainer;
 
@@ -56,7 +56,7 @@ export class ChenilleSettingsDialog extends Disposable {
 
 		// 体
 		const body = append(this.dialogElement, $('.chenille-dialog-body'));
-		this.dialogDisposables.add(this.instantiationService.createInstance(ChenilleSettingsPanel, body));
+		this.dialogDisposables.add(this.instantiationService.createInstance(ChenilleSettingsPanel, body, initialPanel));
 
 		// ESC 关闭
 		this.dialogDisposables.add(addDisposableListener(getWindow(document), EventType.KEY_DOWN, (e: KeyboardEvent) => {

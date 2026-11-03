@@ -286,6 +286,9 @@ import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
 // Sessions (desktop only)
 import './contrib/sessions/electron-browser/sessions.contribution.js';
 
+// Chenille 本地模型会话
+import '../chenille/sessions/electron-browser/chenilleSessions.contribution.js';
+
 //#endregion
 
 export { main } from './electron-browser/sessions.main.js';

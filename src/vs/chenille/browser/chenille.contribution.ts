@@ -22,6 +22,15 @@ import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesS
 import { IProjectSkillsService, ProjectSkillsService } from './skills/projectSkillsService.js';
 import { ISkillService } from '../common/skills.js';
 import { SkillService } from './skills/skillService.js';
+import { ChenilleLanguageModelContribution } from './languageModel/chenilleLanguageModelContribution.js';
+import { registerChenilleDefaultConfigurations, registerChenilleMenu } from './chenilleShellContribution.js';
+
+// 导入 Chenille 品牌样式
+import './media/chenilleBrand.css';
+
+// 默认主题、菜单入口与登录入口抑制
+registerChenilleDefaultConfigurations();
+registerChenilleMenu();
 
 // 导入 diff actions（自动注册）
 import './diffSession/chenilleDiffActions.js';
@@ -53,6 +62,9 @@ registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
 
 // 注册 Chenille Agent 到 VS Code Chat 系统
 registerWorkbenchContribution2(ChenilleAgentContribution.ID, ChenilleAgentContribution, WorkbenchPhase.AfterRestored);
+
+// 把 Chenille 配置的模型暴露给官方 Chat 模型选择器
+registerWorkbenchContribution2(ChenilleLanguageModelContribution.ID, ChenilleLanguageModelContribution, WorkbenchPhase.AfterRestored);
 
 // 注册内联补全
 class ChenilleInlineCompletionContribution extends Disposable implements IWorkbenchContribution {

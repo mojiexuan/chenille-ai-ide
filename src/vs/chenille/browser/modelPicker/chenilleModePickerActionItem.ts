@@ -13,6 +13,7 @@ import { IActionWidgetService } from '../../../platform/actionWidget/browser/act
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { ChenilleChatMode, IChenilleChatModeService } from '../../common/chatMode.js';
 
 /** 分类配置 */
@@ -61,6 +62,7 @@ export class ChenilleModePickerActionItem extends ActionWidgetDropdownActionView
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
 	) {
 		const initialMode = modeService.getCurrentMode();
@@ -81,7 +83,7 @@ export class ChenilleModePickerActionItem extends ActionWidgetDropdownActionView
 			}),
 		};
 
-		super(actionWithLabel, options, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, options, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._currentMode = initialMode;
 

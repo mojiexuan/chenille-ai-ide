@@ -3,9 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GoogleGenAI, Content, Tool, FunctionDeclaration, Type, Part } from '@google/genai';
+import type { GoogleGenAI, Content, Tool, FunctionDeclaration, Type as GoogleType, Part } from '@google/genai';
 import { ChatCompletionOptions, ChatCompletionResult, IAIProvider, AiModelMessage, AiToolCall, generateToolCallId } from '../../common/types.js';
 import { ChenilleError } from '../../common/errors.js';
+import { loadSdkModule } from './sdkLoader.js';
+
+const Type = {
+	STRING: 'STRING' as unknown as GoogleType,
+	NUMBER: 'NUMBER' as unknown as GoogleType,
+	BOOLEAN: 'BOOLEAN' as unknown as GoogleType,
+	OBJECT: 'OBJECT' as unknown as GoogleType,
+	ARRAY: 'ARRAY' as unknown as GoogleType,
+	INTEGER: 'INTEGER' as unknown as GoogleType,
+};
 
 /**
  * 将多模态内容转换为 Google 格式的 parts
@@ -96,8 +106,8 @@ function extractSystemInstruction(messages: AiModelMessage[]): string | undefine
 /**
  * 将类型字符串转换为 Google Type
  */
-function toGoogleType(type: string): Type {
-	const typeMap: Record<string, Type> = {
+function toGoogleType(type: string): GoogleType {
+	const typeMap: Record<string, GoogleType> = {
 		'string': Type.STRING,
 		'number': Type.NUMBER,
 		'boolean': Type.BOOLEAN,
@@ -162,16 +172,17 @@ function toGoogleTools(options: ChatCompletionOptions): Tool[] | undefined {
 export class GoogleProvider implements IAIProvider {
 	readonly name = 'google';
 
-	private createClient(options: ChatCompletionOptions): GoogleGenAI {
+	private async createClient(options: ChatCompletionOptions): Promise<GoogleGenAI> {
 		const baseUrl = options.agent.model.baseUrl || undefined;
-		return new GoogleGenAI({
+		const { GoogleGenAI: GoogleGenAIClient } = await loadSdkModule<{ GoogleGenAI: new (options: { apiKey: string; httpOptions?: { baseUrl: string } }) => GoogleGenAI }>('@google/genai', 'dist/node/index.mjs');
+		return new GoogleGenAIClient({
 			apiKey: options.agent.model.apiKey,
 			httpOptions: baseUrl ? { baseUrl } : undefined,
 		});
 	}
 
 	async chat(options: ChatCompletionOptions): Promise<ChatCompletionResult> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 
@@ -227,7 +238,7 @@ export class GoogleProvider implements IAIProvider {
 	}
 
 	async stream(options: ChatCompletionOptions): Promise<void> {
-		const client = this.createClient(options);
+		const client = await this.createClient(options);
 		const { model } = options.agent;
 		const temperature = Math.min(Math.max(0, model.temperature), 2) || 0.7;
 

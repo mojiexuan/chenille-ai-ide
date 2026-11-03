@@ -6,6 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import product from '../../../../../platform/product/common/product.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AgentHostContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -41,6 +42,11 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 	) {
 		super();
+
+		// Chenille 只提供本地 Chenille 会话，不注册依赖 GitHub 登录的 Copilot CLI 会话提供者。
+		if ((product as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup) {
+			return;
+		}
 
 		const registration = this._register(new MutableDisposable<DisposableStore>());
 		const initialize = () => {

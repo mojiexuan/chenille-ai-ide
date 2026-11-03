@@ -1779,6 +1779,7 @@ export default defineConfig(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/chat/~',
 						'vs/workbench/contrib/chat/**',
+						'vs/sessions/~',
 						'vs/chenille/~',
 						'vs/chenille/**',
 						'openai',
@@ -1787,6 +1788,14 @@ export default defineConfig(
 						'@anthropic-ai/sdk',
 						'@anthropic-ai/sdk/resources/messages',
 						'@google/genai'
+					]
+				},
+				{
+					'target': 'src/vs/chenille/sessions/~',
+					'restrictions': [
+						'vs/base/~', 'vs/base/parts/*/~', 'vs/platform/*/~', 'vs/editor/~', 'vs/editor/contrib/*/~',
+						'vs/workbench/~', 'vs/workbench/services/*/~', 'vs/workbench/contrib/chat/~', 'vs/workbench/contrib/chat/**',
+						'vs/sessions/**', 'vs/chenille/**'
 					]
 				},
 				{
@@ -2247,6 +2256,8 @@ export default defineConfig(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/chenille/~',
+						'vs/chenille/**',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',

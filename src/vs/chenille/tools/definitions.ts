@@ -482,6 +482,115 @@ export const VSCODE_TOOL_DEFINITIONS: VSCodeToolDefinition[] = [
 			} as AiFunctionDefinitionParameterProperty,
 			required: ['prompt', 'description']
 		}
+	},
+
+	// 交互式终端补充
+	{
+		chenilleName: 'sendToTerminal',
+		vsCodeToolId: 'send_to_terminal',
+		description: '向正在运行的终端执行发送输入。需要 runInTerminal 返回的终端 ID。',
+		parameters: {
+			type: 'object',
+			properties: {
+				id: { type: 'string', description: '终端执行 ID（从 runInTerminal 返回值获取）' },
+				command: { type: 'string', description: '发送给终端的文本，自动追加回车；空字符串表示仅发送回车' },
+				waitForOutput: { type: 'boolean', description: '是否等待终端输出稳定后再返回' }
+			} as AiFunctionDefinitionParameterProperty,
+			required: ['id', 'command']
+		}
+	},
+	{
+		chenilleName: 'killTerminal',
+		vsCodeToolId: 'kill_terminal',
+		description: '关闭不再需要的终端。需要 runInTerminal 返回的终端 ID。',
+		parameters: {
+			type: 'object',
+			properties: {
+				id: { type: 'string', description: '终端执行 ID（从 runInTerminal 返回值获取）' }
+			} as AiFunctionDefinitionParameterProperty,
+			required: ['id']
+		}
+	},
+
+	// 测试失败详情
+	{
+		chenilleName: 'getTestFailures',
+		vsCodeToolId: 'testFailure',
+		description: '获取最近一次测试运行的失败详情。没有失败信息时先调用 runTests。',
+		parameters: { type: 'object', properties: {} as AiFunctionDefinitionParameterProperty, required: [] }
+	},
+
+	// 向用户提问
+	{
+		chenilleName: 'askQuestions',
+		vsCodeToolId: 'vscode_askQuestions',
+		description: '在继续执行前向用户提出澄清问题，支持单选、多选与自由输入。',
+		parameters: {
+			type: 'object',
+			properties: {
+				questions: {
+					type: 'array',
+					description: '要询问用户的问题列表',
+					items: {
+						type: 'object',
+						properties: {
+							header: { type: 'string', description: '问题的简短标识，需唯一' },
+							question: { type: 'string', description: '展示给用户的问题文本' },
+							message: { type: 'string', description: '可选的补充说明（Markdown）' },
+							multiSelect: { type: 'boolean', description: '是否允许多选' },
+							allowFreeformInput: { type: 'boolean', description: '是否允许自由输入，默认 true' },
+							options: {
+								type: 'array',
+								items: {
+									type: 'object',
+									properties: {
+										label: { type: 'string', description: '选项显示文本' },
+										description: { type: 'string', description: '选项的补充说明' },
+										recommended: { type: 'boolean', description: '是否为推荐选项' }
+									},
+									required: ['label']
+								}
+							}
+						},
+						required: ['header', 'question']
+					}
+				}
+			} as AiFunctionDefinitionParameterProperty,
+			required: ['questions']
+		}
+	},
+
+	// 语言服务：引用与重命名
+	{
+		chenilleName: 'listCodeUsages',
+		vsCodeToolId: 'vscode_listCodeUsages',
+		description: '查找符号在工作区中的引用、定义与实现。需要符号名、文件与所在行内容。',
+		parameters: {
+			type: 'object',
+			properties: {
+				symbol: { type: 'string', description: '要查找的符号名称' },
+				uri: { type: 'string', description: '符号所在文件的完整 URI（与 filePath 二选一）' },
+				filePath: { type: 'string', description: '符号所在文件的相对路径（与 uri 二选一）' },
+				lineContent: { type: 'string', description: '符号所在行的真实文本片段' }
+			} as AiFunctionDefinitionParameterProperty,
+			required: ['symbol', 'lineContent']
+		}
+	},
+	{
+		chenilleName: 'renameSymbol',
+		vsCodeToolId: 'vscode_renameSymbol',
+		description: '通过语言服务语义化重命名符号，并更新工作区内的所有引用。',
+		parameters: {
+			type: 'object',
+			properties: {
+				symbol: { type: 'string', description: '符号当前名称' },
+				newName: { type: 'string', description: '符号的新名称' },
+				uri: { type: 'string', description: '符号所在文件的完整 URI（与 filePath 二选一）' },
+				filePath: { type: 'string', description: '符号所在文件的相对路径（与 uri 二选一）' },
+				lineContent: { type: 'string', description: '符号所在行的真实文本片段' }
+			} as AiFunctionDefinitionParameterProperty,
+			required: ['symbol', 'newName', 'lineContent']
+		}
 	}
 	// 注意：editFile 已移至 Chenille 文件工具，不再使用 VS Code 内置版本
 ];

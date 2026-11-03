@@ -6,7 +6,7 @@
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
-import { AiModel, AiPrompt, AgentType, AiAgentConfig, McpServerConfig, McpToolCallRequest, McpToolCallResult, McpServerInfo, AiTool } from './types.js';
+import { AiModel, AgentType, AiAgentConfig, McpServerConfig, McpToolCallRequest, McpToolCallResult, McpServerInfo, AiTool } from './types.js';
 
 // ============ Model Storage IPC ============
 
@@ -63,68 +63,6 @@ export class ModelStorageChannelClient implements IAiModelStorageService {
 
 	save(model: AiModel): Promise<void> {
 		return this.channel.call('save', [model]);
-	}
-
-	delete(name: string): Promise<void> {
-		return this.channel.call('delete', [name]);
-	}
-}
-
-// ============ Prompt Storage IPC ============
-
-export const IAiPromptStorageService = createDecorator<IAiPromptStorageService>('aiPromptStorageService');
-
-export interface IAiPromptStorageService {
-	readonly _serviceBrand: undefined;
-	readonly onDidChangePrompts: Event<void>;
-	getAll(): Promise<AiPrompt[]>;
-	get(name: string): Promise<AiPrompt | undefined>;
-	save(prompt: AiPrompt): Promise<void>;
-	delete(name: string): Promise<void>;
-}
-
-export const PromptStorageChannelName = 'chenille.promptStorage';
-
-export class PromptStorageChannel implements IServerChannel {
-	constructor(private readonly service: IAiPromptStorageService) { }
-
-	listen<T>(_context: unknown, event: string): Event<T> {
-		switch (event) {
-			case 'onDidChangePrompts': return this.service.onDidChangePrompts as Event<T>;
-		}
-		throw new Error(`No event: ${event}`);
-	}
-
-	call<T>(_context: unknown, command: string, args?: unknown[]): Promise<T> {
-		switch (command) {
-			case 'getAll': return this.service.getAll() as Promise<T>;
-			case 'get': return this.service.get(args?.[0] as string) as Promise<T>;
-			case 'save': return this.service.save(args?.[0] as AiPrompt) as Promise<T>;
-			case 'delete': return this.service.delete(args?.[0] as string) as Promise<T>;
-		}
-		throw new Error(`Invalid command: ${command}`);
-	}
-}
-
-export class PromptStorageChannelClient implements IAiPromptStorageService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidChangePrompts: Event<void>;
-
-	constructor(private readonly channel: IChannel) {
-		this.onDidChangePrompts = this.channel.listen<void>('onDidChangePrompts');
-	}
-
-	getAll(): Promise<AiPrompt[]> {
-		return this.channel.call('getAll');
-	}
-
-	get(name: string): Promise<AiPrompt | undefined> {
-		return this.channel.call('get', [name]);
-	}
-
-	save(prompt: AiPrompt): Promise<void> {
-		return this.channel.call('save', [prompt]);
 	}
 
 	delete(name: string): Promise<void> {

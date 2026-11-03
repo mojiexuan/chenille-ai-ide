@@ -226,8 +226,10 @@ export enum AgentType {
  */
 export interface AiAgentConfig {
 	type: AgentType;
+	/** 当前使用的模型名称 */
 	modelName: string;
-	promptName: string;
+	/** 旧版本遗留字段，提示词已改为内置，不再使用 */
+	promptName?: string;
 }
 
 /**

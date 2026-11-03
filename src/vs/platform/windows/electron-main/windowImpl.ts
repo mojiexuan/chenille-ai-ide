@@ -794,7 +794,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, webPreferences);
-			const iconPath = config.isSessionsWindow && isWindows ? join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico') : undefined;
+			// Chenille: use the Chenille icon for every window on Windows
+			const iconPath = isWindows ? join(this.environmentMainService.appRoot, config.isSessionsWindow ? 'resources/win32/sessions.ico' : 'resources/win32/code.ico') : undefined;
 			if (iconPath) {
 				options.icon = iconPath;
 			}
@@ -1312,7 +1313,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		if (process.env.VSCODE_DEV && process.env.VSCODE_DEV_SERVER_URL) {
 			windowUrl = process.env.VSCODE_DEV_SERVER_URL; // support URL override for development
 		} else if (configuration.isSessionsWindow) {
-			windowUrl = FileAccess.asBrowserUri(`vs/sessions/electron-browser/sessions${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
+			// Chenille 仅使用本地模型，跳过需要 GitHub 登录的欢迎流程。
+			windowUrl = FileAccess.asBrowserUri(`vs/sessions/electron-browser/sessions${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true) + '?skip-sessions-welcome';
 		} else {
 			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
 		}

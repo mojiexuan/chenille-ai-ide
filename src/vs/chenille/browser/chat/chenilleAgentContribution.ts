@@ -53,6 +53,7 @@ import {
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { IProjectRulesService } from '../rules/projectRulesService.js';
 import { ISkillService } from '../../common/skills.js';
+import { CHENILLE_AGENT_ID, fromChenilleModelIdentifier } from '../../common/modelIdentifier.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -77,10 +78,7 @@ interface HistoryValidationResult {
 	messages?: AiModelMessage[];
 }
 
-/**
- * Chenille Agent ID
- */
-export const CHENILLE_AGENT_ID = 'chenille.agent';
+export { CHENILLE_AGENT_ID } from '../../common/modelIdentifier.js';
 
 /**
  * Chenille Agent 数据
@@ -165,6 +163,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		}
 
 		const messages = this.buildMessages(request, history);
+		const selectedModelName = fromChenilleModelIdentifier(request.userSelectedModelId);
 
 		// 保存会话上下文，用于工具调用时的内联确认
 		const sessionContext = {
@@ -173,7 +172,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		};
 
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, mergedRules, skillsPrompt);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, selectedModelName, mergedRules, skillsPrompt);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -622,7 +621,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 	 */
 	private getAvailableTools(): AiTool[] {
 		// 获取 VS Code 已注册的工具
-		const vsCodeTools = [...this.toolsService.getTools()];
+		const vsCodeTools = [...this.toolsService.getTools(undefined)];
 		const vsCodeToolIds = new Set(vsCodeTools.map(t => t.id));
 
 		// 构建工具定义
@@ -638,6 +637,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
 		sessionContext: { sessionResource: URI; requestId: string },
+		modelName: string | undefined,
 		projectRules?: string,
 		skillsPrompt?: string
 	): Promise<IChatAgentResult> {
@@ -652,7 +652,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			// 只在第一轮传递项目规则和技能提示
 			const rulesForThisRound = toolRound === 0 ? projectRules : undefined;
 			const skillsForThisRound = toolRound === 0 ? skillsPrompt : undefined;
-			const roundResult = await this.executeOneRound(messages, tools, progress, token, rulesForThisRound, skillsForThisRound);
+			const roundResult = await this.executeOneRound(messages, tools, progress, token, modelName, rulesForThisRound, skillsForThisRound);
 
 			// 无工具调用，对话结束
 			if (!roundResult.toolCalls?.length) {
@@ -689,6 +689,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		tools: AiTool[] | undefined,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
+		modelName: string | undefined,
 		projectRules?: string,
 		skillsPrompt?: string
 	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
@@ -787,6 +788,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				messages,
 				tools,
 				systemPrompt: customSystemPrompt,
+				modelName,
 			}, token).catch((err) => {
 				clearTimeout(timeout);
 				if (!resolved) {

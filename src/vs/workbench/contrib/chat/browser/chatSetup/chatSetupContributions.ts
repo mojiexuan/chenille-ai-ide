@@ -95,6 +95,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
+		// Chenille 使用本地可配置模型，不提供 GitHub Copilot 登录与设置入口。
+		if ((product as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup) {
+			return;
+		}
+
 		const context = chatEntitlementService.context?.value;
 		const requests = chatEntitlementService.requests?.value;
 		if (!context || !requests) {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export type { IChenilleModelPickerDelegate } from './chenilleModelPickerActionItem.js';
 export {
 	ChenilleModelPickerActionItem,
 	ChenilleModelPickerDelegate,
-	IChenilleModelPickerDelegate
 } from './chenilleModelPickerActionItem.js';
 
 export {

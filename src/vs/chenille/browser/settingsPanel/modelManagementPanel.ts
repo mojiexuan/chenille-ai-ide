@@ -6,8 +6,8 @@
 import { $, append, clearNode } from '../../../base/browser/dom.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { IAiModelStorageService } from '../../common/storageIpc.js';
-import { AiModel, AiProvider, getFullEndpointUrl } from '../../common/types.js';
+import { IAiAgentStorageService, IAiModelStorageService } from '../../common/storageIpc.js';
+import { AgentType, AiModel, AiProvider, getFullEndpointUrl } from '../../common/types.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 
@@ -16,6 +16,18 @@ const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
 	{ value: AiProvider.ANTHROPIC, label: 'Anthropic' },
 	{ value: AiProvider.GOOGLE, label: 'Google' },
 ];
+
+/** DeepSeek 预设：模型、地址和上下文窗口按官方文档预填，API Key 仍需用户填写 */
+const DEEPSEEK_PRESET: Partial<AiModel> = {
+	name: 'DeepSeek',
+	provider: AiProvider.OPENAI,
+	baseUrl: 'https://api.deepseek.com',
+	model: 'deepseek-flash',
+	contextSize: 1048576,
+	maxTokens: 65536,
+	temperature: 0.7,
+	supportsVision: true,
+};
 
 interface FormInputs {
 	name: HTMLInputElement;
@@ -37,11 +49,14 @@ export class ModelManagementPanel extends Disposable {
 	private editingModel: AiModel | undefined;
 	private formInputs: FormInputs | undefined;
 	private addBtn: HTMLElement | undefined;
+	private presetBtn: HTMLElement | undefined;
+	private activeModelName: string | undefined;
 	private headerActions: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		@IAiModelStorageService private readonly modelStorage: IAiModelStorageService,
+		@IAiAgentStorageService private readonly agentStorage: IAiAgentStorageService,
 	) {
 		super();
 		this.container = parent;
@@ -51,15 +66,27 @@ export class ModelManagementPanel extends Disposable {
 	private render(): void {
 		// 头
 		const header = append(this.container, $('.chenille-panel-header'));
-		append(header, $('.chenille-panel-title')).textContent = localize('modelManagement', "模型管理");
+		append(header, $('.chenille-panel-title')).textContent = localize('modelManagement', "模型配置");
 
 		// 右侧操作区域
 		this.headerActions = append(header, $('.chenille-panel-header-actions'));
+
+		this.presetBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-secondary'));
+		append(this.presetBtn, document.createTextNode(localize('deepseekPreset', "DeepSeek 预设")));
+		this.presetBtn.style.marginRight = '8px';
+		this.presetBtn.addEventListener('click', () => this.showForm(undefined, DEEPSEEK_PRESET));
 
 		this.addBtn = append(this.headerActions, $('button.chenille-btn.chenille-btn-primary'));
 		append(this.addBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.add)}`));
 		append(this.addBtn, document.createTextNode(localize('addModel', "添加模型")));
 		this.addBtn.addEventListener('click', () => this.showForm());
+
+		// 说明：所有智能体共用当前模型
+		const hint = append(this.container, $('.chenille-panel-hint'));
+		hint.textContent = localize('singleModelHint', "聊天、提交消息和代码补全统一使用当前模型，提示词已内置，无需额外配置。");
+		hint.style.fontSize = '12px';
+		hint.style.color = 'var(--vscode-descriptionForeground)';
+		hint.style.padding = '0 16px 8px';
 
 		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
@@ -76,11 +103,16 @@ export class ModelManagementPanel extends Disposable {
 		}
 		clearNode(this.listContainer);
 
-		const models = await this.modelStorage.getAll();
+		const [models, config] = await Promise.all([
+			this.modelStorage.getAll(),
+			this.agentStorage.get(AgentType.CODE_WRITER),
+		]);
+		const selected = config?.modelName ? models.find(model => model.name === config.modelName) : undefined;
+		this.activeModelName = selected?.name ?? models[0]?.name;
 
 		if (models.length === 0) {
 			const empty = append(this.listContainer, $('.chenille-empty-state'));
-			empty.textContent = localize('noModels', "暂无模型，点击上方按钮添加");
+			empty.textContent = localize('noModels', "暂无模型，点击「DeepSeek 预设」或「添加模型」开始配置");
 			return;
 		}
 
@@ -88,11 +120,30 @@ export class ModelManagementPanel extends Disposable {
 			const item = append(this.listContainer, $('.chenille-list-item'));
 
 			const info = append(item, $('.chenille-list-item-info'));
-			append(info, $('.chenille-list-item-name')).textContent = model.name;
+			const nameRow = append(info, $('.chenille-list-item-name'));
+			nameRow.textContent = model.name;
+			if (model.name === this.activeModelName) {
+				const badge = append(nameRow, $('span.chenille-model-badge'));
+				badge.textContent = localize('activeModel', "当前");
+				badge.style.marginLeft = '8px';
+				badge.style.fontSize = '11px';
+				badge.style.padding = '1px 6px';
+				badge.style.borderRadius = '8px';
+				badge.style.color = 'var(--vscode-badge-foreground)';
+				badge.style.backgroundColor = 'var(--vscode-badge-background)';
+			}
 			append(info, $('.chenille-list-item-desc')).textContent =
-				`${this.getProviderLabel(model.provider)} | ${model.model}`;
+				`${this.getProviderLabel(model.provider)} | ${model.model} | ${model.contextSize.toLocaleString()} 上下文`;
 
 			const actions = append(item, $('.chenille-list-item-actions'));
+
+			if (model.name !== this.activeModelName) {
+				const activateBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
+				append(activateBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
+				append(activateBtn, document.createTextNode(localize('setActiveModel', "设为当前")));
+				activateBtn.style.marginRight = '8px';
+				activateBtn.addEventListener('click', () => this.setActiveModel(model.name));
+			}
 
 			const editBtn = append(actions, $('button.chenille-btn.chenille-btn-secondary'));
 			append(editBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.edit)}`));
@@ -106,23 +157,30 @@ export class ModelManagementPanel extends Disposable {
 		}
 	}
 
-	private showForm(model?: AiModel): void {
-		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn) {
+	private async setActiveModel(name: string): Promise<void> {
+		await this.agentStorage.save({ type: AgentType.CODE_WRITER, modelName: name });
+		await this.renderList();
+	}
+
+	private showForm(model?: AiModel, preset?: Partial<AiModel>): void {
+		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn || !this.presetBtn) {
 			return;
 		}
 
+		const initial: Partial<AiModel> = model ?? preset ?? {};
 		this.editingModel = model;
 		this.listContainer.style.display = 'none';
 		this.formContainer.style.display = 'flex';
 
 		// 隐藏添加按钮，显示保存/取消按钮
 		this.addBtn.style.display = 'none';
+		this.presetBtn.style.display = 'none';
 		this.renderHeaderActions();
 
 		clearNode(this.formContainer);
 
 		// 名称
-		const nameInput = this.createInputGroup(this.formContainer, localize('modelName', "名称"), 'text', model?.name ?? '');
+		const nameInput = this.createInputGroup(this.formContainer, localize('modelName', "名称"), 'text', initial.name ?? '');
 		if (model) {
 			nameInput.readOnly = true;
 		}
@@ -135,7 +193,7 @@ export class ModelManagementPanel extends Disposable {
 			const option = append(providerSelect, $('option')) as HTMLOptionElement;
 			option.value = opt.value;
 			option.textContent = opt.label;
-			if (model?.provider === opt.value) {
+			if (initial.provider === opt.value) {
 				option.selected = true;
 			}
 		}
@@ -145,7 +203,7 @@ export class ModelManagementPanel extends Disposable {
 		append(baseUrlGroup, $('.chenille-form-label')).textContent = localize('baseUrl', "Base URL");
 		const baseUrlInput = append(baseUrlGroup, $('input.chenille-form-input')) as HTMLInputElement;
 		baseUrlInput.type = 'text';
-		baseUrlInput.value = model?.baseUrl ?? '';
+		baseUrlInput.value = initial.baseUrl ?? '';
 		baseUrlInput.placeholder = 'https://api.openai.com';
 
 		// URL 预览
@@ -188,19 +246,19 @@ export class ModelManagementPanel extends Disposable {
 		updateUrlPreview(); // 初始化
 
 		// ApiKey
-		const apiKeyInput = this.createInputGroup(this.formContainer, localize('apiKey', "API Key"), 'password', model?.apiKey ?? '');
+		const apiKeyInput = this.createInputGroup(this.formContainer, localize('apiKey', "API Key"), 'password', initial.apiKey ?? '');
 
 		// 模型
-		const modelInput = this.createInputGroup(this.formContainer, localize('model', "模型"), 'text', model?.model ?? '');
+		const modelInput = this.createInputGroup(this.formContainer, localize('model', "模型"), 'text', initial.model ?? '');
 
 		// 上下文大小
-		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(model?.contextSize ?? 128000));
+		const contextSizeInput = this.createInputGroup(this.formContainer, localize('contextSize', "上下文大小"), 'number', String(initial.contextSize ?? 128000));
 
 		// 最大输出Token
-		const maxTokensInput = this.createInputGroup(this.formContainer, localize('maxTokens', "最大输出Token"), 'number', String(model?.maxTokens ?? 8192));
+		const maxTokensInput = this.createInputGroup(this.formContainer, localize('maxTokens', "最大输出Token"), 'number', String(initial.maxTokens ?? 8192));
 
 		// 温度
-		const temperatureInput = this.createInputGroup(this.formContainer, localize('temperature', "温度 (0-2)"), 'number', String(model?.temperature ?? 0.7));
+		const temperatureInput = this.createInputGroup(this.formContainer, localize('temperature', "温度 (0-2)"), 'number', String(initial.temperature ?? 0.7));
 		temperatureInput.step = '0.1';
 		temperatureInput.min = '0';
 		temperatureInput.max = '2';
@@ -210,7 +268,7 @@ export class ModelManagementPanel extends Disposable {
 		const visionLabel = append(visionGroup, $('label.chenille-form-checkbox-label'));
 		const visionInput = append(visionLabel, $('input.chenille-form-checkbox')) as HTMLInputElement;
 		visionInput.type = 'checkbox';
-		visionInput.checked = model?.supportsVision ?? false;
+		visionInput.checked = initial.supportsVision ?? false;
 		append(visionLabel, document.createTextNode(localize('supportsVision', "支持图像分析")));
 		const visionHint = append(visionGroup, $('.chenille-form-hint'));
 		visionHint.textContent = localize('supportsVisionHint', "启用后可在聊天中粘贴或附加图片");
@@ -230,14 +288,14 @@ export class ModelManagementPanel extends Disposable {
 	}
 
 	private renderHeaderActions(): void {
-		if (!this.headerActions || !this.addBtn) {
+		if (!this.headerActions || !this.addBtn || !this.presetBtn) {
 			return;
 		}
 
-		// 清除除了addBtn之外的所有元素
+		// 清除保存/取消按钮，保留预设和添加按钮
 		const children = Array.from(this.headerActions.children);
 		for (const child of children) {
-			if (child !== this.addBtn) {
+			if (child !== this.addBtn && child !== this.presetBtn) {
 				child.remove();
 			}
 		}
@@ -266,7 +324,7 @@ export class ModelManagementPanel extends Disposable {
 	}
 
 	private hideForm(): void {
-		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn) {
+		if (!this.formContainer || !this.listContainer || !this.headerActions || !this.addBtn || !this.presetBtn) {
 			return;
 		}
 
@@ -275,11 +333,12 @@ export class ModelManagementPanel extends Disposable {
 		this.formContainer.style.display = 'none';
 		this.listContainer.style.display = 'flex';
 
-		// 恢复添加按钮，移除保存/取消按钮
+		// 恢复按钮，移除保存/取消按钮
 		this.addBtn.style.display = '';
+		this.presetBtn.style.display = '';
 		const children = Array.from(this.headerActions.children);
 		for (const child of children) {
-			if (child !== this.addBtn) {
+			if (child !== this.addBtn && child !== this.presetBtn) {
 				child.remove();
 			}
 		}
@@ -315,7 +374,14 @@ export class ModelManagementPanel extends Disposable {
 			return;
 		}
 
+		if (!model.apiKey.trim()) {
+			alert(localize('apiKeyRequired', "API Key 不能为空"));
+			return;
+		}
+
 		await this.modelStorage.save(model);
+		// 新保存的模型立即成为当前模型
+		await this.agentStorage.save({ type: AgentType.CODE_WRITER, modelName: model.name });
 		this.hideForm();
 	}
 

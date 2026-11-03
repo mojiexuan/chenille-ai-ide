@@ -5,7 +5,6 @@
 
 import {
 	IAiModelStorageService, ModelStorageChannelClient, ModelStorageChannelName,
-	IAiPromptStorageService, PromptStorageChannelClient, PromptStorageChannelName,
 	IAiAgentStorageService, AgentStorageChannelClient, AgentStorageChannelName,
 	IMcpServerStorageService, McpServerStorageChannelClient, McpServerStorageChannelName,
 	IMcpRuntimeService, McpRuntimeChannelClient, McpRuntimeChannelName,
@@ -26,19 +25,8 @@ class ElectronModelStorageService implements IAiModelStorageService {
 }
 
 /**
- * Prompt 存储服务（Browser 端 IPC 客户端）
- */
-// @ts-expect-error: interface is implemented via proxy
-class ElectronPromptStorageService implements IAiPromptStorageService {
-	declare readonly _serviceBrand: undefined;
-
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return new PromptStorageChannelClient(mainProcessService.getChannel(PromptStorageChannelName));
-	}
-}
-
-/**
  * Agent 存储服务（Browser 端 IPC 客户端）
+ * 用于记录模型选择器当前选中的模型。
  */
 // @ts-expect-error: interface is implemented via proxy
 class ElectronAgentStorageService implements IAiAgentStorageService {
@@ -50,7 +38,6 @@ class ElectronAgentStorageService implements IAiAgentStorageService {
 }
 
 registerSingleton(IAiModelStorageService, ElectronModelStorageService, InstantiationType.Delayed);
-registerSingleton(IAiPromptStorageService, ElectronPromptStorageService, InstantiationType.Delayed);
 registerSingleton(IAiAgentStorageService, ElectronAgentStorageService, InstantiationType.Delayed);
 
 /**

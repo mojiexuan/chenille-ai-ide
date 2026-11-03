@@ -140,6 +140,8 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 	'getTerminalSelection': 'terminal_selection',
 	'getTerminalLastCommand': 'terminal_last_command',
 	'confirmTerminalCommand': 'vscode_get_terminal_confirmation',
+	'sendToTerminal': 'send_to_terminal',
+	'killTerminal': 'kill_terminal',
 
 	// 任务工具
 	'runTask': 'run_task',
@@ -148,6 +150,7 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 
 	// 测试工具
 	'runTests': 'runTests',
+	'getTestFailures': 'testFailure',
 
 	// 扩展工具
 	'searchExtensions': 'vscode_searchExtensions_internal',
@@ -159,8 +162,13 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 	// 待办事项
 	'manageTodoList': 'manage_todo_list',
 
-	// 确认工具
+	// 确认与提问工具
 	'getConfirmation': 'vscode_get_confirmation',
+	'askQuestions': 'vscode_askQuestions',
+
+	// 语言服务工具
+	'listCodeUsages': 'vscode_listCodeUsages',
+	'renameSymbol': 'vscode_renameSymbol',
 
 	// 子代理
 	'runSubagent': 'runSubagent',
@@ -764,7 +772,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		}
 
 		// 检查工具是否已注册
-		const tools = this.toolsService.getTools();
+		const tools = this.toolsService.getTools(undefined);
 		const toolData = [...tools].find(t => t.id === internalToolId);
 
 		if (!toolData) {
@@ -780,23 +788,15 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		const parameters = parsed.success ? parsed.data : {};
 
 		try {
-			// 从 sessionResource 提取 sessionId（使用 LocalChatSessionUri.parseLocalSessionId）
-			let sessionId: string | undefined;
-			if (sessionContext?.sessionResource) {
-				// 导入 LocalChatSessionUri 来正确解析 base64 编码的 sessionId
-				const { LocalChatSessionUri } = await import('../../workbench/contrib/chat/common/model/chatUri.js');
-				sessionId = LocalChatSessionUri.parseLocalSessionId(sessionContext.sessionResource);
-			}
-
 			// 构建调用上下文（包含会话信息以启用内联确认）
 			const invocation: IToolInvocation = {
 				callId: `chenille-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
 				toolId: internalToolId,
 				parameters,
 				tokenBudget: undefined,
-				context: (sessionContext && sessionId) ? {
-					sessionId: sessionId,
+				context: sessionContext ? {
 					sessionResource: sessionContext.sessionResource,
+					requestId: sessionContext.requestId,
 				} : undefined,
 				chatRequestId: sessionContext?.requestId,
 				modelId: undefined,
@@ -864,7 +864,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	 * 列出所有可用的工具
 	 */
 	listAvailableTools(): string[] {
-		const vsCodeTools = [...this.toolsService.getTools()].map(t => t.id);
+		const vsCodeTools = [...this.toolsService.getTools(undefined)].map(t => t.id);
 		return [...CHENILLE_FILE_TOOL_NAMES, ...vsCodeTools];
 	}
 
@@ -883,7 +883,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			return false;
 		}
 
-		const tools = this.toolsService.getTools();
+		const tools = this.toolsService.getTools(undefined);
 		return [...tools].some(t => t.id === internalToolId);
 	}
 

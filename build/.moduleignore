@@ -224,6 +224,9 @@ zone.js/dist/**
 # @github/copilot - strip unneeded binaries and files
 # Agent Host uses the runtime bundled with @github/copilot-sdk.
 @github/copilot/**
+# Chenille 本地打包内置 Copilot 扩展时仍需 SDK 脚本，供 prepareBuiltInCopilotRipgrepShim 注入平台原生文件。
+!@github/copilot/package.json
+!@github/copilot/sdk/**
 
 # Standalone Copilot CLI platform packages are not product dependencies.
 @github/copilot-darwin-arm64/**

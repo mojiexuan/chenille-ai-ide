@@ -45,9 +45,12 @@ function isUnder(path, prefix) {
 
 function matchesGlob(path, pattern) {
 	const escaped = pattern
-		.split('*')
-		.map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
-		.join('[^/]*');
+		.split('**')
+		.map(part => part
+			.split('*')
+			.map(p => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+			.join('[^/]*'))
+		.join('.*');
 	return new RegExp(`^${escaped}$`).test(path);
 }
 
@@ -79,7 +82,7 @@ if (!errors.length) {
 		}
 		const path = toPosix(rawPath);
 
-		if (isOwned(path)) {
+		if (isOwned(path) || isAllowedNewPath(path)) {
 			continue;
 		}
 
@@ -95,7 +98,9 @@ if (!errors.length) {
 			errors.push(`上游挂钩文件改动过大：${path}（${changed} 行 > 上限 ${limit} 行）\n  上游挂钩应保持最小，复杂逻辑请放进 src/vs/chenille/**。`);
 		}
 
-		if (!/\bchenille\b/i.test(readFileSync(join(repoRoot, path), 'utf8'))) {
+		// 二进制资源（应用图标等）没有文本标记，跳过
+		const isBinaryAsset = /\.(ico|icns|png|bmp|jpg|jpeg|gif)$/i.test(path);
+		if (!isBinaryAsset && !/\bchenille\b/i.test(readFileSync(join(repoRoot, path), 'utf8'))) {
 			warnings.push(`白名单文件未找到 Chenille 标记：${path}（确认挂钩是否仍然存在）`);
 		}
 	}

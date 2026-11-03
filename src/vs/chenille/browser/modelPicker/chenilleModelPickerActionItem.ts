@@ -15,6 +15,7 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IActionProvider } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { IAiModelStorageService, IAiAgentStorageService } from '../../common/storageIpc.js';
 import { AgentType, AiModel } from '../../common/types.js';
@@ -63,6 +64,10 @@ export class ChenilleModelPickerDelegate extends Disposable implements IChenille
 			this.refresh();
 		}));
 
+		this._register(this.agentStorage.onDidChangeAgents(() => {
+			this.refresh();
+		}));
+
 		this.refresh();
 	}
 
@@ -72,7 +77,8 @@ export class ChenilleModelPickerDelegate extends Disposable implements IChenille
 			this.agentStorage.get(AgentType.CODE_WRITER)
 		]);
 		this._models = models;
-		this._currentModelName = config?.modelName;
+		const selected = config?.modelName ? models.find(model => model.name === config.modelName) : undefined;
+		this._currentModelName = selected?.name ?? models[0]?.name;
 		this._onDidChangeModels.fire();
 		this._onDidChangeModel.fire(this._currentModelName);
 	}
@@ -86,11 +92,9 @@ export class ChenilleModelPickerDelegate extends Disposable implements IChenille
 	}
 
 	async setModel(modelName: string): Promise<void> {
-		const config = await this.agentStorage.get(AgentType.CODE_WRITER);
 		await this.agentStorage.save({
 			type: AgentType.CODE_WRITER,
-			modelName: modelName,
-			promptName: config?.promptName ?? '',
+			modelName,
 		});
 		this._currentModelName = modelName;
 		this._onDidChangeModel.fire(modelName);
@@ -279,6 +283,7 @@ export class ChenilleModelPickerActionItem extends ActionWidgetDropdownActionVie
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const pagination = new PaginationState(PAGE_SIZE);
 		const initialModelName = delegate.getCurrentModelName();
@@ -295,7 +300,7 @@ export class ChenilleModelPickerActionItem extends ActionWidgetDropdownActionVie
 			actionBarActionProvider: createActionBarProvider(commandService),
 		};
 
-		super(actionWithLabel, options, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, options, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this.pagination = pagination;
 		this._currentModelName = initialModelName;

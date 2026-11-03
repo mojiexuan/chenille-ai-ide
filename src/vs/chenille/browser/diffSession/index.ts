@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export {
+export type {
 	IChenilleDiffSession,
-	IChenilleDiffSessionService,
 	IChenilleHunkInfo,
+} from './chenilleDiffSession.js';
+export {
+	IChenilleDiffSessionService,
 	ChenilleHunkState,
 	chenilleDiffInsertedColor,
 	chenilleDiffInsertedOutlineColor,

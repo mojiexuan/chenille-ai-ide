@@ -10,7 +10,7 @@ import { IChenilleAiService, IAiCallRequest, IStreamChunkWithId } from '../commo
 import { AIClient } from '../node/ai/aiClient.js';
 import { AgentType } from '../common/types.js';
 import { IAiAgentMainService } from './agentService.js';
-import { IMcpServerStorageService, IAiAgentStorageService, IAiModelStorageService, IAiPromptStorageService } from '../common/storageIpc.js';
+import { IMcpServerStorageService, IAiModelStorageService } from '../common/storageIpc.js';
 import { ChenilleError } from '../common/errors.js';
 
 /**
@@ -29,9 +29,7 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 	constructor(
 		@IAiAgentMainService private readonly agentService: IAiAgentMainService,
 		@IMcpServerStorageService private readonly mcpStorage: IMcpServerStorageService,
-		@IAiAgentStorageService private readonly agentStorage: IAiAgentStorageService,
 		@IAiModelStorageService private readonly modelStorage: IAiModelStorageService,
-		@IAiPromptStorageService private readonly promptStorage: IAiPromptStorageService,
 	) {
 		super();
 
@@ -40,16 +38,8 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 			this.initializeMcp();
 		}));
 
-		// 监听配置变化，清除错误缓存，使下次调用重新验证配置
-		this._register(this.agentStorage.onDidChangeAgents(() => {
-			this._lastConfigError = undefined;
-		}));
-
+		// 模型配置变化后清除错误缓存，使下次调用重新验证配置
 		this._register(this.modelStorage.onDidChangeModels(() => {
-			this._lastConfigError = undefined;
-		}));
-
-		this._register(this.promptStorage.onDidChangePrompts(() => {
 			this._lastConfigError = undefined;
 		}));
 	}
@@ -110,7 +100,7 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 			await this.initializeMcp();
 		}
 
-		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER);
+		const agent = await this.agentService.getAgent(AgentType.CODE_WRITER, request.modelName);
 		const requestId = request.requestId;
 
 		// 构建系统提示：默认提示 + 自定义提示（项目规则等）

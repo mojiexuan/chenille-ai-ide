@@ -9,13 +9,11 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ModelManagementPanel } from './modelManagementPanel.js';
-import { PromptManagementPanel } from './promptManagementPanel.js';
-import { AgentManagementPanel } from './agentManagementPanel.js';
 import { McpManagementPanel } from './mcpManagementPanel.js';
 import { GlobalRulesPanel } from './globalRulesPanel.js';
 import { SkillsPanel } from './skillsPanel.js';
 
-export type PanelType = 'model' | 'prompt' | 'agent' | 'mcp' | 'rules' | 'skills';
+export type PanelType = 'model' | 'mcp' | 'rules' | 'skills';
 
 interface MenuItem {
 	id: PanelType;
@@ -32,9 +30,7 @@ export class ChenilleSettingsPanel extends Disposable {
 	private menuItemElements: Map<PanelType, HTMLElement> = new Map();
 
 	private readonly menuItems: MenuItem[] = [
-		{ id: 'model', label: localize('modelManagement', "模型管理"), icon: 'codicon-server' },
-		{ id: 'prompt', label: localize('promptManagement', "提示词管理"), icon: 'codicon-note' },
-		{ id: 'agent', label: localize('agentManagement', "智能体管理"), icon: 'codicon-hubot' },
+		{ id: 'model', label: localize('modelManagement', "模型配置"), icon: 'codicon-server' },
 		{ id: 'mcp', label: localize('mcpManagement', "MCP 服务器"), icon: 'codicon-plug' },
 		{ id: 'rules', label: localize('rulesManagement', "规则管理"), icon: 'codicon-law' },
 		{ id: 'skills', label: localize('skillsManagement', "技能管理"), icon: 'codicon-lightbulb' },
@@ -42,6 +38,7 @@ export class ChenilleSettingsPanel extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
+		initialPanel: PanelType,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -50,7 +47,7 @@ export class ChenilleSettingsPanel extends Disposable {
 		this.contentContainer = append(this.container, $('.chenille-settings-content'));
 
 		this.renderMenu();
-		this.switchPanel('model');
+		this.switchPanel(initialPanel);
 	}
 
 	private renderMenu(): void {
@@ -88,16 +85,6 @@ export class ChenilleSettingsPanel extends Disposable {
 			case 'model':
 				this.panelDisposables.add(
 					this.instantiationService.createInstance(ModelManagementPanel, this.contentContainer)
-				);
-				break;
-			case 'prompt':
-				this.panelDisposables.add(
-					this.instantiationService.createInstance(PromptManagementPanel, this.contentContainer)
-				);
-				break;
-			case 'agent':
-				this.panelDisposables.add(
-					this.instantiationService.createInstance(AgentManagementPanel, this.contentContainer)
 				);
 				break;
 			case 'mcp':

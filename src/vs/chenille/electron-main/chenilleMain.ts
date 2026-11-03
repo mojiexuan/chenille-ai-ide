@@ -5,14 +5,14 @@
 
 import { Server as ElectronIPCServer } from '../../base/parts/ipc/electron-main/ipc.electron.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { ServicesAccessor, SyncDescriptor } from '../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { ICommitMessageService, CommitMessageChannel, CommitMessageChannelName } from '../common/commitMessage.js';
-import { IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName, IAiModelStorageService, IAiPromptStorageService, IMcpRuntimeService, IMcpServerStorageService, McpRuntimeChannel, McpRuntimeChannelName, McpServerStorageChannel, McpServerStorageChannelName, ModelStorageChannel, ModelStorageChannelName, PromptStorageChannel, PromptStorageChannelName } from '../common/storageIpc.js';
+import { IAiAgentStorageService, AgentStorageChannel, AgentStorageChannelName, IAiModelStorageService, IMcpRuntimeService, IMcpServerStorageService, McpRuntimeChannel, McpRuntimeChannelName, McpServerStorageChannel, McpServerStorageChannelName, ModelStorageChannel, ModelStorageChannelName } from '../common/storageIpc.js';
 import { AiAgentStorageMainService } from './agentStorage.js';
 import { McpRuntimeMainService } from './mcpRuntimeService.js';
 import { McpServerStorageMainService } from './mcpServerStorage.js';
 import { AiModelStorageMainService } from './modelStorage.js';
-import { AiPromptStorageMainService } from './promptStorage.js';
 import { IAiAgentMainService, AiAgentMainService } from './agentService.js';
 import { IChenilleAiService, ChenilleAiChannel, ChenilleAiChannelName } from '../common/chatService.js';
 import { ChenilleAiMainService } from './chatService.js';
@@ -31,7 +31,6 @@ import { CommitMessageMainService } from './commitMessageService.js';
  */
 export function registerChenilleMainServices(services: ServiceCollection): void {
 	services.set(IAiModelStorageService, new SyncDescriptor(AiModelStorageMainService));
-	services.set(IAiPromptStorageService, new SyncDescriptor(AiPromptStorageMainService));
 	services.set(IAiAgentStorageService, new SyncDescriptor(AiAgentStorageMainService));
 	services.set(IMcpServerStorageService, new SyncDescriptor(McpServerStorageMainService));
 	services.set(IMcpRuntimeService, new SyncDescriptor(McpRuntimeMainService));
@@ -50,9 +49,6 @@ export function registerChenilleMainServices(services: ServiceCollection): void 
 export function registerChenilleMainChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): void {
 	const modelStorageChannel = new ModelStorageChannel(accessor.get(IAiModelStorageService));
 	mainProcessElectronServer.registerChannel(ModelStorageChannelName, modelStorageChannel);
-
-	const promptStorageChannel = new PromptStorageChannel(accessor.get(IAiPromptStorageService));
-	mainProcessElectronServer.registerChannel(PromptStorageChannelName, promptStorageChannel);
 
 	const agentStorageChannel = new AgentStorageChannel(accessor.get(IAiAgentStorageService));
 	mainProcessElectronServer.registerChannel(AgentStorageChannelName, agentStorageChannel);
