@@ -10,6 +10,11 @@
 	background-size: 18px !important;
 }
 
+/* 状态栏橙色入口里的图标跟随文字颜色 */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item[id="chenille.statusBarEntry"] .codicon {
+	color: inherit;
+}
+
 /* 移除欢迎页内置引导里的 GitHub Copilot 登录步骤 */
 .monaco-workbench .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step[data-step-id^="CopilotSetup"] {
 	display: none !important;

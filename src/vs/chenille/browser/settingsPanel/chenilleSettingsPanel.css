@@ -124,6 +124,11 @@
 	opacity: 0.8;
 }
 
+/* 1.144 起官方样式把 .codicon 固定为 icon-foreground，面板内图标应跟随所在按钮/文字颜色 */
+.chenille-dialog-modal .codicon {
+	color: inherit;
+}
+
 /* 右侧内容区 */
 .chenille-settings-content {
 	flex: 1;

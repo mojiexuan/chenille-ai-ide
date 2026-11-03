@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { Emitter, Event } from '../../base/common/event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
+import { join } from '../../base/common/path.js';
+import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
+import { ILogService } from '../../platform/log/common/log.js';
 import { ICommitMessageService } from '../common/commitMessage.js';
+import { CHENILLE_HOME_DIR_NAME, COMMIT_MESSAGE_RULES_FILE_NAME, DEFAULT_COMMIT_MESSAGE_RULES } from '../common/commitMessageRules.js';
 import { AIClient } from '../node/ai/aiClient.js';
 import { AgentType } from '../common/types.js';
 import { IAiAgentMainService } from './agentService.js';
@@ -32,8 +37,28 @@ export class CommitMessageMainService extends Disposable implements ICommitMessa
 
 	constructor(
 		@IAiAgentMainService private readonly agentService: IAiAgentMainService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+	}
+
+	/**
+	 * 读取全局提交消息规则（~/.chenille/commit-message.md），不存在或为空时使用默认规则
+	 */
+	private async getSystemPrompt(): Promise<string> {
+		const rulesFile = join(this.environmentService.userHome.fsPath, CHENILLE_HOME_DIR_NAME, COMMIT_MESSAGE_RULES_FILE_NAME);
+		try {
+			const content = (await fs.promises.readFile(rulesFile, 'utf-8')).trim();
+			if (content) {
+				return content;
+			}
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				this.logService.warn('[Chenille] 读取全局提交消息规则失败:', error);
+			}
+		}
+		return DEFAULT_COMMIT_MESSAGE_RULES;
 	}
 
 	/**
@@ -58,7 +83,7 @@ export class CommitMessageMainService extends Disposable implements ICommitMessa
 		const result = await AIClient.chat({
 			agent,
 			messages: [
-				{ role: 'system', content: agent.prompt.content },
+				{ role: 'system', content: await this.getSystemPrompt() },
 				{ role: 'user', content: `请根据以下代码变更信息生成 commit message：\n\n${truncatedChanges}` },
 			],
 		});
@@ -73,7 +98,7 @@ export class CommitMessageMainService extends Disposable implements ICommitMessa
 		await AIClient.stream({
 			agent,
 			messages: [
-				{ role: 'system', content: agent.prompt.content },
+				{ role: 'system', content: await this.getSystemPrompt() },
 				{ role: 'user', content: `请根据以下代码变更信息生成 commit message：\n\n${truncatedChanges}` },
 			],
 			call: (result) => {

@@ -194,12 +194,17 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		};
 
 		const updateToolbar = () => {
-			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			// Chenille: hide the official / Copilot commit message entries when the Chenille action is registered
+			const hasChenilleCommitMessage = !!CommandsRegistry.getCommand('chenille.scm.generateCommitMessage');
+			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }))
+				.filter(action => !hasChenilleCommitMessage
+					|| (action.id !== SCMInputWidgetCommandId.SetupAction && action.id !== 'github.copilot.git.generateCommitMessage'));
 
 			for (const action of actions) {
-				action.enabled = isEnabled();
+				// Chenille: the commit message rules action does not depend on pending changes
+				action.enabled = action.id === 'chenille.scm.editCommitMessageRules' || isEnabled();
 			}
-			this._dropdownAction.enabled = isEnabled();
+			this._dropdownAction.enabled = hasChenilleCommitMessage || isEnabled();
 
 			let primaryAction: IAction | undefined = undefined;
 
