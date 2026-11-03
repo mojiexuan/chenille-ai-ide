@@ -12,6 +12,9 @@ import { AgentType } from '../common/types.js';
 import { IAiAgentMainService } from './agentService.js';
 import { IMcpServerStorageService, IAiModelStorageService } from '../common/storageIpc.js';
 import { ChenilleError } from '../common/errors.js';
+import { INetworkToolsService } from '../common/networkTools.js';
+import { DEEPSEEK_TOOL_DEFINITIONS } from '../tools/definitions.js';
+import { AiTool } from '../common/types.js';
 
 /**
  * AI 调用服务实现（主进程）
@@ -30,6 +33,7 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		@IAiAgentMainService private readonly agentService: IAiAgentMainService,
 		@IMcpServerStorageService private readonly mcpStorage: IMcpServerStorageService,
 		@IAiModelStorageService private readonly modelStorage: IAiModelStorageService,
+		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
 	) {
 		super();
 
@@ -94,6 +98,27 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 		}
 	}
 
+	/**
+	 * 合并请求中的工具与 DeepSeek 工具（按名称去重）
+	 */
+	private async buildTools(requested: AiTool[] | undefined): Promise<AiTool[] | undefined> {
+		if (!requested?.length) {
+			return requested;
+		}
+		if (!await this.networkToolsService.isDeepSeekEnabled()) {
+			return requested;
+		}
+
+		const names = new Set(requested.map(tool => tool.function.name));
+		const tools = [...requested];
+		for (const tool of DEEPSEEK_TOOL_DEFINITIONS) {
+			if (!names.has(tool.function.name)) {
+				tools.push(tool);
+			}
+		}
+		return tools;
+	}
+
 	async streamChat(request: IAiCallRequest, token?: CancellationToken): Promise<void> {
 		// 确保 MCP 已初始化
 		if (!this._mcpInitialized) {
@@ -116,11 +141,14 @@ export class ChenilleAiMainService extends Disposable implements IChenilleAiServ
 			...request.messages.filter(m => m.role !== 'system'), // 过滤掉已有的 system 消息
 		];
 
+		// 仅当用户在 Chenille 面板中选择了官方 DeepSeek 模型时，才注入 DeepSeek 搜索/抓取工具
+		const tools = await this.buildTools(request.tools);
+
 		try {
 			await AIClient.stream({
 				agent,
 				messages,
-				tools: request.tools,
+				tools,
 				token,
 				call: (result) => {
 					if (token?.isCancellationRequested) {

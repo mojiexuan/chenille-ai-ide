@@ -1,14 +1,40 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
+# Security Policy - Chenille AI IDE
 
-## Security
+## 安全声明
 
-Microsoft takes the security of our software products and services seriously, which
-includes all source code repositories in our GitHub organizations.
+Chenille 团队非常重视软件安全问题。我们感谢安全研究人员和用户报告潜在的安全漏洞。
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+## 报告漏洞
 
-For security reporting information, locations, contact information, and policies,
-please review the latest guidance for Microsoft repositories at
-[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
+**请不要通过公开的 GitHub Issues 报告安全漏洞。**
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+如果您发现安全漏洞，请通过以下方式私下联系我们：
+
+- 📧 Email: [mail@chenjiabao.com]（请替换为您的实际邮箱）
+- 🔐 GitHub Security Advisories: 通过本仓库的 Security 标签页私下报告
+
+## 报告内容
+
+请在报告中包含以下信息：
+
+- 漏洞类型和位置
+- 复现步骤
+- 潜在影响
+- 如有可能，提供修复建议
+
+## 响应流程
+
+1. 我们会在 **48 小时内** 确认收到您的报告
+2. 我们会评估问题并在 **7 天内** 提供初步反馈
+3. 修复后，我们会公开致谢（除非您希望匿名）
+
+## 支持的版本
+
+| 版本   | 支持状态 |
+| ------ | -------- |
+| 最新版 | ✅ 支持   |
+| 旧版本 | ❌ 不支持 |
+
+## 致谢
+
+感谢所有帮助我们提升 Chenille 安全性的贡献者！

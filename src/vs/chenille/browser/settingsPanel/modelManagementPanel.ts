@@ -10,6 +10,7 @@ import { IAiAgentStorageService, IAiModelStorageService } from '../../common/sto
 import { AgentType, AiModel, AiProvider, getFullEndpointUrl } from '../../common/types.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IDeepSeekBalance, INetworkToolsService, isOfficialDeepSeekModel } from '../../common/networkTools.js';
 
 const PROVIDER_OPTIONS: { value: AiProvider; label: string }[] = [
 	{ value: AiProvider.OPENAI, label: 'OpenAI (兼容)' },
@@ -52,11 +53,13 @@ export class ModelManagementPanel extends Disposable {
 	private presetBtn: HTMLElement | undefined;
 	private activeModelName: string | undefined;
 	private headerActions: HTMLElement | undefined;
+	private balanceContainer: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		@IAiModelStorageService private readonly modelStorage: IAiModelStorageService,
 		@IAiAgentStorageService private readonly agentStorage: IAiAgentStorageService,
+		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
 	) {
 		super();
 		this.container = parent;
@@ -88,6 +91,10 @@ export class ModelManagementPanel extends Disposable {
 		hint.style.color = 'var(--vscode-descriptionForeground)';
 		hint.style.padding = '0 16px 8px';
 
+		// 官方 DeepSeek 余额（仅当前模型为官方 DeepSeek 时显示）
+		this.balanceContainer = append(this.container, $('.chenille-balance-container'));
+		this.balanceContainer.style.paddingTop = '4px';
+
 		// 列表
 		this.listContainer = append(this.container, $('.chenille-panel-list'));
 		this.renderList();
@@ -108,7 +115,10 @@ export class ModelManagementPanel extends Disposable {
 			this.agentStorage.get(AgentType.CODE_WRITER),
 		]);
 		const selected = config?.modelName ? models.find(model => model.name === config.modelName) : undefined;
-		this.activeModelName = selected?.name ?? models[0]?.name;
+		const activeModel = selected ?? models[0];
+		this.activeModelName = activeModel?.name;
+
+		this.renderBalance(activeModel);
 
 		if (models.length === 0) {
 			const empty = append(this.listContainer, $('.chenille-empty-state'));
@@ -155,6 +165,68 @@ export class ModelManagementPanel extends Disposable {
 			deleteBtn.title = localize('delete', "删除");
 			deleteBtn.addEventListener('click', () => this.deleteModel(model.name));
 		}
+	}
+
+	/**
+	 * 当前模型为官方 DeepSeek 时，直接显示账户余额
+	 */
+	private async renderBalance(model: AiModel | undefined): Promise<void> {
+		if (!this.balanceContainer) {
+			return;
+		}
+		clearNode(this.balanceContainer);
+
+		if (!isOfficialDeepSeekModel(model)) {
+			return;
+		}
+
+		const card = append(this.balanceContainer, $('.chenille-balance-card'));
+		const headerRow = append(card, $('.chenille-balance-header'));
+		const title = append(headerRow, $('.chenille-balance-title'));
+		append(title, $(`span${ThemeIcon.asCSSSelector(Codicon.account)}`));
+		append(title, document.createTextNode(localize('deepseekBalance', "DeepSeek 余额")));
+
+		const refreshBtn = append(headerRow, $('button.chenille-btn.chenille-btn-secondary'));
+		refreshBtn.textContent = localize('refresh', "刷新");
+		refreshBtn.addEventListener('click', () => this.renderBalance(model));
+
+		const body = append(card, $('.chenille-balance-body'));
+		body.textContent = localize('balanceLoading', "正在查询余额…");
+
+		try {
+			const balance = await this.networkToolsService.getDeepSeekBalance(model.name);
+			clearNode(body);
+
+			if (!balance) {
+				body.textContent = localize('balanceUnavailable', "无法查询余额：该模型不是官方 DeepSeek 模型。");
+				return;
+			}
+
+			if (!balance.isAvailable) {
+				append(body, $('.chenille-balance-warning')).textContent =
+					localize('balanceNotAvailable', "账户当前不可用（is_available = false），请检查账户状态。");
+			}
+
+			if (balance.infos.length === 0) {
+				append(body, document.createTextNode(localize('balanceEmpty', "接口未返回余额信息。")));
+				return;
+			}
+
+			for (const info of balance.infos) {
+				this.appendBalanceRow(body, info);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			body.textContent = localize('balanceError', "查询余额失败：{0}", message);
+		}
+	}
+
+	private appendBalanceRow(body: HTMLElement, info: IDeepSeekBalance['infos'][number]): void {
+		const row = append(body, $('.chenille-balance-row'));
+		append(row, $('.chenille-balance-currency')).textContent = info.currency === 'USD' ? '美元 (USD)' : '人民币 (CNY)';
+		append(row, $('.chenille-balance-total')).textContent = localize('balanceTotal', "总余额：{0}", info.totalBalance);
+		append(row, $('.chenille-balance-detail')).textContent = localize('balanceDetail',
+			"赠送余额：{0}　充值余额：{1}", info.grantedBalance, info.toppedUpBalance);
 	}
 
 	private async setActiveModel(name: string): Promise<void> {

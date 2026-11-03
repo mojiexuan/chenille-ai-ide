@@ -44,6 +44,7 @@ import './diffSession/chenilleDiffSession.css';
 // 导入 electron-browser 服务（自动注册）
 import '../electron-browser/globalRulesStorageService.js';
 import '../electron-browser/globalSkillsStorageService.js';
+import '../electron-browser/networkToolsService.js';
 
 // 注册 Action
 registerChenilleSettingsAction();

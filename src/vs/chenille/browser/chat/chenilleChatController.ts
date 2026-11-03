@@ -12,7 +12,8 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { CHENILLE_SETTINGS_ACTION_ID } from '../settingsPanel/chenilleSettingsAction.js';
 import { localize } from '../../../nls.js';
 import { AiModelMessage, AiToolCall, TokenUsage, AiMessageContent } from '../../common/types.js';
-import { CHENILLE_TOOLS } from '../../tools/definitions.js';
+import { CHENILLE_TOOLS, DEEPSEEK_TOOL_DEFINITIONS } from '../../tools/definitions.js';
+import { INetworkToolsService } from '../../common/networkTools.js';
 import { IChenilleToolDispatcher, IToolResult } from '../../tools/dispatcher.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -145,6 +146,7 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChenilleChatModeService private readonly modeService: IChenilleChatModeService,
+		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
 	) {
 		super();
 	}
@@ -229,8 +231,12 @@ export class ChenilleChatControllerImpl extends Disposable implements IChenilleC
 			messages.push({ role: 'user', content: request.input });
 		}
 
-		// 只有智能体模式才启用工具
-		const tools = (isAgentMode && request.enableTools !== false) ? CHENILLE_TOOLS : undefined;
+		// 只有智能体模式才启用工具；DeepSeek 工具仅在已选择官方 DeepSeek 模型时注入
+		let tools = (isAgentMode && request.enableTools !== false) ? [...CHENILLE_TOOLS] : undefined;
+		if (tools && await this.networkToolsService.isDeepSeekEnabled()) {
+			const names = new Set(tools.map(tool => tool.function.name));
+			tools.push(...DEEPSEEK_TOOL_DEFINITIONS.filter(tool => !names.has(tool.function.name)));
+		}
 		let fullResponse = '';
 		let toolRound = 0;
 		// 累计 token 使用量

@@ -10,7 +10,14 @@
 			"src/vs/chenille/"
 		],
 		"allowedUpstreamChanges": {
-			"build/next/resources.ts": "复制 Chenille 静态资源",
+			"README.md": { "reason": "Chenille 项目介绍与版本追踪表", "maxChangedLines": 400 },
+				"CONTRIBUTING.md": { "reason": "Chenille 贡献指南", "maxChangedLines": 200 },
+				"SECURITY.md": "Chenille 安全说明",
+				"docs/favicon.ico": "Chenille 官网图标",
+				"docs/index.html": { "reason": "Chenille 官网页面", "maxChangedLines": 800 },
+				"docs/script.js": { "reason": "Chenille 官网脚本", "maxChangedLines": 800 },
+				"docs/style.css": { "reason": "Chenille 官网样式", "maxChangedLines": 800 },
+				"build/next/resources.ts": "复制 Chenille 静态资源",
 			"build/.moduleignore": "本地打包内置 Copilot 扩展时保留 SDK 脚本",
 			"eslint.config.js": "Chenille 导入规则、版权头与分层例外",
 			"package.json": "Chenille 产品元数据与 AI SDK 依赖",

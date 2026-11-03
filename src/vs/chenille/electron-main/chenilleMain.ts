@@ -25,6 +25,8 @@ import { GlobalRulesStorageMainService } from './globalRulesStorage.js';
 import { IGlobalSkillsStorageService, GlobalSkillsStorageChannel, GlobalSkillsStorageChannelName } from '../common/skills.js';
 import { GlobalSkillsStorageMainService } from './globalSkillsStorage.js';
 import { CommitMessageMainService } from './commitMessageService.js';
+import { INetworkToolsService, NetworkToolsChannel, NetworkToolsChannelName } from '../common/networkTools.js';
+import { NetworkToolsMainService } from './networkToolsService.js';
 
 /**
  * Registers the Chenille services that run in the Electron main process.
@@ -41,6 +43,7 @@ export function registerChenilleMainServices(services: ServiceCollection): void 
 	services.set(IChenilleVersionCheckService, new SyncDescriptor(ChenilleVersionCheckMainService));
 	services.set(IGlobalRulesStorageService, new SyncDescriptor(GlobalRulesStorageMainService));
 	services.set(IGlobalSkillsStorageService, new SyncDescriptor(GlobalSkillsStorageMainService));
+	services.set(INetworkToolsService, new SyncDescriptor(NetworkToolsMainService));
 }
 
 /**
@@ -76,4 +79,7 @@ export function registerChenilleMainChannels(accessor: ServicesAccessor, mainPro
 
 	const globalSkillsStorageChannel = new GlobalSkillsStorageChannel(accessor.get(IGlobalSkillsStorageService));
 	mainProcessElectronServer.registerChannel(GlobalSkillsStorageChannelName, globalSkillsStorageChannel);
+
+	const networkToolsChannel = new NetworkToolsChannel(accessor.get(INetworkToolsService));
+	mainProcessElectronServer.registerChannel(NetworkToolsChannelName, networkToolsChannel);
 }

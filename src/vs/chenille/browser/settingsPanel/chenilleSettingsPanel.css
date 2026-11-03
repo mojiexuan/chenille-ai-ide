@@ -558,3 +558,86 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 12px;
 }
+
+/* 搜索与抓取 / 余额样式 */
+.chenille-section {
+	border-top: 1px solid var(--vscode-panel-border);
+}
+
+.chenille-section-title {
+	font-size: 13px;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.chenille-balance-container {
+	padding: 0 16px 16px;
+}
+
+.chenille-balance-card {
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	overflow: hidden;
+}
+
+.chenille-balance-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.chenille-balance-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.chenille-balance-body {
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-balance-row {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 8px 10px;
+	border-radius: 4px;
+	background: var(--vscode-textBlockQuote-background, transparent);
+}
+
+.chenille-balance-currency {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-balance-total {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chenille-balance-detail {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chenille-balance-warning {
+	color: var(--vscode-editorWarning-foreground);
+	font-size: 12px;
+}
+
+.chenille-balance-error {
+	color: var(--vscode-errorForeground);
+	font-size: 12px;
+}

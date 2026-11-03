@@ -35,7 +35,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { AiModelMessage, AiToolCall, AiTool, AiMessageContent } from '../../common/types.js';
 import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
-import { IChenilleToolDispatcher, isChenilleFileTool, getInternalToolId } from '../../tools/dispatcher.js';
+import { IChenilleToolDispatcher, isChenilleFileTool, isNetworkTool, getInternalToolId } from '../../tools/dispatcher.js';
+import { INetworkToolsService } from '../../common/networkTools.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { isImageVariableEntry, IImageVariableEntry } from '../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -124,6 +125,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@ISkillService private readonly skillService: ISkillService,
 		@ILogService private readonly logService: ILogService,
+		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
 	) {
 		super();
 	}
@@ -617,15 +619,18 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 	/**
 	 * 获取可用的工具定义
-	 * 合并 Chenille 文件工具和 VS Code 内置工具
+	 * 合并 Chenille 文件工具、网络工具和 VS Code 内置工具
+	 * 未选择官方 DeepSeek 模型时不注入 DeepSeek 工具
 	 */
-	private getAvailableTools(): AiTool[] {
+	private async getAvailableTools(): Promise<AiTool[]> {
 		// 获取 VS Code 已注册的工具
 		const vsCodeTools = [...this.toolsService.getTools(undefined)];
 		const vsCodeToolIds = new Set(vsCodeTools.map(t => t.id));
 
+		const includeDeepSeekTools = await this.networkToolsService.isDeepSeekEnabled();
+
 		// 构建工具定义
-		return buildToolDefinitionsForAI(vsCodeToolIds);
+		return buildToolDefinitionsForAI(vsCodeToolIds, includeDeepSeekTools);
 	}
 
 	/**
@@ -641,7 +646,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		projectRules?: string,
 		skillsPrompt?: string
 	): Promise<IChatAgentResult> {
-		const tools = enableTools ? this.getAvailableTools() : undefined;
+		const tools = enableTools ? await this.getAvailableTools() : undefined;
 		let toolRound = 0;
 
 		while (toolRound < MAX_TOOL_ROUNDS) {
@@ -839,8 +844,14 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			try {
 				let resultContent: string;
 
-				// 判断是 Chenille 文件工具还是 VS Code 内置工具
-				if (isChenilleFileTool(toolName)) {
+				// 判断是 Chenille 自实现工具还是 VS Code 内置工具
+				if (isNetworkTool(toolName)) {
+					// 网络工具 - 由 Chenille 调度器在主进程执行
+					const result = await this.toolDispatcher.dispatch(toolCall, token, sessionContext);
+					resultContent = result.success
+						? (result.content || `工具 "${toolName}" 执行成功`)
+						: `错误: ${result.error}`;
+				} else if (isChenilleFileTool(toolName)) {
 					// Chenille 文件工具 - 使用 toolsService.invokeTool 以获得内联确认
 					resultContent = await this.invokeChenilleFileTool(toolName, toolCall, token, sessionContext);
 
@@ -938,7 +949,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 
 			case 'replaceInFile':
 			case 'insertInFile':
-			case 'deleteLines': {
+			case 'deleteLines':
+			case 'notebookEdit': {
 				// 文件修改引用
 				if (path) {
 					this.emitFileReference(path, progress, true);
@@ -1420,6 +1432,7 @@ class ChenilleFileToolWrapper implements IToolImpl {
 			'createFile',
 			'deleteFile',
 			'renameFile',
+			'notebookEdit',
 		].includes(this.toolDef.function.name);
 
 		if (needsConfirmation) {

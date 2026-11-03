@@ -12,8 +12,9 @@ import { ModelManagementPanel } from './modelManagementPanel.js';
 import { McpManagementPanel } from './mcpManagementPanel.js';
 import { GlobalRulesPanel } from './globalRulesPanel.js';
 import { SkillsPanel } from './skillsPanel.js';
+import { NetworkToolsPanel } from './networkToolsPanel.js';
 
-export type PanelType = 'model' | 'mcp' | 'rules' | 'skills';
+export type PanelType = 'model' | 'search' | 'mcp' | 'rules' | 'skills';
 
 interface MenuItem {
 	id: PanelType;
@@ -31,6 +32,7 @@ export class ChenilleSettingsPanel extends Disposable {
 
 	private readonly menuItems: MenuItem[] = [
 		{ id: 'model', label: localize('modelManagement', "模型配置"), icon: 'codicon-server' },
+		{ id: 'search', label: localize('searchAndFetch', "搜索与抓取"), icon: 'codicon-globe' },
 		{ id: 'mcp', label: localize('mcpManagement', "MCP 服务器"), icon: 'codicon-plug' },
 		{ id: 'rules', label: localize('rulesManagement', "规则管理"), icon: 'codicon-law' },
 		{ id: 'skills', label: localize('skillsManagement', "技能管理"), icon: 'codicon-lightbulb' },
@@ -85,6 +87,11 @@ export class ChenilleSettingsPanel extends Disposable {
 			case 'model':
 				this.panelDisposables.add(
 					this.instantiationService.createInstance(ModelManagementPanel, this.contentContainer)
+				);
+				break;
+			case 'search':
+				this.panelDisposables.add(
+					this.instantiationService.createInstance(NetworkToolsPanel, this.contentContainer)
 				);
 				break;
 			case 'mcp':

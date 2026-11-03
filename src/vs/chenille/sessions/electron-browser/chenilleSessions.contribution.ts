@@ -31,6 +31,7 @@ import { ChenilleAgentContribution } from '../../browser/chat/chenilleAgentContr
 import { ChenilleLanguageModelContribution } from '../../browser/languageModel/chenilleLanguageModelContribution.js';
 import { CHENILLE_SESSION_SCHEME, CHENILLE_SESSION_TYPE_ID, ChenilleSessionsProvider } from '../browser/chenilleSessionsProvider.js';
 import { CHENILLE_SETTINGS_ACTION_ID, registerChenilleSettingsAction } from '../../browser/settingsPanel/chenilleSettingsAction.js';
+import '../../electron-browser/networkToolsService.js';
 
 // 隐藏 Agents 窗口中的 GitHub 账号入口
 import '../../browser/media/chenilleSessions.css';

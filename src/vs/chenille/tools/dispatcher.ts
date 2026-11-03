@@ -59,6 +59,9 @@ import {
 } from './fileTools/fileUtils.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IChenilleDiffSessionService } from '../browser/diffSession/index.js';
+import { INetworkToolsService } from '../common/networkTools.js';
+import { IMarkerService, MarkerSeverity } from '../../platform/markers/common/markers.js';
+import { generateUuid } from '../../base/common/uuid.js';
 
 /**
  * 工具执行结果
@@ -112,7 +115,9 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
 	'deleteFile',
 	'renameFile',
 	'getOpenEditors',
-	'editFile'
+	'editFile',
+	'notebookEdit',
+	'getErrors'
 ]);
 
 /**
@@ -120,6 +125,23 @@ const CHENILLE_FILE_TOOL_NAMES = new Set([
  */
 export function isChenilleFileTool(toolName: string): boolean {
 	return CHENILLE_FILE_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Chenille 自实现的网络工具列表
+ * webFetch 始终可用；deepseek* 仅在配置了官方 DeepSeek 模型时注入
+ */
+const CHENILLE_NETWORK_TOOL_NAMES = new Set([
+	'webFetch',
+	'deepseekSearch',
+	'deepseekFetch'
+]);
+
+/**
+ * 检查是否为 Chenille 自实现的网络工具
+ */
+export function isNetworkTool(toolName: string): boolean {
+	return CHENILLE_NETWORK_TOOL_NAMES.has(toolName);
 }
 
 /**
@@ -156,9 +178,6 @@ const VSCODE_TOOL_ID_MAP: Record<string, string> = {
 	'searchExtensions': 'vscode_searchExtensions_internal',
 	'installExtensions': 'vscode_installExtensions',
 
-	// 网页抓取
-	'fetchWebPage': 'vscode_fetchWebPage_internal',
-
 	// 待办事项
 	'manageTodoList': 'manage_todo_list',
 
@@ -186,7 +205,7 @@ export function getInternalToolId(toolName: string): string | undefined {
  * 获取所有工具名称
  */
 export function getAllToolNames(): string[] {
-	return [...CHENILLE_FILE_TOOL_NAMES, ...Object.keys(VSCODE_TOOL_ID_MAP)];
+	return [...CHENILLE_FILE_TOOL_NAMES, ...CHENILLE_NETWORK_TOOL_NAMES, ...Object.keys(VSCODE_TOOL_ID_MAP)];
 }
 
 /**
@@ -201,6 +220,9 @@ function truncateContent(content: string, maxLength: number): string {
 
 /** 工具执行超时时间（毫秒） */
 const TOOL_TIMEOUT = 30000;
+
+/** 网络工具执行超时时间（毫秒），与主进程抓取超时保持一致 */
+const NETWORK_TOOL_TIMEOUT = 90000;
 
 /**
  * 带超时的 Promise 包装
@@ -274,7 +296,9 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
 	}
@@ -331,6 +355,14 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 				result = await withTimeout(
 					this.dispatchMcpTool(toolName, toolCall),
 					TOOL_TIMEOUT,
+					toolName
+				);
+			}
+			// 检查是否为 Chenille 自实现的网络工具
+			else if (isNetworkTool(toolName)) {
+				result = await withTimeout(
+					this.dispatchNetworkTool(toolName, toolCall),
+					NETWORK_TOOL_TIMEOUT,
 					toolName
 				);
 			}
@@ -535,6 +567,138 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 					}
 					result = await editFile(parsed.data, this.fileService, this.workspaceService);
 					break;
+				}
+
+				case 'notebookEdit': {
+					const parsed = parseToolArguments<Record<string, unknown>>(toolCall, ['path']);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+
+					const uri = resolveFilePath(String(parsed.data.path ?? ''), this.workspaceService);
+					let notebook: Record<string, unknown>;
+					try {
+						notebook = JSON.parse((await this.fileService.readFile(uri)).value.toString());
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						return { success: false, content: '', error: `读取 Notebook 失败: ${message}` };
+					}
+
+					const cells = notebook.cells;
+					if (!Array.isArray(cells)) {
+						return { success: false, content: '', error: '不是有效的 Jupyter Notebook 文件（缺少 cells 数组）' };
+					}
+
+					const editMode = typeof parsed.data.editMode === 'string' ? parsed.data.editMode : 'replace';
+					const cellId = typeof parsed.data.cellId === 'string' ? parsed.data.cellId : undefined;
+					const newSource = typeof parsed.data.newSource === 'string' ? parsed.data.newSource : '';
+					const requestedType = parsed.data.cellType === 'markdown' ? 'markdown' : parsed.data.cellType === 'code' ? 'code' : undefined;
+					const index = cellId ? cells.findIndex((cell: { id?: string }) => cell?.id === cellId) : -1;
+					if (cellId && index < 0) {
+						return { success: false, content: '', error: `未找到单元格: ${cellId}` };
+					}
+
+					const nbformat = Number(notebook.nbformat ?? 4);
+					const nbformatMinor = Number(notebook.nbformat_minor ?? 0);
+					const supportsCellIds = nbformat > 4 || (nbformat === 4 && nbformatMinor >= 5);
+					const toSourceLines = (source: string) => source.split(/\r\n|\r|\n/).map((line, i, arr) => i < arr.length - 1 ? `${line}\n` : line);
+					const makeCell = (type: string, source: string, existing?: Record<string, unknown>) => {
+						const cell = existing ?? { metadata: {} };
+						cell.cell_type = type;
+						cell.source = toSourceLines(source);
+						cell.metadata ??= {};
+						if (type === 'code') {
+							cell.outputs ??= [];
+							cell.execution_count ??= null;
+						} else {
+							delete cell.outputs;
+							delete cell.execution_count;
+						}
+						if (supportsCellIds && !cell.id) {
+							cell.id = generateUuid().replace(/-/g, '').slice(0, 8);
+						}
+						return cell;
+					};
+
+					let action: string;
+					let resultCell: Record<string, unknown> | undefined;
+					let resultIndex: number;
+
+					switch (editMode) {
+						case 'insert': {
+							const cell = makeCell(requestedType ?? 'code', newSource);
+							resultIndex = index >= 0 ? index + 1 : 0;
+							cells.splice(resultIndex, 0, cell);
+							resultCell = cell;
+							action = '已插入';
+							break;
+						}
+						case 'delete': {
+							if (index < 0) {
+								return { success: false, content: '', error: '删除单元格需要提供有效的 cellId' };
+							}
+							const [removed] = cells.splice(index, 1);
+							resultIndex = index;
+							resultCell = removed;
+							action = '已删除';
+							break;
+						}
+						case 'replace': {
+							if (index < 0) {
+								return { success: false, content: '', error: '替换单元格需要提供有效的 cellId' };
+							}
+							const existing = cells[index] as Record<string, unknown>;
+							const cell = makeCell(requestedType ?? String(existing.cell_type ?? 'code'), newSource, existing);
+							resultIndex = index;
+							resultCell = cell;
+							action = '已替换';
+							break;
+						}
+						default:
+							return { success: false, content: '', error: `不支持的编辑方式: ${editMode}` };
+					}
+
+					await this.fileService.writeFile(uri, VSBuffer.fromString(`${JSON.stringify(notebook, null, 1)}\n`));
+					const cellLabel = resultCell?.id ? ` ${resultCell.id}` : ` #${resultIndex + 1}`;
+					return {
+						success: true,
+						content: `${action}单元格${cellLabel}（${resultCell?.cell_type ?? '未知类型'}），当前共 ${cells.length} 个单元格。`
+					};
+				}
+
+				case 'getErrors': {
+					const parsed = parseToolArguments<Record<string, unknown>>(toolCall);
+					if (!parsed.success) {
+						return { success: false, content: '', error: parsed.error };
+					}
+
+					const rawPath = typeof parsed.data.path === 'string' ? parsed.data.path.trim() : '';
+					const maxResults = typeof parsed.data.maxResults === 'number'
+						? Math.max(1, Math.min(1000, Math.floor(parsed.data.maxResults)))
+						: 200;
+					const resource = rawPath ? resolveFilePath(rawPath, this.workspaceService) : undefined;
+					const markers = this.markerService.read({
+						resource,
+						severities: MarkerSeverity.Error | MarkerSeverity.Warning,
+						take: maxResults
+					});
+
+					if (markers.length === 0) {
+						return {
+							success: true,
+							content: rawPath ? `文件 "${rawPath}" 没有错误或警告。` : '工作区没有错误或警告。'
+						};
+					}
+
+					const lines = markers.map(marker => {
+						const severity = marker.severity === MarkerSeverity.Error ? '错误' : '警告';
+						const source = marker.source ? ` (${marker.source})` : '';
+						return `[${severity}] ${marker.resource.fsPath}:${marker.startLineNumber}:${marker.startColumn} ${marker.message}${source}`;
+					});
+					return {
+						success: true,
+						content: truncateContent(`共 ${markers.length} 条错误/警告：\n${lines.join('\n')}`, 60000)
+					};
 				}
 
 				default:
@@ -753,6 +917,85 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	}
 
 	/**
+	 * 调度 Chenille 网络工具（自建抓取 / DeepSeek 搜索与抓取）
+	 */
+	private async dispatchNetworkTool(toolName: string, toolCall: ToolCall): Promise<IToolResult> {
+		const parsed = parseToolArguments<Record<string, unknown>>(toolCall);
+		if (!parsed.success) {
+			return { success: false, content: '', error: parsed.error };
+		}
+		const params = parsed.data;
+		const url = typeof params.url === 'string' ? params.url.trim() : '';
+		const query = typeof params.query === 'string' ? params.query.trim() : '';
+
+		try {
+			switch (toolName) {
+				case 'webFetch': {
+					if (!url) {
+						return { success: false, content: '', error: '缺少参数: url' };
+					}
+					const page = await this.networkToolsService.fetchWebPage(url);
+					const lines = [
+						page.title ? `# ${page.title}` : undefined,
+						`URL: ${page.finalUrl}`,
+						`状态: ${page.code} ${page.codeText}`,
+						`大小: ${page.bytes} 字节，耗时: ${page.durationMs} ms`,
+						'',
+						page.content || '[页面没有可提取的文本内容]'
+					].filter(line => line !== undefined);
+					return { success: true, content: truncateContent(lines.join('\n'), 120000) };
+				}
+
+				case 'deepseekSearch': {
+					if (!query) {
+						return { success: false, content: '', error: '缺少参数: query' };
+					}
+					const count = typeof params.count === 'number' ? params.count : undefined;
+					const needContent = params.needContent === true;
+					const response = await this.networkToolsService.search(query, count, needContent);
+					const results = response.results ?? [];
+					if (results.length === 0) {
+						return { success: true, content: `搜索 "${query}" 没有找到结果。` };
+					}
+					const blocks = results.map((item, index) => {
+						const parts = [
+							`## ${index + 1}. ${item.title || '(无标题)'}`,
+							`- URL: ${item.url || '(未知)'}`,
+							item.site_name ? `- 站点: ${item.site_name}` : undefined,
+							item.date ? `- 发布时间: ${item.date}` : undefined,
+							typeof item.authority === 'number' ? `- 权威度: ${item.authority}` : undefined,
+							typeof item.rerank_score === 'number' ? `- 相关度: ${item.rerank_score}` : undefined,
+							'',
+							item.summary || item.snippet || '',
+						];
+						if (needContent && item.content) {
+							parts.push('', item.content);
+						}
+						return parts.filter(part => part !== undefined).join('\n');
+					});
+					const header = `搜索 "${query}" 找到 ${results.length} 条结果：\n`;
+					return { success: true, content: truncateContent(`${header}\n${blocks.join('\n\n---\n\n')}`, 120000) };
+				}
+
+				case 'deepseekFetch': {
+					if (!url) {
+						return { success: false, content: '', error: '缺少参数: url' };
+					}
+					const result = await this.networkToolsService.fetch(url);
+					const header = result.title ? `# ${result.title}\nURL: ${url}\n` : `URL: ${url}\n`;
+					return { success: true, content: truncateContent(`${header}\n${result.content || '[页面没有可提取的文本内容]'}`, 120000) };
+				}
+
+				default:
+					return { success: false, content: '', error: `未知的网络工具: ${toolName}` };
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return { success: false, content: '', error: `${toolName} 执行失败: ${errorMessage}` };
+		}
+	}
+
+	/**
 	 * 调度 VS Code 内部工具
 	 */
 	private async dispatchVSCodeTool(
@@ -865,15 +1108,15 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	 */
 	listAvailableTools(): string[] {
 		const vsCodeTools = [...this.toolsService.getTools(undefined)].map(t => t.id);
-		return [...CHENILLE_FILE_TOOL_NAMES, ...vsCodeTools];
+		return [...CHENILLE_FILE_TOOL_NAMES, ...CHENILLE_NETWORK_TOOL_NAMES, ...vsCodeTools];
 	}
 
 	/**
 	 * 检查工具是否可用
 	 */
 	isToolAvailable(toolName: string): boolean {
-		// Chenille 文件工具始终可用
-		if (isChenilleFileTool(toolName)) {
+		// Chenille 文件工具与自建网络工具始终可用
+		if (isChenilleFileTool(toolName) || isNetworkTool(toolName)) {
 			return true;
 		}
 
