@@ -22,7 +22,7 @@ export const config: Config = {
 		name: 'Chenille AI IDE',
 		version: {
 			name: '0.1.0',
-			code: 100
+			code: 10
 		}
 	}
 };
