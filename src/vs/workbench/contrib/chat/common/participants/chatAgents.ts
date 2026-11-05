@@ -18,6 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Command } from '../../../../../editor/common/languages.js';
 import type { MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import product from '../../../../../platform/product/common/product.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -480,6 +481,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		// contributed from core and from extensions.
 		// This method will prefer the last extensions provided agent
 		// falling back to the last core agent if no extension agent is found.
+		// Chenille: the bundled Copilot Chat extension must not take over the
+		// default agent, otherwise requests are routed to a participant that
+		// cannot resolve Chenille model identifiers.
+		if ((product as { chenilleDisableChatSetup?: boolean }).chenilleDisableChatSetup) {
+			return findLast(agents, agent => agent.isCore) ?? agents.at(-1);
+		}
 		return findLast(agents, agent => !agent.isCore) ?? agents.at(-1);
 	}
 

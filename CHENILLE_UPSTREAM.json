@@ -18,6 +18,7 @@
 				"docs/script.js": { "reason": "Chenille 官网脚本", "maxChangedLines": 800 },
 				"docs/style.css": { "reason": "Chenille 官网样式", "maxChangedLines": 800 },
 				"build/next/resources.ts": "复制 Chenille 静态资源",
+			"build/win32/code.iss": "安装向导使用 Chenille 品牌图片",
 			"build/.moduleignore": "本地打包内置 Copilot 扩展时保留 SDK 脚本",
 			"eslint.config.js": "Chenille 导入规则、版权头与分层例外",
 			"package.json": "Chenille 产品元数据与 AI SDK 依赖",
@@ -36,6 +37,7 @@
 			"src/vs/platform/windows/electron-main/windowImpl.ts": "Windows 窗口使用 Chenille 图标，Agents 窗口跳过 GitHub 登录欢迎流程",
 			"src/vs/workbench/contrib/scm/browser/scmInput.ts": "把提交消息生成委托给 Chenille 命令",
 			"src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts": "关闭 GitHub Copilot 登录与设置入口",
+			"src/vs/workbench/contrib/chat/common/participants/chatAgents.ts": "Chenille 下优先使用核心 Agent，避免内置 Copilot Chat 扩展抢占默认 Agent",
 			"src/vs/workbench/workbench.desktop.main.ts": "加载 Chenille 贡献",
 			"src/vs/sessions/sessions.desktop.main.ts": "加载 Chenille Agents 窗口贡献",
 			"src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts": "Agents 窗口不注册需要 GitHub 登录的 Copilot Cloud 会话提供者",
@@ -47,7 +49,8 @@
 			"scripts/chenille/*",
 			".github/workflows/chenille-*.yml",
 			"extensions/chenille-language-pack-zh-hans/**",
-			"extensions/chenille-theme/**"
+			"extensions/chenille-theme/**",
+			"resources/chenille/**"
 		],
 		"maxChangedLinesPerUpstreamFile": 80
 	}

@@ -19,3 +19,11 @@
 .monaco-workbench .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step[data-step-id^="CopilotSetup"] {
 	display: none !important;
 }
+
+/* 欢迎页标签使用 Chenille 图标，替换 VS Code 内置的 code-icon.svg */
+.monaco-workbench .file-icons-enabled .show-file-icons .vscode_getting_started_page-name-file-icon.file-icon::before {
+	background-image: url('./chenille-icon.png') !important;
+	background-repeat: no-repeat !important;
+	background-position: center center !important;
+	background-size: contain !important;
+}
