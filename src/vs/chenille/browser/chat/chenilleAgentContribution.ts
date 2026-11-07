@@ -35,7 +35,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../workbench/contrib/chat
 import { IChenilleAiService, IStreamChunkWithId } from '../../common/chatService.js';
 import { AiModelMessage, AiToolCall, AiTool, AiMessageContent } from '../../common/types.js';
 import { CHENILLE_FILE_TOOLS, buildToolDefinitionsForAI } from '../../tools/definitions.js';
-import { IChenilleToolDispatcher, isChenilleFileTool, isNetworkTool, getInternalToolId } from '../../tools/dispatcher.js';
+import { IChenilleToolDispatcher, isChenilleFileTool, isNetworkTool, isSessionTool, getInternalToolId } from '../../tools/dispatcher.js';
 import { INetworkToolsService } from '../../common/networkTools.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
@@ -55,6 +55,7 @@ import { IWorkbenchContribution } from '../../../workbench/common/contributions.
 import { IProjectRulesService } from '../rules/projectRulesService.js';
 import { ISkillService } from '../../common/skills.js';
 import { CHENILLE_AGENT_ID, fromChenilleModelIdentifier } from '../../common/modelIdentifier.js';
+import { IChenilleSessionContext } from '../../common/chatProvider.js';
 
 /** 最大工具调用轮次 */
 const MAX_TOOL_ROUNDS = 500;
@@ -167,10 +168,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		const messages = this.buildMessages(request, history);
 		const selectedModelName = fromChenilleModelIdentifier(request.userSelectedModelId);
 
-		// 保存会话上下文，用于工具调用时的内联确认
-		const sessionContext = {
+		// 保存会话上下文，用于工具调用时的内联确认与工作区解析
+		const sessionContext: IChenilleSessionContext = {
 			sessionResource: request.sessionResource,
 			requestId: request.requestId,
+			workspaceRoot: this.chatService.getSession(request.sessionResource)?.workingDirectory
+				?? this.workspaceService.getWorkspace().folders[0]?.uri,
+			modelId: request.userSelectedModelId,
 		};
 
 		try {
@@ -641,7 +645,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		enableTools: boolean,
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
-		sessionContext: { sessionResource: URI; requestId: string },
+		sessionContext: IChenilleSessionContext,
 		modelName: string | undefined,
 		projectRules?: string,
 		skillsPrompt?: string
@@ -812,7 +816,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		messages: AiModelMessage[],
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
-		sessionContext: { sessionResource: URI; requestId: string }
+		sessionContext: IChenilleSessionContext
 	): Promise<void> {
 		for (const toolCall of toolCalls) {
 			if (token.isCancellationRequested) {
@@ -845,8 +849,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				let resultContent: string;
 
 				// 判断是 Chenille 自实现工具还是 VS Code 内置工具
-				if (isNetworkTool(toolName)) {
-					// 网络工具 - 由 Chenille 调度器在主进程执行
+				if (isNetworkTool(toolName) || isSessionTool(toolName)) {
+					// 网络工具与会话工具 - 由 Chenille 调度器直接执行
 					const result = await this.toolDispatcher.dispatch(toolCall, token, sessionContext);
 					resultContent = result.success
 						? (result.content || `工具 "${toolName}" 执行成功`)
@@ -1235,7 +1239,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		toolName: string,
 		toolCall: AiToolCall,
 		token: CancellationToken,
-		sessionContext: { sessionResource: URI; requestId: string }
+		sessionContext: IChenilleSessionContext
 	): Promise<string> {
 		// Chenille 文件工具的内部 ID
 		const internalToolId = `chenille.${toolName}`;
@@ -1306,7 +1310,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		toolName: string,
 		toolCall: AiToolCall,
 		token: CancellationToken,
-		sessionContext: { sessionResource: URI; requestId: string }
+		sessionContext: IChenilleSessionContext
 	): Promise<string> {
 		// 获取内部工具 ID
 		const internalToolId = getInternalToolId(toolName);

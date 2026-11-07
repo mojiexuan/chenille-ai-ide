@@ -343,6 +343,132 @@ export const CHENILLE_WEB_TOOLS: AiTool[] = [
 	}
 ];
 
+// ==================== Chenille 会话工具 ====================
+
+/**
+ * 会话工具：读取历史会话、向已有会话发消息、创建子会话、声明式多代理编排。
+ * 数据源为 VS Code 的本地聊天会话存储与当前工作区。
+ */
+export const CHENILLE_SESSION_TOOLS: AiTool[] = [
+	{
+		type: 'function',
+		function: {
+			name: 'listSessions',
+			description: `列出本地的历史对话会话，按最近活动时间倒序排列。返回每个会话的 ID、标题、最近活动时间与状态。
+需要了解用户之前做过什么、或查找某个旧会话时使用；拿到 ID 后可配合 readSession 读取具体内容。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					limit: { type: 'number', description: '返回的最大会话数，默认 20，最大 50' }
+				},
+				required: []
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'readSession',
+			description: `读取指定会话的最近若干轮对话，返回每轮的用户消息与助手最终回复。
+⚠️ 只读操作，不会向该会话发送消息，也不会修改其内容。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					sessionId: { type: 'string', description: '会话 ID（来自 listSessions 返回的 ID）' },
+					limit: { type: 'number', description: '读取最近多少轮对话，默认 10，最大 50' },
+					maxCharsPerMessage: { type: 'number', description: '单条消息最多保留的字符数，默认 4000，最大 20000' }
+				},
+				required: ['sessionId']
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'sendToSession',
+			description: `向一个已存在的本地会话发送消息，并可等待该会话完成回复。
+适用于让另一个会话接着处理它的上下文、或把任务转交给一个专用会话。
+⚠️ 目标会话必须处于空闲状态；默认会阻塞等待回复，超时会取消该会话的请求。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					sessionId: { type: 'string', description: '目标会话 ID（来自 listSessions 返回的 ID）' },
+					prompt: { type: 'string', description: '要发送给该会话的消息内容' },
+					wait: { type: 'boolean', description: '是否等待回复，默认 true' },
+					timeoutSeconds: { type: 'number', description: '等待回复的超时时间（秒），默认 300，最大 1800' },
+					modelId: { type: 'string', description: '可选：为本次请求指定模型标识' }
+				},
+				required: ['sessionId', 'prompt']
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'createSession',
+			description: `创建一个新的 Chenille 子会话，绑定到指定文件夹并执行首个任务，返回最终回复。
+可用 isolation 把子会话放进独立的 git worktree（分支自动创建），适合会修改文件的并行任务。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					prompt: { type: 'string', description: '子会话要执行的任务' },
+					path: { type: 'string', description: '可选：工作区路径（相对路径按当前会话工作区解析），默认当前会话工作区' },
+					isolation: {
+						type: 'string',
+						enum: ['none', 'worktree'],
+						description: '隔离方式：none（共享工作区，默认）或 worktree（独立 git worktree）'
+					},
+					modelId: { type: 'string', description: '可选：子会话使用的模型标识，默认继承当前会话' },
+					timeoutSeconds: { type: 'number', description: '子会话最长运行时间（秒），默认 600，最大 1800' }
+				},
+				required: ['prompt']
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'orchestrate',
+			description: `按声明式 DAG 并行编排多个子代理。每个步骤是一个独立子会话；dependsOn 指定前置步骤，前置步骤的输出会自动注入后续步骤的提示词。
+适合把可并行的调查、实现、测试等任务拆给多个代理。步骤失败时依赖它的步骤会被跳过，独立步骤继续执行。
+⚠️ worktree 隔离产生的工作目录会保留在仓库旁边的 <仓库名>-chenille-worktrees 目录，需确认后手动清理。最多 8 步。`,
+			parameters: {
+				type: 'object',
+				properties: {
+					goal: { type: 'string', description: '可选：所有子代理共享的总体目标' },
+					maxConcurrency: { type: 'number', description: '同时运行的子代理上限，默认 3，最大 6' },
+					timeoutSeconds: { type: 'number', description: '单个步骤的超时时间（秒），默认 600，最大 1800' },
+					steps: {
+						type: 'array',
+						description: '编排步骤列表（1-8 步）',
+						items: {
+							type: 'object',
+							properties: {
+								id: { type: 'string', description: '步骤 ID（字母、数字、下划线、短横线，最长 40）' },
+								prompt: { type: 'string', description: '该步骤要执行的任务' },
+								dependsOn: {
+									type: 'array',
+									items: { type: 'string' },
+									description: '前置步骤 ID 列表'
+								},
+								path: { type: 'string', description: '可选：该步骤的工作区路径，默认当前会话工作区' },
+								isolation: {
+									type: 'string',
+									enum: ['none', 'worktree'],
+									description: '该步骤是否使用独立 git worktree'
+								},
+								modelId: { type: 'string', description: '可选：该步骤使用的模型标识' }
+							},
+							required: ['id', 'prompt']
+						}
+					}
+				},
+				required: ['steps']
+			}
+		}
+	}
+];
+
 /**
  * DeepSeek 官方联网工具定义
  * 仅当在 Chenille 面板中选择了官方 DeepSeek 模型时才会注入给 AI。
@@ -716,6 +842,9 @@ export function buildToolDefinitionsForAI(availableVSCodeToolIds: Set<string>, i
 	// 添加自建网络工具（始终可用）
 	tools.push(...CHENILLE_WEB_TOOLS);
 
+	// 添加只读会话工具（始终可用）
+	tools.push(...CHENILLE_SESSION_TOOLS);
+
 	// 添加 DeepSeek 官方联网工具（条件注入）
 	if (includeDeepSeekTools) {
 		tools.push(...DEEPSEEK_TOOL_DEFINITIONS);
@@ -744,16 +873,17 @@ export function buildToolDefinitionsForAI(availableVSCodeToolIds: Set<string>, i
 export function getAllToolNames(): string[] {
 	const fileToolNames = CHENILLE_FILE_TOOLS.map(t => t.function.name);
 	const webToolNames = CHENILLE_WEB_TOOLS.map(t => t.function.name);
+	const sessionToolNames = CHENILLE_SESSION_TOOLS.map(t => t.function.name);
 	const deepSeekToolNames = DEEPSEEK_TOOL_DEFINITIONS.map(t => t.function.name);
 	const vsCodeToolNames = VSCODE_TOOL_DEFINITIONS.map(d => d.chenilleName);
-	return [...fileToolNames, ...webToolNames, ...deepSeekToolNames, ...vsCodeToolNames];
+	return [...fileToolNames, ...webToolNames, ...sessionToolNames, ...deepSeekToolNames, ...vsCodeToolNames];
 }
 
 /**
- * 判断工具是否由 Chenille 自行实现（文件工具或网络工具）
+ * 判断工具是否由 Chenille 自行实现（文件工具、网络工具或会话工具）
  */
 export function isChenilleOwnedTool(name: string): boolean {
-	return [...CHENILLE_FILE_TOOLS, ...CHENILLE_WEB_TOOLS, ...DEEPSEEK_TOOL_DEFINITIONS].some(t => t.function.name === name);
+	return [...CHENILLE_FILE_TOOLS, ...CHENILLE_WEB_TOOLS, ...CHENILLE_SESSION_TOOLS, ...DEEPSEEK_TOOL_DEFINITIONS].some(t => t.function.name === name);
 }
 
 /**
@@ -761,7 +891,7 @@ export function isChenilleOwnedTool(name: string): boolean {
  */
 export function getToolByName(name: string): AiTool | undefined {
 	// 先查找 Chenille 自建工具
-	const ownTool = [...CHENILLE_FILE_TOOLS, ...CHENILLE_WEB_TOOLS, ...DEEPSEEK_TOOL_DEFINITIONS].find(t => t.function.name === name);
+	const ownTool = [...CHENILLE_FILE_TOOLS, ...CHENILLE_WEB_TOOLS, ...CHENILLE_SESSION_TOOLS, ...DEEPSEEK_TOOL_DEFINITIONS].find(t => t.function.name === name);
 	if (ownTool) {
 		return ownTool;
 	}
@@ -791,6 +921,7 @@ export function getToolByName(name: string): AiTool | undefined {
 export const CHENILLE_TOOLS: AiTool[] = [
 	...CHENILLE_FILE_TOOLS,
 	...CHENILLE_WEB_TOOLS,
+	...CHENILLE_SESSION_TOOLS,
 	...VSCODE_TOOL_DEFINITIONS.map(def => ({
 		type: 'function' as const,
 		function: {

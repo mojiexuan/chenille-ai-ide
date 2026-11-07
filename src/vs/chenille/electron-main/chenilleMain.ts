@@ -27,6 +27,8 @@ import { GlobalSkillsStorageMainService } from './globalSkillsStorage.js';
 import { CommitMessageMainService } from './commitMessageService.js';
 import { INetworkToolsService, NetworkToolsChannel, NetworkToolsChannelName } from '../common/networkTools.js';
 import { NetworkToolsMainService } from './networkToolsService.js';
+import { IGitWorktreeService, GitWorktreeChannel, GitWorktreeChannelName } from '../common/gitWorktree.js';
+import { GitWorktreeMainService } from './gitWorktreeService.js';
 
 /**
  * Registers the Chenille services that run in the Electron main process.
@@ -44,6 +46,7 @@ export function registerChenilleMainServices(services: ServiceCollection): void 
 	services.set(IGlobalRulesStorageService, new SyncDescriptor(GlobalRulesStorageMainService));
 	services.set(IGlobalSkillsStorageService, new SyncDescriptor(GlobalSkillsStorageMainService));
 	services.set(INetworkToolsService, new SyncDescriptor(NetworkToolsMainService));
+	services.set(IGitWorktreeService, new SyncDescriptor(GitWorktreeMainService));
 }
 
 /**
@@ -82,4 +85,7 @@ export function registerChenilleMainChannels(accessor: ServicesAccessor, mainPro
 
 	const networkToolsChannel = new NetworkToolsChannel(accessor.get(INetworkToolsService));
 	mainProcessElectronServer.registerChannel(NetworkToolsChannelName, networkToolsChannel);
+
+	const gitWorktreeChannel = new GitWorktreeChannel(accessor.get(IGitWorktreeService));
+	mainProcessElectronServer.registerChannel(GitWorktreeChannelName, gitWorktreeChannel);
 }

@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 
 /**
  * 文件工具辅助函数
  */
 
 /**
+ * 文件工具需要的工作区视图。
+ * 可以传入完整的 IWorkspaceContextService，也可以传入按会话工作区构造的视图。
+ */
+export interface IWorkspaceFoldersProvider {
+	getWorkspace(): { readonly folders: readonly { readonly uri: URI }[] };
+}
+
+/**
  * 将相对路径解析为绝对 URI
  */
 export function resolveFilePath(
 	path: string,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): URI {
 	// 如果已经是绝对路径或 URI
 	if (path.startsWith('/') || path.startsWith('\\') || path.includes('://') || /^[a-zA-Z]:/.test(path)) {
@@ -37,7 +44,7 @@ export function resolveFilePath(
  */
 export function toRelativePath(
 	uri: URI,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): string {
 	const workspaceFolders = workspaceService.getWorkspace().folders;
 	if (workspaceFolders.length > 0) {

@@ -61,6 +61,10 @@ export interface IChenilleSessionContext {
 	sessionResource: URI;
 	/** 请求 ID */
 	requestId: string;
+	/** 会话绑定的工作区根目录；缺失时回退到当前窗口工作区 */
+	workspaceRoot?: URI;
+	/** 当前请求选择的模型标识；用于为子会话继承模型 */
+	modelId?: string;
 }
 
 /**

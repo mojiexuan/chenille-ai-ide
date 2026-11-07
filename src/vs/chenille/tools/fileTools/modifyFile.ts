@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from '../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import {
 	FileToolResult,
@@ -25,6 +24,7 @@ import {
 	EditFileResult
 } from './types.js';
 import {
+	IWorkspaceFoldersProvider,
 	resolveFilePath,
 	findMultilineText,
 	replaceText,
@@ -39,7 +39,7 @@ import {
 export async function replaceInFile(
 	params: ReplaceInFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<ReplaceInFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -176,7 +176,7 @@ export async function replaceInFile(
 export async function insertInFile(
 	params: InsertInFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<InsertInFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -242,7 +242,7 @@ export async function insertInFile(
 export async function deleteLines(
 	params: DeleteLinesParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<DeleteLinesResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -310,7 +310,7 @@ export async function deleteLines(
 export async function createFile(
 	params: CreateFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<CreateFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -354,7 +354,7 @@ export async function createFile(
 export async function deleteFile(
 	params: DeleteFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<DeleteFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -407,7 +407,7 @@ export async function deleteFile(
 export async function renameFile(
 	params: RenameFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<RenameFileResult>> {
 	try {
 		const oldUri = resolveFilePath(params.oldPath, workspaceService);
@@ -462,7 +462,7 @@ export async function renameFile(
 export async function editFile(
 	params: EditFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<EditFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);

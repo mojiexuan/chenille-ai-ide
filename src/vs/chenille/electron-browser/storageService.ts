@@ -11,6 +11,7 @@ import {
 } from '../common/storageIpc.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
+import { IGitWorktreeService, GitWorktreeChannelClient, GitWorktreeChannelName } from '../common/gitWorktree.js';
 
 /**
  * Model 存储服务（Browser 端 IPC 客户端）
@@ -67,3 +68,17 @@ class ElectronMcpRuntimeService implements IMcpRuntimeService {
 }
 
 registerSingleton(IMcpRuntimeService, ElectronMcpRuntimeService, InstantiationType.Delayed);
+
+/**
+ * git worktree 服务（Browser 端 IPC 客户端）
+ */
+// @ts-expect-error: interface is implemented via proxy
+class ElectronGitWorktreeService implements IGitWorktreeService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+		return new GitWorktreeChannelClient(mainProcessService.getChannel(GitWorktreeChannelName));
+	}
+}
+
+registerSingleton(IGitWorktreeService, ElectronGitWorktreeService, InstantiationType.Delayed);

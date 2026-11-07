@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorService } from '../../../workbench/services/editor/common/editorService.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, EditorsOrder } from '../../../workbench/common/editor.js';
 import {
 	FileToolResult,
@@ -12,7 +11,7 @@ import {
 	GetOpenEditorsResult,
 	OpenEditorInfo
 } from './types.js';
-import { toRelativePath } from './fileUtils.js';
+import { IWorkspaceFoldersProvider, toRelativePath } from './fileUtils.js';
 
 /**
  * 获取当前打开的编辑器列表
@@ -20,7 +19,7 @@ import { toRelativePath } from './fileUtils.js';
 export async function getOpenEditors(
 	params: GetOpenEditorsParams,
 	editorService: IEditorService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<GetOpenEditorsResult>> {
 	try {
 		const activeOnly = params.activeOnly ?? false;

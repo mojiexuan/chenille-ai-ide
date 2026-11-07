@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from '../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { ISearchService, QueryType } from '../../../workbench/services/search/common/search.js';
 import { URI } from '../../../base/common/uri.js';
 import {
@@ -15,7 +14,7 @@ import {
 	FindFilesParams,
 	FindFilesResult
 } from './types.js';
-import { resolveFilePath, toRelativePath, matchGlob } from './fileUtils.js';
+import { IWorkspaceFoldersProvider, resolveFilePath, toRelativePath, matchGlob } from './fileUtils.js';
 
 const MAX_ENTRIES = 500;
 const MAX_FIND_RESULTS = 200;
@@ -26,7 +25,7 @@ const MAX_FIND_RESULTS = 200;
 export async function listDirectory(
 	params: ListDirectoryParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<ListDirectoryResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -149,7 +148,7 @@ export async function listDirectory(
 export async function findFiles(
 	params: FindFilesParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService,
+	workspaceService: IWorkspaceFoldersProvider,
 	searchService?: ISearchService
 ): Promise<FileToolResult<FindFilesResult>> {
 	try {

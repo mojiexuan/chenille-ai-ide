@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from '../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import {
 	FileToolResult,
 	ReadFileParams,
@@ -15,6 +14,7 @@ import {
 	CheckFileExistsResult
 } from './types.js';
 import {
+	IWorkspaceFoldersProvider,
 	resolveFilePath,
 	countLines,
 	getLineRange,
@@ -42,7 +42,7 @@ const MAX_LINE_LENGTH = 500;
 export async function readFile(
 	params: ReadFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<ReadFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -193,7 +193,7 @@ function formatSize(bytes: number): string {
 export async function getFileInfo(
 	params: GetFileInfoParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<GetFileInfoResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -265,7 +265,7 @@ export async function getFileInfo(
 export async function checkFileExists(
 	params: CheckFileExistsParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<CheckFileExistsResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);

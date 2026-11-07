@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFileService, FileOperationError, FileOperationResult } from '../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { ISearchService, QueryType, ITextQuery } from '../../../workbench/services/search/common/search.js';
 import {
 	FileToolResult,
@@ -15,7 +14,7 @@ import {
 	SearchInFilesResult,
 	FileSearchResult
 } from './types.js';
-import { resolveFilePath, toRelativePath, findAllMatches, splitLines } from './fileUtils.js';
+import { IWorkspaceFoldersProvider, resolveFilePath, toRelativePath, findAllMatches, splitLines } from './fileUtils.js';
 
 const MAX_MATCHES_PER_FILE = 100;
 const MAX_TOTAL_MATCHES = 500;
@@ -27,7 +26,7 @@ const MAX_FILES_TO_SEARCH = 50;
 export async function searchInFile(
 	params: SearchInFileParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService
+	workspaceService: IWorkspaceFoldersProvider
 ): Promise<FileToolResult<SearchInFileResult>> {
 	try {
 		const uri = resolveFilePath(params.path, workspaceService);
@@ -103,7 +102,7 @@ export async function searchInFile(
 export async function searchInFiles(
 	params: SearchInFilesParams,
 	fileService: IFileService,
-	workspaceService: IWorkspaceContextService,
+	workspaceService: IWorkspaceFoldersProvider,
 	searchService?: ISearchService
 ): Promise<FileToolResult<SearchInFilesResult>> {
 	try {
