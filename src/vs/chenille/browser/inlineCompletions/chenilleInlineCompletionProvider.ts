@@ -19,10 +19,12 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { IChenilleInlineCompletionService } from '../../common/inlineCompletionService.js';
 
 /**
- * 上下文获取的最大行数
+ * 上下文获取的最大行数 / 字符数（补全只需要光标附近的上下文）
  */
-const MAX_PREFIX_LINES = 50;
-const MAX_SUFFIX_LINES = 20;
+const MAX_PREFIX_LINES = 20;
+const MAX_SUFFIX_LINES = 10;
+const MAX_PREFIX_CHARS = 3000;
+const MAX_SUFFIX_CHARS = 1500;
 
 /**
  * 防抖延迟（毫秒）
@@ -137,7 +139,15 @@ export class ChenilleInlineCompletionProvider extends Disposable implements Inli
 			position.lineNumber,
 			position.column
 		);
-		return model.getValueInRange(range);
+		const text = model.getValueInRange(range);
+		if (text.length <= MAX_PREFIX_CHARS) {
+			return text;
+		}
+
+		// 保留离光标最近的部分，并从行首开始截断
+		const tail = text.slice(text.length - MAX_PREFIX_CHARS);
+		const firstNewline = tail.indexOf('\n');
+		return firstNewline >= 0 ? tail.slice(firstNewline + 1) : tail;
 	}
 
 	/**
@@ -152,6 +162,14 @@ export class ChenilleInlineCompletionProvider extends Disposable implements Inli
 			endLine,
 			lastLineMaxColumn
 		);
-		return model.getValueInRange(range);
+		const text = model.getValueInRange(range);
+		if (text.length <= MAX_SUFFIX_CHARS) {
+			return text;
+		}
+
+		// 保留离光标最近的部分，并在行尾截断
+		const head = text.slice(0, MAX_SUFFIX_CHARS);
+		const lastNewline = head.lastIndexOf('\n');
+		return lastNewline >= 0 ? head.slice(0, lastNewline) : head;
 	}
 }

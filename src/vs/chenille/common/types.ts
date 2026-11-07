@@ -202,6 +202,10 @@ export interface ChatCompletionOptions {
 	call?: (data: ChatCompletionResult) => void;
 	/** 取消令牌 */
 	token?: { isCancellationRequested: boolean };
+	/** 禁用模型推理（思考）阶段，用于低延迟补全等场景 */
+	disableThinking?: boolean;
+	/** 不注入 MCP 工具，避免补全等轻量请求携带无关工具 */
+	disableMcpTools?: boolean;
 }
 
 /**

@@ -42,6 +42,10 @@ registerProvider(AiProvider.GOOGLE, new GoogleProvider());
  * 合并 MCP 工具到选项中
  */
 function mergeWithMcpTools(options: ChatCompletionOptions): ChatCompletionOptions {
+	if (options.disableMcpTools) {
+		return options;
+	}
+
 	const mcpManager = getMcpManager();
 	const mcpTools = mcpManager.getAllTools();
 

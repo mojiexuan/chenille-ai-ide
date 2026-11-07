@@ -169,7 +169,7 @@ export class AnthropicProvider implements IAIProvider {
 
 		const messages = toAnthropicMessages(options.messages);
 		const tools = toAnthropicTools(options);
-		const isThinking = isThinkingModel(model.model);
+		const isThinking = !options.disableThinking && isThinkingModel(model.model);
 
 		// thinking 模型不支持 temperature 参数
 		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
@@ -241,7 +241,7 @@ export class AnthropicProvider implements IAIProvider {
 
 		const messages = toAnthropicMessages(options.messages);
 		const tools = toAnthropicTools(options);
-		const isThinking = isThinkingModel(model.model);
+		const isThinking = !options.disableThinking && isThinkingModel(model.model);
 
 		// thinking 模型不支持 temperature 参数
 		const temperature = isThinking ? undefined : (Math.min(Math.max(0, model.temperature), 1) || 0.7);
