@@ -8,20 +8,29 @@ import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 
+/**
+ * 需要生成提交消息的变更集合。路径均相对于仓库根目录。
+ */
+export interface ICommitMessageChangeSet {
+	readonly rootPath: string;
+	readonly gitPathHints?: readonly string[];
+	readonly stagedPaths: readonly string[];
+	readonly workingTreePaths: readonly string[];
+	readonly untrackedPaths: readonly string[];
+}
+
 export const ICommitMessageService = createDecorator<ICommitMessageService>('commitMessageService');
 
 /**
  * 提交消息生成服务接口
- * 调用方只需传入 changes，agent 由服务内部加载
+ * 调用方只需传入变更集合，diff 与上下文由服务内部通过 git 收集
  */
 export interface ICommitMessageService {
 	readonly _serviceBrand: undefined;
 
 	readonly onStreamChunk: Event<string>;
 
-	generateCommitMessage(changes: string, token?: CancellationToken): Promise<string>;
-
-	generateCommitMessageStream(changes: string, token?: CancellationToken): Promise<void>;
+	generateCommitMessageStream(changes: ICommitMessageChangeSet, token?: CancellationToken): Promise<void>;
 }
 
 export const CommitMessageChannelName = 'commitMessage';
@@ -41,10 +50,8 @@ export class CommitMessageChannel implements IServerChannel {
 
 	call<T>(_context: unknown, command: string, args?: unknown[], token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
-			case 'generateCommitMessage':
-				return this.service.generateCommitMessage(args?.[0] as string, token) as Promise<T>;
 			case 'generateCommitMessageStream':
-				return this.service.generateCommitMessageStream(args?.[0] as string, token) as Promise<T>;
+				return this.service.generateCommitMessageStream(args?.[0] as ICommitMessageChangeSet, token) as Promise<T>;
 		}
 		throw new Error(`无效的调用命令: ${command}`);
 	}
@@ -62,11 +69,7 @@ export class CommitMessageChannelClient implements ICommitMessageService {
 		this.onStreamChunk = this.channel.listen<string>('onStreamChunk');
 	}
 
-	generateCommitMessage(changes: string, token?: CancellationToken): Promise<string> {
-		return this.channel.call<string>('generateCommitMessage', [changes], token);
-	}
-
-	generateCommitMessageStream(changes: string, token?: CancellationToken): Promise<void> {
+	generateCommitMessageStream(changes: ICommitMessageChangeSet, token?: CancellationToken): Promise<void> {
 		return this.channel.call<void>('generateCommitMessageStream', [changes], token);
 	}
 }

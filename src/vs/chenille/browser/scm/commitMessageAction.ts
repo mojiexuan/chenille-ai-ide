@@ -5,13 +5,14 @@
 
 import { Codicon } from '../../../base/common/codicons.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Action2, MenuId, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../platform/files/common/files.js';
-import { ILogService } from '../../../platform/log/common/log.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../platform/path/common/pathService.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
@@ -49,84 +50,43 @@ registerAction2(class extends Action2 {
 		const scmService = accessor.get(ISCMService);
 		const notificationService = accessor.get(INotificationService);
 		const commitMessageService = accessor.get(ICommitMessageService);
-		const fileService = accessor.get(IFileService);
-		const logService = accessor.get(ILogService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const repository = [...scmService.repositories].find(r => r.provider.rootUri?.toString() === provider.toString());
-		if (!repository) {
+		if (!repository?.provider.rootUri) {
 			return;
 		}
 
-		interface FileChange {
-			uri: URI;
-			relativePath: string;
-			groupId: string;
-		}
-		const fileChanges: FileChange[] = [];
+		const stagedPaths: string[] = [];
+		const workingTreePaths: string[] = [];
+		const untrackedPaths: string[] = [];
 
 		for (const group of context) {
+			const target = group.resourceGroupId === 'index' ? stagedPaths
+				: group.resourceGroupId === 'workingTree' ? workingTreePaths
+					: group.resourceGroupId === 'untracked' ? untrackedPaths
+						: undefined;
+			if (!target) {
+				continue;
+			}
+
 			for (const resource of group.resources) {
-				const relativePath = repository.provider.rootUri
-					? resource.fsPath.replace(repository.provider.rootUri.fsPath, '').replace(/^[/\\]/, '').replace(/\\/g, '/')
-					: resource.fsPath;
-				fileChanges.push({
-					uri: resource,
-					relativePath,
-					groupId: group.resourceGroupId
-				});
+				const path = relativePath(repository.provider.rootUri, resource);
+				if (path) {
+					target.push(path);
+				}
 			}
 		}
 
-		if (fileChanges.length === 0) {
+		if (stagedPaths.length + workingTreePaths.length + untrackedPaths.length === 0) {
 			notificationService.info(nls.localize('chenille.scm.noChanges', "没有检测到代码变更"));
 			return;
 		}
 
+		const gitPathConfig = configurationService.getValue<string | string[] | null>('git.path');
+		const gitPathHints = Array.isArray(gitPathConfig) ? gitPathConfig : gitPathConfig ? [gitPathConfig] : [];
+
 		try {
-			const diffParts: string[] = [];
-
-			for (const change of fileChanges) {
-				try {
-					const isStaged = change.groupId.includes('index') || change.groupId.includes('staged');
-					const isUntracked = change.groupId.includes('untracked');
-
-					let currentContent = '';
-					let fileExists = true;
-					try {
-						const content = await fileService.readFile(change.uri);
-						currentContent = content.value.toString();
-					} catch {
-						fileExists = false;
-					}
-
-					if (isUntracked) {
-						if (currentContent) {
-							const lines = currentContent.split('\n');
-							const maxLines = 80;
-							const preview = lines.slice(0, maxLines).map(l => `+ ${l}`).join('\n');
-							const suffix = lines.length > maxLines ? `\n... (还有 ${lines.length - maxLines} 行)` : '';
-							diffParts.push(`--- /dev/null\n+++ b/${change.relativePath}\n@@ -0,0 +1,${lines.length} @@\n${preview}${suffix}`);
-						} else {
-							diffParts.push(`新文件: ${change.relativePath} (无法读取内容)`);
-						}
-					} else if (!fileExists) {
-						diffParts.push(`删除文件: ${change.relativePath}`);
-					} else {
-						const lines = currentContent.split('\n');
-						const maxLines = 60;
-						const preview = lines.slice(0, maxLines).join('\n');
-						const suffix = lines.length > maxLines ? `\n... (文件共 ${lines.length} 行，已省略部分内容)` : '';
-
-						diffParts.push(`修改文件: ${change.relativePath}${isStaged ? ' (已暂存)' : ''}\n当前内容预览:\n\`\`\`\n${preview}${suffix}\n\`\`\``);
-					}
-				} catch (e) {
-					logService.warn(`[Chenille] 处理文件 ${change.relativePath} 失败: ${e}`);
-					diffParts.push(`文件: ${change.relativePath} (处理失败)`);
-				}
-			}
-
-			const diffSummary = `以下是本次提交的变更信息：\n\n变更文件数: ${fileChanges.length}\n\n${diffParts.join('\n\n---\n\n')}`;
-
 			repository.input.setValue('', false);
 
 			let content = '';
@@ -139,7 +99,13 @@ registerAction2(class extends Action2 {
 			});
 
 			try {
-				await commitMessageService.generateCommitMessageStream(diffSummary, token);
+				await commitMessageService.generateCommitMessageStream({
+					rootPath: repository.provider.rootUri.fsPath,
+					gitPathHints,
+					stagedPaths,
+					workingTreePaths,
+					untrackedPaths,
+				}, token);
 			} finally {
 				disposable.dispose();
 			}
