@@ -22,6 +22,8 @@ import { IProjectRulesService, ProjectRulesService } from './rules/projectRulesS
 import { IProjectSkillsService, ProjectSkillsService } from './skills/projectSkillsService.js';
 import { ISkillService } from '../common/skills.js';
 import { SkillService } from './skills/skillService.js';
+import { IMemoryService } from '../common/memory.js';
+import { ChenilleMemoryService } from './memory/memoryService.js';
 import { ChenilleLanguageModelContribution } from './languageModel/chenilleLanguageModelContribution.js';
 import { registerChenilleDefaultConfigurations, registerChenilleMenu } from './chenilleShellContribution.js';
 
@@ -60,6 +62,7 @@ registerSingleton(IChenilleDiffSessionService, ChenilleDiffSessionService, Insta
 registerSingleton(IProjectRulesService, ProjectRulesService, InstantiationType.Delayed);
 registerSingleton(IProjectSkillsService, ProjectSkillsService, InstantiationType.Delayed);
 registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
+registerSingleton(IMemoryService, ChenilleMemoryService, InstantiationType.Delayed);
 
 // 注册 Chenille Agent 到 VS Code Chat 系统
 registerWorkbenchContribution2(ChenilleAgentContribution.ID, ChenilleAgentContribution, WorkbenchPhase.AfterRestored);

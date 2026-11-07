@@ -21,6 +21,8 @@ import { ChatAgentLocation } from '../../../workbench/contrib/chat/common/consta
 import { IChatSession, IChatSessionContentProvider, IChatSessionsService } from '../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsProvidersService } from '../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 import { ISkillService } from '../../common/skills.js';
+import { IMemoryService } from '../../common/memory.js';
+import { ChenilleMemoryService } from '../../browser/memory/memoryService.js';
 import { IChenilleToolDispatcher, ChenilleToolDispatcher } from '../../tools/dispatcher.js';
 import { IChenilleDiffSessionService } from '../../browser/diffSession/chenilleDiffSession.js';
 import { ChenilleDiffSessionService } from '../../browser/diffSession/chenilleDiffSessionService.js';
@@ -70,6 +72,7 @@ registerSingleton(IChenilleDiffSessionService, ChenilleDiffSessionService, Insta
 registerSingleton(IProjectRulesService, ProjectRulesService, InstantiationType.Delayed);
 registerSingleton(IProjectSkillsService, ProjectSkillsService, InstantiationType.Delayed);
 registerSingleton(ISkillService, SkillService, InstantiationType.Delayed);
+registerSingleton(IMemoryService, ChenilleMemoryService, InstantiationType.Delayed);
 
 /** 把 Chenille 的模型与 Agent 注册到 Agents 窗口 */
 registerWorkbenchContribution2(ChenilleLanguageModelContribution.ID, ChenilleLanguageModelContribution, WorkbenchPhase.AfterRestored);

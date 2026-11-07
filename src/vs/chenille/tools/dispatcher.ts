@@ -72,6 +72,8 @@ import {
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IChenilleDiffSessionService } from '../browser/diffSession/index.js';
 import { INetworkToolsService } from '../common/networkTools.js';
+import { IMemoryService } from '../common/memory.js';
+import { isEqualOrParent } from '../../base/common/resources.js';
 import { IMarkerService, MarkerSeverity } from '../../platform/markers/common/markers.js';
 import { generateUuid } from '../../base/common/uuid.js';
 
@@ -410,6 +412,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 		@ISearchService private readonly searchService: ISearchService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
+		@IMemoryService private readonly memoryService: IMemoryService,
 		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
@@ -525,7 +528,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 			// 检查是否为 Chenille 文件工具
 			else if (isChenilleFileTool(toolName)) {
 				result = await withTimeout(
-					this.dispatchFileTools(toolName, toolCall, this.getWorkspaceProvider(sessionContext)),
+					this.dispatchFileTools(toolName, toolCall, this.getWorkspaceProvider(sessionContext), sessionContext),
 					TOOL_TIMEOUT,
 					toolName
 				);
@@ -551,6 +554,15 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	}
 
 	/**
+	 * 获取当前会话工作区对应的记忆目录。
+	 */
+	private async getMemoryDir(sessionContext?: IChenilleSessionContext): Promise<URI | undefined> {
+		return this.memoryService.getMemoryDir(
+			sessionContext?.workspaceRoot ?? this.workspaceService.getWorkspace().folders[0]?.uri
+		);
+	}
+
+	/**
 	 * 按会话工作区构造文件工具使用的工作区视图。
 	 * Agents 窗口中的会话可能绑定到与当前窗口不同的文件夹，相对路径必须基于会话工作区解析。
 	 */
@@ -565,8 +577,20 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 	/**
 	 * 调度 Chenille 文件工具
 	 */
-	private async dispatchFileTools(toolName: string, toolCall: ToolCall, workspaceService: IWorkspaceFoldersProvider): Promise<IToolResult> {
+	private async dispatchFileTools(toolName: string, toolCall: ToolCall, workspaceService: IWorkspaceFoldersProvider, sessionContext?: IChenilleSessionContext): Promise<IToolResult> {
 		try {
+			const memoryDir = await this.getMemoryDir(sessionContext);
+			// 记忆文件需要像 Claude 一样自动保存，不进入 diff 确认流程。
+			const shouldUseDiff = (path: string): boolean => {
+				if (!this.diffModeEnabled) {
+					return false;
+				}
+				if (!memoryDir) {
+					return true;
+				}
+				return !isEqualOrParent(resolveFilePath(path, workspaceService), memoryDir);
+			};
+
 			let result: FileToolResult<unknown>;
 
 			switch (toolName) {
@@ -639,7 +663,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					// 如果启用 diff 模式，使用 diff session
-					if (this.diffModeEnabled) {
+					if (shouldUseDiff(parsed.data.path)) {
 						return await this.dispatchReplaceWithDiff(parsed.data, workspaceService);
 					}
 					result = await replaceInFile(parsed.data, this.fileService, workspaceService);
@@ -652,7 +676,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					// 如果启用 diff 模式，使用 diff session
-					if (this.diffModeEnabled) {
+					if (shouldUseDiff(parsed.data.path)) {
 						return await this.dispatchInsertWithDiff(parsed.data, workspaceService);
 					}
 					result = await insertInFile(parsed.data, this.fileService, workspaceService);
@@ -665,7 +689,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					// 如果启用 diff 模式，使用 diff session
-					if (this.diffModeEnabled) {
+					if (shouldUseDiff(parsed.data.path)) {
 						return await this.dispatchDeleteWithDiff(parsed.data, workspaceService);
 					}
 					result = await deleteLines(parsed.data, this.fileService, workspaceService);
@@ -678,7 +702,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					// 如果启用 diff 模式，使用 diff session
-					if (this.diffModeEnabled && parsed.data.content) {
+					if (shouldUseDiff(parsed.data.path) && parsed.data.content) {
 						return await this.dispatchCreateWithDiff(parsed.data, workspaceService);
 					}
 					result = await createFile(parsed.data, this.fileService, workspaceService);
@@ -730,7 +754,7 @@ export class ChenilleToolDispatcher extends Disposable implements IChenilleToolD
 						return { success: false, content: '', error: parsed.error };
 					}
 					// 如果启用 diff 模式，使用 diff session
-					if (this.diffModeEnabled) {
+					if (shouldUseDiff(parsed.data.path)) {
 						return await this.dispatchEditWithDiff(parsed.data, workspaceService);
 					}
 					result = await editFile(parsed.data, this.fileService, workspaceService);

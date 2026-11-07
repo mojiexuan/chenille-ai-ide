@@ -50,10 +50,13 @@ import {
 	ToolProgress,
 	CountTokensCallback,
 	IPreparedToolInvocation,
+	IToolInvocationPreparationContext,
 } from '../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
 import { IProjectRulesService } from '../rules/projectRulesService.js';
 import { ISkillService } from '../../common/skills.js';
+import { IMemoryService } from '../../common/memory.js';
+import { buildMemoryPrompt } from '../memory/memoryPrompt.js';
 import { CHENILLE_AGENT_ID, fromChenilleModelIdentifier } from '../../common/modelIdentifier.js';
 import { IChenilleSessionContext } from '../../common/chatProvider.js';
 
@@ -125,6 +128,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IProjectRulesService private readonly projectRulesService: IProjectRulesService,
 		@ISkillService private readonly skillService: ISkillService,
+		@IMemoryService private readonly memoryService: IMemoryService,
 		@ILogService private readonly logService: ILogService,
 		@INetworkToolsService private readonly networkToolsService: INetworkToolsService,
 	) {
@@ -149,22 +153,6 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		const isAgentMode = this.isAgentMode(request);
 		const isNewSession = history.length === 0;
 
-		// 新会话时获取合并后的规则（全局 + 项目）
-		let mergedRules: string | undefined;
-		let skillsPrompt: string | undefined;
-		if (isNewSession) {
-			mergedRules = await this.projectRulesService.getMergedRules();
-			if (mergedRules) {
-				this.logService.info('[Chenille Agent] 已加载规则');
-			}
-
-			// 获取 Skills 元数据
-			skillsPrompt = await this.skillService.getSkillsPrompt();
-			if (skillsPrompt) {
-				this.logService.info('[Chenille Agent] 已加载技能元数据');
-			}
-		}
-
 		const messages = this.buildMessages(request, history);
 		const selectedModelName = fromChenilleModelIdentifier(request.userSelectedModelId);
 
@@ -177,8 +165,34 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			modelId: request.userSelectedModelId,
 		};
 
+		// 新会话时获取合并后的规则（全局 + 项目）、技能元数据与项目记忆
+		let mergedRules: string | undefined;
+		let skillsPrompt: string | undefined;
+		let memoryPrompt: string | undefined;
+		if (isNewSession) {
+			mergedRules = await this.projectRulesService.getMergedRules();
+			if (mergedRules) {
+				this.logService.info('[Chenille Agent] 已加载规则');
+			}
+
+			// 获取 Skills 元数据
+			skillsPrompt = await this.skillService.getSkillsPrompt();
+			if (skillsPrompt) {
+				this.logService.info('[Chenille Agent] 已加载技能元数据');
+			}
+
+			// 加载当前项目记忆（Ask 模式只读取索引）
+			if (request.location === ChatAgentLocation.Chat) {
+				const memoryContext = await this.memoryService.getMemoryContext(sessionContext.workspaceRoot);
+				if (memoryContext) {
+					memoryPrompt = buildMemoryPrompt(memoryContext, isAgentMode);
+					this.logService.info('[Chenille Agent] 已加载项目记忆');
+				}
+			}
+		}
+
 		try {
-			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, selectedModelName, mergedRules, skillsPrompt);
+			const result = await this.executeWithToolLoop(messages, isAgentMode, progress, token, sessionContext, selectedModelName, mergedRules, skillsPrompt, memoryPrompt);
 			return result;
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -648,7 +662,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		sessionContext: IChenilleSessionContext,
 		modelName: string | undefined,
 		projectRules?: string,
-		skillsPrompt?: string
+		skillsPrompt?: string,
+		memoryPrompt?: string
 	): Promise<IChatAgentResult> {
 		const tools = enableTools ? await this.getAvailableTools() : undefined;
 		let toolRound = 0;
@@ -658,10 +673,11 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 				return {};
 			}
 
-			// 只在第一轮传递项目规则和技能提示
+			// 只在第一轮传递项目规则、记忆和技能提示
 			const rulesForThisRound = toolRound === 0 ? projectRules : undefined;
+			const memoryForThisRound = toolRound === 0 ? memoryPrompt : undefined;
 			const skillsForThisRound = toolRound === 0 ? skillsPrompt : undefined;
-			const roundResult = await this.executeOneRound(messages, tools, progress, token, modelName, rulesForThisRound, skillsForThisRound);
+			const roundResult = await this.executeOneRound(messages, tools, progress, token, modelName, rulesForThisRound, skillsForThisRound, memoryForThisRound);
 
 			// 无工具调用，对话结束
 			if (!roundResult.toolCalls?.length) {
@@ -700,7 +716,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		token: CancellationToken,
 		modelName: string | undefined,
 		projectRules?: string,
-		skillsPrompt?: string
+		skillsPrompt?: string,
+		memoryPrompt?: string
 	): Promise<{ content: string; toolCalls?: AiToolCall[]; reasoning?: string; reasoning_signature?: string }> {
 		const requestId = generateUuid();
 		let content = '';
@@ -708,10 +725,13 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		let reasoning = '';
 		let reasoning_signature = '';
 
-		// 构建自定义系统提示（包含项目规则和技能提示）
+		// 构建自定义系统提示（包含项目规则、记忆和技能提示）
 		const promptParts: string[] = [];
 		if (projectRules) {
 			promptParts.push(`<project_rules>\n以下是项目规则，请在回答时遵循这些规则：\n\n${projectRules}\n</project_rules>`);
+		}
+		if (memoryPrompt) {
+			promptParts.push(memoryPrompt);
 		}
 		if (skillsPrompt) {
 			promptParts.push(skillsPrompt);
@@ -1277,6 +1297,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			context: {
 				sessionResource: sessionContext.sessionResource,
 				requestId: sessionContext.requestId,
+				workingDirectory: sessionContext.workspaceRoot,
 			},
 			chatRequestId: sessionContext.requestId,
 			modelId: undefined,
@@ -1343,6 +1364,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			context: {
 				sessionResource: sessionContext.sessionResource,
 				requestId: sessionContext.requestId,
+				workingDirectory: sessionContext.workspaceRoot,
 			},
 			chatRequestId: sessionContext.requestId,
 			modelId: undefined,
@@ -1390,6 +1412,7 @@ class ChenilleFileToolWrapper implements IToolImpl {
 	constructor(
 		private readonly toolDef: AiTool,
 		private readonly toolDispatcher: IChenilleToolDispatcher,
+		private readonly memoryService: IMemoryService,
 	) { }
 
 	async invoke(
@@ -1425,7 +1448,7 @@ class ChenilleFileToolWrapper implements IToolImpl {
 	}
 
 	async prepareToolInvocation(
-		_context: unknown,
+		context: IToolInvocationPreparationContext,
 		_token: CancellationToken
 	): Promise<IPreparedToolInvocation | undefined> {
 		// 文件修改工具需要确认
@@ -1439,7 +1462,11 @@ class ChenilleFileToolWrapper implements IToolImpl {
 			'notebookEdit',
 		].includes(this.toolDef.function.name);
 
-		if (needsConfirmation) {
+		// 记忆文件需要自动保存，跳过确认
+		const isMemoryFile = needsConfirmation
+			&& await this.isMemoryFile(context.parameters?.path, context.workingDirectory);
+
+		if (needsConfirmation && !isMemoryFile) {
 			return {
 				invocationMessage: new MarkdownString(localize('chenille.tool.invoking', '正在调用 {0}...', this.toolDef.function.name)),
 				confirmationMessages: {
@@ -1453,6 +1480,22 @@ class ChenilleFileToolWrapper implements IToolImpl {
 		return {
 			invocationMessage: new MarkdownString(localize('chenille.tool.invoking', '正在调用 {0}...', this.toolDef.function.name)),
 		};
+	}
+
+	private async isMemoryFile(path: unknown, workingDirectory: URI | undefined): Promise<boolean> {
+		if (typeof path !== 'string' || !workingDirectory) {
+			return false;
+		}
+
+		const memoryDir = await this.memoryService.getMemoryDir(workingDirectory);
+		if (!memoryDir) {
+			return false;
+		}
+
+		const normalize = (value: string) => value.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+		const target = normalize(path);
+		const dir = normalize(memoryDir.fsPath);
+		return target === dir || target.startsWith(`${dir}\\`);
 	}
 }
 
@@ -1469,6 +1512,7 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IChenilleToolDispatcher private readonly toolDispatcher: IChenilleToolDispatcher,
+		@IMemoryService private readonly memoryService: IMemoryService,
 	) {
 		super();
 		this.registerAgent();
@@ -1507,7 +1551,7 @@ export class ChenilleAgentContribution extends Disposable implements IWorkbenchC
 				icon: Codicon.file,
 			};
 
-			const toolImpl = new ChenilleFileToolWrapper(toolDef, this.toolDispatcher);
+			const toolImpl = new ChenilleFileToolWrapper(toolDef, this.toolDispatcher, this.memoryService);
 			this._register(this.toolsService.registerTool(toolData, toolImpl));
 		}
 	}
