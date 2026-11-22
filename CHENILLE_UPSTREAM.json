@@ -41,6 +41,7 @@
 			"src/vs/workbench/contrib/scm/browser/scmInput.ts": "把提交消息生成委托给 Chenille 命令",
 			"src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts": "关闭 GitHub Copilot 登录与设置入口",
 			"src/vs/workbench/contrib/chat/common/participants/chatAgents.ts": "Chenille 下优先使用核心 Agent，避免内置 Copilot Chat 扩展抢占默认 Agent",
+			"src/vs/workbench/services/extensionManagement/common/extensionManagementService.ts": "安装扩展时跳过 Open VSX 发布者信任确认",
 			"src/vs/workbench/workbench.desktop.main.ts": "加载 Chenille 贡献",
 			"src/vs/sessions/sessions.desktop.main.ts": "加载 Chenille Agents 窗口贡献",
 			"src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts": "Agents 窗口不注册需要 GitHub 登录的 Copilot Cloud 会话提供者",

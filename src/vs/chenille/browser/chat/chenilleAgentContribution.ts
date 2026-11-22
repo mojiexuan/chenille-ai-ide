@@ -39,7 +39,7 @@ import { IChenilleToolDispatcher, isChenilleFileTool, isNetworkTool, isSessionTo
 import { INetworkToolsService } from '../../common/networkTools.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
-import { isImageVariableEntry, IImageVariableEntry } from '../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { isImageVariableEntry, isPasteVariableEntry, IImageVariableEntry } from '../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import {
 	ILanguageModelToolsService,
 	IToolData,
@@ -249,6 +249,7 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 	 */
 	private buildCurrentMessage(request: IChatAgentRequest): AiModelMessage {
 		const imageContents: AiMessageContent[] = [];
+		const content = this.appendPastedAttachments(request.message, request);
 
 		// 检查 variables 中是否有图片附件
 		if (request.variables?.variables) {
@@ -267,16 +268,37 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 		if (imageContents.length > 0) {
 			return {
 				role: 'user',
-				content: request.message,
+				content,
 				multiContent: [
-					{ type: 'text', text: request.message },
+					{ type: 'text', text: content },
 					...imageContents
 				]
 			};
 		}
 
 		// 无图片，返回纯文本消息
-		return { role: 'user', content: request.message };
+		return { role: 'user', content };
+	}
+
+	/**
+	 * 把粘贴文本附件（kind: 'paste'）的内容拼进用户消息。
+	 * 这类附件的正文只存在于 variables 里，消息文本中只有 #attachment:... 占位符。
+	 */
+	private appendPastedAttachments(message: string, request: IChatAgentRequest): string {
+		const blocks: string[] = [];
+		for (const variable of request.variables?.variables ?? []) {
+			if (isPasteVariableEntry(variable)) {
+				const language = variable.language || 'plaintext';
+				blocks.push(`<attachment name="${variable.name}" language="${language}">\n${variable.code}\n</attachment>`);
+			}
+		}
+
+		if (!blocks.length) {
+			return message;
+		}
+
+		this.logService.info(`[Chenille Agent] 已附加粘贴文本 ${blocks.length} 段`);
+		return `${message}\n\n${blocks.join('\n\n')}`;
 	}
 
 	/**
@@ -354,8 +376,8 @@ export class ChenilleAgentImpl extends Disposable implements IChatAgentImplement
 			return { valid: false, reason: '只包含错误信息' };
 		}
 
-		// 4. 添加用户消息
-		result.push({ role: 'user', content: entry.request.message });
+		// 4. 添加用户消息（含粘贴文本附件）
+		result.push({ role: 'user', content: this.appendPastedAttachments(entry.request.message, entry.request) });
 
 		// 5. 处理工具调用
 		if (toolInvocations.length > 0) {

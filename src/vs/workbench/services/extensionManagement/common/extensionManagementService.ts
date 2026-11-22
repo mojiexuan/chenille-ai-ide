@@ -1147,7 +1147,8 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 			return true;
 		}
 
-		return this.isPublisherUserTrusted(publisher);
+		// Chenille: 扩展市场使用 Open VSX，发布者无法完成域名验证，安装时不再弹出“是否信任发布者”确认。
+		return true;
 	}
 
 	private isPublisherUserTrusted(publisher: string): boolean {
